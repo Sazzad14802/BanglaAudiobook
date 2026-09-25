@@ -4,7 +4,7 @@ A mono-repo containing the two core services of the audiobook streaming platform
 
 ```
 audiobook-platform/
-├── app/              # React Native mobile app (iOS & Android)
+├── app/              # Expo (React Native) mobile app — runs via Expo Go
 └── platform-api/     # FastAPI backend
 ```
 
@@ -15,7 +15,7 @@ audiobook-platform/
 ## Architecture
 
 ```
-React Native App
+React Native App (Expo Go)
        │
        ▼
 Platform API (FastAPI)
@@ -29,7 +29,9 @@ Model Runner  ← separate service
 
 ---
 
-## 1. `app/` — React Native Mobile App
+## 1. `app/` — Expo Mobile App
+
+Uses the **Expo managed workflow** — run instantly on your phone with the [Expo Go](https://expo.dev/go) app, no native build required.
 
 ### Prerequisites
 
@@ -37,39 +39,33 @@ Model Runner  ← separate service
 |------|-------------------|
 | Node.js | ≥ 18 |
 | npm | ≥ 10 |
-| Java JDK | 17 or 21 (Android) |
-| Android Studio | Latest stable (for Android emulator) |
-| Xcode | Latest stable (for iOS, macOS only) |
-| CocoaPods | Latest stable (for iOS, macOS only) |
+| Expo Go app | Latest (install on your iOS or Android phone) |
 
 ### Install dependencies
 
 ```bash
 cd app
 npm install
-# macOS only — install iOS pods:
-cd ios && bundle exec pod install && cd ..
 ```
 
-### Run on Android
+### Start the development server
 
 ```bash
 cd app
-npx react-native run-android
+npm start
+# or: npx expo start
 ```
 
-### Run on iOS (macOS only)
+This prints a **QR code** in the terminal. Scan it with:
+- **Android**: the Expo Go app
+- **iOS**: the Camera app (or Expo Go)
+
+### Run on Android emulator / iOS simulator
 
 ```bash
-cd app
-npx react-native run-ios
-```
-
-### Start the Metro bundler separately (optional)
-
-```bash
-cd app
-npx react-native start
+npm run android   # requires Android emulator running
+npm run ios       # macOS only, requires iOS simulator
+npm run web       # runs in browser
 ```
 
 ---
