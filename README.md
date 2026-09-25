@@ -135,16 +135,19 @@ pytest
 
 ## Development Status
 
-| Feature | `app/` | `platform-api/` |
-|---------|--------|-----------------|
-| Project scaffold | ✅ | ✅ |
-| Health check | — | ✅ |
-| Authentication | 🔜 | 🔜 |
-| Audiobook discovery | 🔜 | 🔜 |
-| Audiobook library | 🔜 | 🔜 |
-| Search | 🔜 | 🔜 |
-| Audiobook details | 🔜 | 🔜 |
-| Audio player / streaming | 🔜 | 🔜 |
-| Upload | 🔜 | 🔜 |
-| Generation jobs | 🔜 | 🔜 |
-| User profile | 🔜 | 🔜 |
+| Feature | `app/` (Expo Go) | `platform-api/` (FastAPI) |
+|---|---|---|
+| Project scaffold | ✅ Completed | ✅ Completed |
+| Health check & Docs | — | ✅ Completed (`/health`, `/docs`) |
+| Authentication (JWT & bcrypt) | 🔜 Next phase | ✅ Completed |
+| User profile (`/me`) | 🔜 Next phase | ✅ Completed |
+| Audiobook CRUD & metadata | 🔜 Next phase | ✅ Completed |
+| PUBLIC / PRIVATE visibility | 🔜 Next phase | ✅ Completed |
+| Public discovery (leak-proof) | 🔜 Next phase | ✅ Completed |
+| Chapters & metadata | 🔜 Next phase | ✅ Completed |
+| Source PDF upload (storage abstraction) | 🔜 Next phase | ✅ Completed |
+| Generation job dispatch & status | 🔜 Next phase | ✅ Completed |
+| Personal library (save / remove) | 🔜 Next phase | ✅ Completed |
+| Playback progress tracking | 🔜 Next phase | ✅ Completed |
+| Model Runner integration boundary | — | ✅ Completed (contract defined) |
+

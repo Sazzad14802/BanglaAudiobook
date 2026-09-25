@@ -1,10 +1,9 @@
 """
-Application configuration.
-
-Settings are loaded from environment variables (and optionally a .env file).
-Extend this file as features are added (database URL, JWT secrets, etc.).
+Application configuration using pydantic-settings.
+All credentials and environment variables are loaded here.
 """
 
+from typing import Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -26,8 +25,7 @@ class Settings(BaseSettings):
     PORT: int = 8000
 
     # ── CORS ───────────────────────────────────────────────────────────────
-    # Comma-separated list of allowed origins.
-    # Example: "http://localhost:3000,http://localhost:19000"
+    # Comma-separated list of allowed origins, or "*"
     ALLOWED_ORIGINS: str = "*"
 
     @property
@@ -35,6 +33,40 @@ class Settings(BaseSettings):
         if self.ALLOWED_ORIGINS == "*":
             return ["*"]
         return [o.strip() for o in self.ALLOWED_ORIGINS.split(",") if o.strip()]
+
+    # ── Database ───────────────────────────────────────────────────────────
+    # Async connection string for FastAPI application (SQLAlchemy AsyncEngine)
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:12345@localhost:5432/audiobook_db"
+    
+    # Sync connection string for Alembic migrations (optional override)
+    SYNC_DATABASE_URL: Optional[str] = None
+
+    @property
+    def sync_database_url(self) -> str:
+        """Returns a synchronous database URL for Alembic migrations."""
+        if self.SYNC_DATABASE_URL:
+            return self.SYNC_DATABASE_URL
+        # Replace async driver with sync driver (psycopg)
+        url = self.DATABASE_URL
+        if "+asyncpg" in url:
+            return url.replace("+asyncpg", "+psycopg")
+        if "+aiosqlite" in url:
+            return url.replace("+aiosqlite", "")
+        return url
+
+    # ── Security & Authentication ──────────────────────────────────────────
+    JWT_SECRET_KEY: str = "insecure-development-secret-key-change-in-production-1234567890"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
+
+    # ── Storage ────────────────────────────────────────────────────────────
+    STORAGE_TYPE: str = "local"  # "local", future: "s3"
+    UPLOAD_DIR: str = "uploads"
+    MAX_UPLOAD_SIZE_MB: int = 50
+
+    # ── Model Runner Dispatcher ────────────────────────────────────────────
+    # Dispatcher strategy for AI Model Runner boundary
+    MODEL_RUNNER_DISPATCHER: str = "mock"  # "mock", future: "redis", "http"
 
 
 settings = Settings()
