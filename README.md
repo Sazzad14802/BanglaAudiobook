@@ -1,10 +1,10 @@
-# Audiobook Streaming Platform
+# Bangla AudioBook Platform
 
-A mono-repo containing the two core services of the audiobook streaming platform.
+A mono-repo containing the two core services of the **Bangla AudioBook** community-driven audiobook platform.
 
 ```
 audiobook-platform/
-├── app/              # Expo (React Native) mobile app — runs via Expo Go
+├── app/              # Expo (React Native + TypeScript) mobile app — runs via Expo Go
 └── platform-api/     # FastAPI backend
 ```
 
@@ -18,13 +18,19 @@ audiobook-platform/
 React Native App (Expo Go)
        │
        ▼
-Platform API (FastAPI)
+Platform API (FastAPI)          ← HTTP/HTTPS
        │
        ▼
 Queue / Job System
        │
        ▼
 Model Runner  ← separate service
+       │
+       ▼
+Object Storage / CDN
+       │
+       ▼ (audio_url)
+React Native Player
 ```
 
 ---
@@ -32,6 +38,48 @@ Model Runner  ← separate service
 ## 1. `app/` — Expo Mobile App
 
 Uses the **Expo managed workflow** — run instantly on your phone with the [Expo Go](https://expo.dev/go) app, no native build required.
+
+### Tech Stack
+
+| Technology | Purpose |
+|---|---|
+| React Native + TypeScript | Core mobile framework |
+| Expo (managed workflow) | Build tooling + native module access |
+| React Navigation | Screen navigation (native-stack + bottom-tabs) |
+| expo-audio | Modern audio playback (New Architecture & Expo Go compatible) |
+| expo-secure-store | Secure JWT token storage |
+| expo-document-picker | PDF file picker |
+
+### Project Structure
+
+```
+app/src/
+├── api/            # Typed API client modules (auth, audiobooks, library, playback, generation)
+├── components/     # Reusable UI components (AudiobookCard, ChapterItem, AudioPlayer, …)
+├── contexts/       # AuthContext (session), PlayerContext (audio playback)
+├── navigation/     # AppNavigator, AuthNavigator, MainNavigator
+├── screens/        # All screens grouped by feature
+│   ├── auth/       # LoginScreen, RegisterScreen
+│   ├── home/       # HomeScreen (public discovery)
+│   ├── audiobook/  # AudiobookDetailsScreen, ChapterListScreen, PlayerScreen
+│   ├── library/    # LibraryScreen
+│   ├── create/     # CreateAudiobookScreen, UploadSourceScreen, GenerationStatusScreen
+│   └── profile/    # ProfileScreen
+├── storage/        # authStorage (secure token persistence)
+├── types/          # TypeScript interfaces mirroring API schemas
+├── config.ts       # Centralized API base URL configuration
+└── theme.ts        # Design tokens (colors, spacing, fonts, radii)
+```
+
+### API URL Configuration
+
+Edit **`src/config.ts`** to set the correct base URL for your environment:
+
+| Environment | Value |
+|---|---|
+| Android emulator | `http://10.0.2.2:8000` (default) |
+| iOS simulator | `http://localhost:8000` |
+| Physical device | `http://<YOUR_LAN_IP>:8000` |
 
 ### Prerequisites
 
@@ -65,7 +113,7 @@ This prints a **QR code** in the terminal. Scan it with:
 ```bash
 npm run android   # requires Android emulator running
 npm run ios       # macOS only, requires iOS simulator
-npm run web       # runs in browser
+npm run web       # runs in browser (limited audio support)
 ```
 
 ---
@@ -77,6 +125,7 @@ npm run web       # runs in browser
 | Tool | Recommended version |
 |------|-------------------|
 | Python | 3.11+ |
+| PostgreSQL | 14+ (tested on 18) |
 
 ### Set up the virtual environment
 
@@ -104,7 +153,7 @@ pip install -r requirements-dev.txt
 
 ```bash
 cp .env.example .env
-# Edit .env as needed
+# Edit .env as needed (database URL, JWT secret, etc.)
 ```
 
 ### Run the development server
@@ -139,15 +188,16 @@ pytest
 |---|---|---|
 | Project scaffold | ✅ Completed | ✅ Completed |
 | Health check & Docs | — | ✅ Completed (`/health`, `/docs`) |
-| Authentication (JWT & bcrypt) | 🔜 Next phase | ✅ Completed |
-| User profile (`/me`) | 🔜 Next phase | ✅ Completed |
-| Audiobook CRUD & metadata | 🔜 Next phase | ✅ Completed |
-| PUBLIC / PRIVATE visibility | 🔜 Next phase | ✅ Completed |
-| Public discovery (leak-proof) | 🔜 Next phase | ✅ Completed |
-| Chapters & metadata | 🔜 Next phase | ✅ Completed |
-| Source PDF upload (storage abstraction) | 🔜 Next phase | ✅ Completed |
-| Generation job dispatch & status | 🔜 Next phase | ✅ Completed |
-| Personal library (save / remove) | 🔜 Next phase | ✅ Completed |
-| Playback progress tracking | 🔜 Next phase | ✅ Completed |
+| Authentication (JWT & bcrypt) | ✅ Completed | ✅ Completed |
+| User profile (`/me`) | ✅ Completed | ✅ Completed |
+| Audiobook CRUD & metadata | ✅ Completed | ✅ Completed |
+| PUBLIC / PRIVATE visibility | ✅ Completed | ✅ Completed |
+| Public discovery (leak-proof) | ✅ Completed | ✅ Completed |
+| Chapters & metadata | ✅ Completed | ✅ Completed |
+| Source PDF upload (storage abstraction) | ✅ Completed | ✅ Completed |
+| Generation job dispatch & status | ✅ Completed | ✅ Completed |
+| Generation status polling | ✅ Completed | ✅ Completed |
+| Personal library (save / remove) | ✅ Completed | ✅ Completed |
+| Audio playback (expo-av) | ✅ Completed | ✅ Completed |
+| Playback progress tracking | ✅ Completed | ✅ Completed |
 | Model Runner integration boundary | — | ✅ Completed (contract defined) |
-
