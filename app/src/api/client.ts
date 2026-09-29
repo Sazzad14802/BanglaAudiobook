@@ -17,6 +17,7 @@ export class ApiError extends Error {
   ) {
     super(detail);
     this.name = 'ApiError';
+    Object.setPrototypeOf(this, ApiError.prototype);
   }
 }
 
@@ -113,11 +114,19 @@ export const apiClient = {
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
-    const response = await fetch(`${API_V1}${path}`, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
-    return handleResponse<T>(response);
+    try {
+      const response = await fetch(`${API_V1}${path}`, {
+        method: 'POST',
+        headers,
+        body: formData,
+      });
+      return await handleResponse<T>(response);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        throw err;
+      }
+      const message = (err as Error)?.message || 'Network request failed';
+      throw new ApiError(0, `Upload network error: ${message}. Server at ${API_V1}`);
+    }
   },
 };

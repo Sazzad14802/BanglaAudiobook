@@ -1,14 +1,13 @@
 # Bangla AudioBook Platform
 
-A mono-repo containing the two core services of the **Bangla AudioBook** community-driven audiobook platform.
+A mono-repo containing the core services of the **Bangla AudioBook** community-driven audiobook platform.
 
 ```
 audiobook-platform/
 ├── app/              # Expo (React Native + TypeScript) mobile app — runs via Expo Go
-└── platform-api/     # FastAPI backend
+├── platform-api/     # FastAPI Platform API backend
+└── tts-service/      # FastAPI AI TTS Service (Bangla VITS & XTTS v2 TTS synthesis)
 ```
-
-> **Note:** The Model Runner (OCR / TTS / FFmpeg) is a separate service developed independently and is **not** part of this repository.
 
 ---
 
@@ -18,19 +17,18 @@ audiobook-platform/
 React Native App (Expo Go)
        │
        ▼
-Platform API (FastAPI)          ← HTTP/HTTPS
+Platform API (FastAPI) [Port: 8000]
        │
-       ▼
-Queue / Job System
+       ▼ (HTTP / Webhook Dispatch)
+TTS Service (FastAPI) [Port: 8001]
+   ├── Bangla VITS (EMTIAZZ/bangladeshi-bangla-tts-vits)
+   └── Coqui XTTS v2 (multilingual voice cloning & expressive speech)
        │
-       ▼
-Model Runner  ← separate service
-       │
-       ▼
+       ▼ (output audio)
 Object Storage / CDN
        │
        ▼ (audio_url)
-React Native Player
+React Native Player (expo-audio)
 ```
 
 ---
@@ -182,22 +180,58 @@ pytest
 
 ---
 
+## 3. `tts-service/` — AI TTS Service (FastAPI + TTS)
+
+Dedicated AI speech synthesis service for Bangla audiobooks.
+
+### Tech Stack & Models
+
+| Technology | Purpose |
+|---|---|
+| FastAPI + Uvicorn | High-performance inference API (Port 8001) |
+| Bangla VITS (`EMTIAZZ/bangladeshi-bangla-tts-vits`) | Native Bangladeshi Bengali speech synthesis |
+| Coqui XTTS v2 (`xtts_v2`) | Multilingual voice cloning & expressive narrative audio |
+| PyTorch & TorchAudio | Deep learning inference framework |
+
+### Quick Start
+
+```bash
+cd tts-service
+python -m venv venv
+
+# Windows PowerShell:
+.\venv\Scripts\Activate.ps1
+
+pip install -r requirements.txt
+cp .env.example .env
+
+# Start TTS service:
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
+```
+
+- **Interactive Docs:** http://localhost:8001/docs
+- **Health Check:** http://localhost:8001/health
+
+---
+
 ## Development Status
 
-| Feature | `app/` (Expo Go) | `platform-api/` (FastAPI) |
-|---|---|---|
-| Project scaffold | ✅ Completed | ✅ Completed |
-| Health check & Docs | — | ✅ Completed (`/health`, `/docs`) |
-| Authentication (JWT & bcrypt) | ✅ Completed | ✅ Completed |
-| User profile (`/me`) | ✅ Completed | ✅ Completed |
-| Audiobook CRUD & metadata | ✅ Completed | ✅ Completed |
-| PUBLIC / PRIVATE visibility | ✅ Completed | ✅ Completed |
-| Public discovery (leak-proof) | ✅ Completed | ✅ Completed |
-| Chapters & metadata | ✅ Completed | ✅ Completed |
-| Source PDF upload (storage abstraction) | ✅ Completed | ✅ Completed |
-| Generation job dispatch & status | ✅ Completed | ✅ Completed |
-| Generation status polling | ✅ Completed | ✅ Completed |
-| Personal library (save / remove) | ✅ Completed | ✅ Completed |
-| Audio playback (expo-av) | ✅ Completed | ✅ Completed |
-| Playback progress tracking | ✅ Completed | ✅ Completed |
-| Model Runner integration boundary | — | ✅ Completed (contract defined) |
+| Feature | `app/` (Expo Go) | `platform-api/` (FastAPI) | `tts-service/` (FastAPI) |
+|---|---|---|---|
+| Project scaffold | ✅ Completed | ✅ Completed | ✅ Completed |
+| Health check & Docs | — | ✅ Completed (`:8000/docs`) | ✅ Completed (`:8001/docs`) |
+| Authentication (JWT & bcrypt) | ✅ Completed | ✅ Completed | — |
+| User profile (`/me`) | ✅ Completed | ✅ Completed | — |
+| Audiobook CRUD & metadata | ✅ Completed | ✅ Completed | — |
+| PUBLIC / PRIVATE visibility | ✅ Completed | ✅ Completed | — |
+| Public discovery (leak-proof) | ✅ Completed | ✅ Completed | — |
+| Chapters & metadata | ✅ Completed | ✅ Completed | — |
+| Source PDF upload | ✅ Completed | ✅ Completed | — |
+| Generation job dispatch & status | ✅ Completed | ✅ Completed | ✅ Completed (`POST /jobs`) |
+| Generation status polling | ✅ Completed | ✅ Completed | ✅ Completed (`GET /jobs/{id}`) |
+| Direct Audio Synthesis | — | — | ✅ Completed (`POST /generate`) |
+| Voice Catalog | — | — | ✅ Completed (`GET /speakers`) |
+| Personal library (save / remove) | ✅ Completed | ✅ Completed | — |
+| Audio playback (expo-audio) | ✅ Completed | ✅ Completed | — |
+| Playback progress tracking | ✅ Completed | ✅ Completed | — |
+| TTS Service integration | — | ✅ Completed | ✅ Completed |

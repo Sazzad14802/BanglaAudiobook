@@ -18,9 +18,7 @@ import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { audiobooksApi } from '../../api/audiobooks';
 import { libraryApi } from '../../api/library';
 import { Audiobook } from '../../types/audiobook';
-import { Chapter } from '../../types/chapter';
 import { Loading } from '../../components/Loading';
-import { ChapterItem } from '../../components/ChapterItem';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePlayer } from '../../contexts/PlayerContext';
 import { HomeStackParamList } from '../../navigation/types';
@@ -50,7 +48,6 @@ export function AudiobookDetailsScreen() {
   const { loadAudiobook } = usePlayer();
 
   const [audiobook, setAudiobook] = useState<Audiobook | null>(null);
-  const [chapters, setChapters] = useState<Chapter[]>([]);
   const [isInLibrary, setIsInLibrary] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isLibraryLoading, setIsLibraryLoading] = useState(false);
@@ -61,13 +58,11 @@ export function AudiobookDetailsScreen() {
 
   const load = useCallback(async () => {
     try {
-      const [ab, chs, libRes] = await Promise.all([
+      const [ab, libRes] = await Promise.all([
         audiobooksApi.get(params.audiobookId),
-        audiobooksApi.listChapters(params.audiobookId).catch(() => [] as Chapter[]),
         libraryApi.list().catch(() => ({ items: [] })),
       ]);
       setAudiobook(ab);
-      setChapters(chs);
       setIsInLibrary(
         libRes.items.some((item) => item.audiobook_id === params.audiobookId),
       );
@@ -83,16 +78,12 @@ export function AudiobookDetailsScreen() {
     load();
   }, [load]);
 
-  async function handlePlay(chapterIndex = 0) {
-    if (!audiobook || chapters.length === 0) return;
+  async function handlePlay() {
+    if (!audiobook) return;
     try {
       const progress = await playbackApi.get(audiobook.id).catch(() => null);
-      const startIndex =
-        progress?.chapter_id
-          ? Math.max(0, chapters.findIndex((c) => c.id === progress.chapter_id))
-          : chapterIndex;
       const startPosition = progress?.position_seconds ?? 0;
-      await loadAudiobook(audiobook, chapters, startIndex, startPosition);
+      await loadAudiobook(audiobook, startPosition);
       nav.navigate('Player', { audiobookId: audiobook.id });
     } catch {
       Alert.alert('Error', 'Failed to launch audio player.');
@@ -189,6 +180,13 @@ export function AudiobookDetailsScreen() {
           <View style={styles.badge}>
             <Text style={styles.badgeText}>{STATUS_LABELS[audiobook.status]}</Text>
           </View>
+          {audiobook.duration_seconds && audiobook.duration_seconds > 0 ? (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>
+                ⏱ {Math.floor(audiobook.duration_seconds / 60) > 0 ? `${Math.floor(audiobook.duration_seconds / 60)}m ` : ''}{Math.round(audiobook.duration_seconds % 60)}s
+              </Text>
+            </View>
+          ) : null}
         </View>
 
         {audiobook.description ? (
@@ -198,10 +196,10 @@ export function AudiobookDetailsScreen() {
 
       {/* Actions */}
       <View style={styles.actions}>
-        {isCompleted && chapters.length > 0 && (
+        {isCompleted && (
           <Pressable
             style={({ pressed }) => [styles.actionBtn, styles.actionBtnPrimary, pressed && styles.btnPressed]}
-            onPress={() => handlePlay(0)}
+            onPress={handlePlay}
             accessibilityRole="button"
             accessibilityLabel="Play audiobook"
           >
@@ -243,20 +241,6 @@ export function AudiobookDetailsScreen() {
           </>
         )}
       </View>
-
-      {/* Chapters */}
-      {chapters.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Chapters ({chapters.length})</Text>
-          {chapters.map((ch, idx) => (
-            <ChapterItem
-              key={ch.id}
-              chapter={ch}
-              onPress={() => handlePlay(idx)}
-            />
-          ))}
-        </View>
-      )}
     </ScrollView>
   );
 }

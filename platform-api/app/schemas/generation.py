@@ -32,3 +32,12 @@ class AudiobookGenerationStatusResponse(BaseModel):
     audiobook_status: AudiobookStatus
     latest_job: Optional[GenerationJobRead]
     history: list[GenerationJobRead]
+
+
+class GenerationCallbackRequest(BaseModel):
+    job_id: uuid.UUID
+    audiobook_id: uuid.UUID
+    status: AudiobookStatus
+    audio_url: Optional[str] = None
+    duration_seconds: Optional[float] = 0.0
+    error: Optional[str] = None

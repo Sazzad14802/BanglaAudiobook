@@ -14,6 +14,8 @@ export interface Audiobook {
   description: string | null;
   cover_image_url: string | null;
   source_file_url: string | null;
+  audio_url?: string | null;
+  duration_seconds?: number;
   language: string;
   visibility: AudiobookVisibility;
   status: AudiobookStatus;

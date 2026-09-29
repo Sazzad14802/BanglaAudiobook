@@ -74,5 +74,5 @@ def get_generation_dispatcher() -> BaseGenerationDispatcher:
     """Factory returning the configured generation dispatcher."""
     strategy = settings.MODEL_RUNNER_DISPATCHER.lower()
     if strategy == "http":
-        return HTTPGenerationDispatcher(endpoint_url="http://localhost:8001/jobs")
+        return HTTPGenerationDispatcher(endpoint_url=settings.MODEL_RUNNER_URL)
     return MockGenerationDispatcher()

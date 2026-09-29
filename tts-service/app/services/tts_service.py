@@ -1,0 +1,125 @@
+import os
+import logging
+from pathlib import Path
+from typing import Optional, List, Dict
+
+from app.config import settings
+
+logger = logging.getLogger(__name__)
+
+
+class TTSService:
+    """
+    Unified Text-to-Speech service.
+    Supports:
+    1. Native Bangladeshi Bangla VITS (EMTIAZZ/bangladeshi-bangla-tts-vits)
+    2. Coqui Multilingual XTTS v2 (tts_models/multilingual/multi-dataset/xtts_v2)
+    """
+
+    def __init__(self):
+        self._bangla_synthesizer = None
+        # Anchor output directory to tts-service/output
+        if Path(settings.OUTPUT_DIR).is_absolute():
+            self.output_dir = Path(settings.OUTPUT_DIR)
+        else:
+            self.output_dir = Path(__file__).resolve().parents[2] / settings.OUTPUT_DIR
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+
+    @property
+    def bangla_synthesizer(self):
+        """Lazy-loaded Bangla VITS synthesizer."""
+        if self._bangla_synthesizer is None:
+            logger.info("Initializing Bangla VITS model (%s)...", settings.BANGLA_MODEL_REPO)
+            try:
+                from huggingface_hub import hf_hub_download
+                from TTS.utils.synthesizer import Synthesizer
+
+                model_path = hf_hub_download(
+                    repo_id=settings.BANGLA_MODEL_REPO,
+                    filename="pytorch_model.pth"
+                )
+                config_path = hf_hub_download(
+                    repo_id=settings.BANGLA_MODEL_REPO,
+                    filename="config.json"
+                )
+
+                self._bangla_synthesizer = Synthesizer(
+                    tts_checkpoint=model_path,
+                    tts_config_path=config_path,
+                    use_cuda=settings.USE_CUDA,
+                )
+                logger.info("Bangla VITS model successfully loaded!")
+            except Exception as exc:
+                logger.error("Failed to load Bangla VITS model: %s", exc)
+                raise RuntimeError(f"Could not load Bangla VITS model: {exc}") from exc
+        return self._bangla_synthesizer
+
+    @property
+    def xtts_model(self):
+        """Lazy-loaded XTTS v2 model."""
+        if self._xtts_model is None:
+            logger.info("Initializing XTTS v2 model (%s)...", settings.XTTS_MODEL_NAME)
+            try:
+                from TTS.api import TTS
+                self._xtts_model = TTS(settings.XTTS_MODEL_NAME)
+                logger.info("XTTS v2 model successfully loaded!")
+            except Exception as exc:
+                logger.error("Failed to load XTTS v2 model: %s", exc)
+                raise RuntimeError(f"Could not load XTTS v2 model: {exc}") from exc
+        return self._xtts_model
+
+    def get_speakers(self) -> List[Dict[str, str]]:
+        """Return available XTTS speaker voices."""
+        return [
+            {"name": "Damien Black", "gender": "male", "tag": "Deep & Narrative", "language": "multilingual"},
+            {"name": "Andrew Chipper", "gender": "male", "tag": "Warm & Friendly", "language": "multilingual"},
+            {"name": "Aaron Dreschner", "gender": "male", "tag": "Articulate", "language": "multilingual"},
+            {"name": "Craig Gutsy", "gender": "male", "tag": "Energetic", "language": "multilingual"},
+            {"name": "Viktor Eka", "gender": "male", "tag": "Calm & Steady", "language": "multilingual"},
+            {"name": "Ana Florence", "gender": "female", "tag": "Clear & Warm", "language": "multilingual"},
+            {"name": "Daisy Studious", "gender": "female", "tag": "Expressive", "language": "multilingual"},
+            {"name": "Claribel Dervla", "gender": "female", "tag": "Gentle", "language": "multilingual"},
+            {"name": "Bangla Standard", "gender": "female", "tag": "Authentic Native Bengali", "language": "bn"},
+        ]
+
+    def synthesize(
+        self,
+        text: str,
+        language: str = "bn",
+        speaker: Optional[str] = None,
+        model_type: Optional[str] = None,
+        output_filename: Optional[str] = None,
+    ) -> str:
+        """
+        Synthesize speech text to an audio file and return the filepath.
+        """
+        if not output_filename:
+            import uuid
+            output_filename = f"tts_{uuid.uuid4().hex[:8]}.wav"
+
+        output_path = self.output_dir / output_filename
+
+        is_bangla = language.lower() in ("bn", "bangla", "bengali")
+        use_bangla_model = (model_type == "bangla_vits") or (is_bangla and model_type != "xtts")
+
+        if use_bangla_model:
+            logger.info("Synthesizing with Bangla VITS Engine...")
+            synth = self.bangla_synthesizer
+            wav = synth.tts(text)
+            synth.save_wav(wav, str(output_path))
+        else:
+            logger.info("Synthesizing with XTTS v2 Engine...")
+            chosen_speaker = speaker or "Damien Black"
+            target_lang = "en" if is_bangla and model_type == "xtts" else language
+            self.xtts_model.tts_to_file(
+                text=text,
+                language=target_lang,
+                speaker=chosen_speaker,
+                file_path=str(output_path),
+            )
+
+        logger.info("Audio saved to %s", output_path)
+        return str(output_path)
+
+
+tts_service = TTSService()
