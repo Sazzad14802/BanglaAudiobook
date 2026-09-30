@@ -39,7 +39,13 @@ export function LoginScreen() {
     try {
       await login({ username_or_email: usernameOrEmail.trim(), password });
     } catch (err) {
-      const message = err instanceof ApiError ? err.detail : 'Login failed.';
+      console.error('Login failed:', err);
+      const message =
+        err instanceof ApiError
+          ? err.detail
+          : err instanceof Error
+          ? err.message
+          : 'Login failed.';
       Alert.alert('Login Failed', message);
     } finally {
       setIsSubmitting(false);
