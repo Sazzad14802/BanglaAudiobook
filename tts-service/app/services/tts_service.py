@@ -18,6 +18,7 @@ class TTSService:
 
     def __init__(self):
         self._bangla_synthesizer = None
+        self._xtts_model = None
         # Anchor output directory to tts-service/output
         if Path(settings.OUTPUT_DIR).is_absolute():
             self.output_dir = Path(settings.OUTPUT_DIR)
@@ -61,7 +62,7 @@ class TTSService:
             logger.info("Initializing XTTS v2 model (%s)...", settings.XTTS_MODEL_NAME)
             try:
                 from TTS.api import TTS
-                self._xtts_model = TTS(settings.XTTS_MODEL_NAME)
+                self._xtts_model = TTS(settings.XTTS_MODEL_NAME, gpu=settings.USE_CUDA)
                 logger.info("XTTS v2 model successfully loaded!")
             except Exception as exc:
                 logger.error("Failed to load XTTS v2 model: %s", exc)
@@ -71,9 +72,9 @@ class TTSService:
     def get_speakers(self) -> List[Dict[str, str]]:
         """Return available XTTS speaker voices."""
         return [
+            {"name": "Aaron Dreschner", "gender": "male", "tag": "Articulate & Clear (Default)", "language": "multilingual"},
             {"name": "Damien Black", "gender": "male", "tag": "Deep & Narrative", "language": "multilingual"},
             {"name": "Andrew Chipper", "gender": "male", "tag": "Warm & Friendly", "language": "multilingual"},
-            {"name": "Aaron Dreschner", "gender": "male", "tag": "Articulate", "language": "multilingual"},
             {"name": "Craig Gutsy", "gender": "male", "tag": "Energetic", "language": "multilingual"},
             {"name": "Viktor Eka", "gender": "male", "tag": "Calm & Steady", "language": "multilingual"},
             {"name": "Ana Florence", "gender": "female", "tag": "Clear & Warm", "language": "multilingual"},
@@ -105,12 +106,40 @@ class TTSService:
         if use_bangla_model:
             logger.info("Synthesizing with Bangla VITS Engine...")
             synth = self.bangla_synthesizer
-            wav = synth.tts(text)
-            synth.save_wav(wav, str(output_path))
+            from app.services.pdf_service import pdf_service
+            chunks = pdf_service.chunk_text(text, max_chunk_chars=300)
+            if not chunks:
+                chunks = [text]
+
+            logger.info("Synthesizing %d chunk(s) with Bangla VITS...", len(chunks))
+            all_wavs = []
+            pause = [0] * int(22050 * 0.25)  # 250ms pause between chunks
+            for idx, chunk in enumerate(chunks):
+                if not chunk.strip():
+                    continue
+                logger.info("Synthesizing chunk %d/%d (%d chars)...", idx + 1, len(chunks), len(chunk))
+                wav = synth.tts(chunk)
+                if all_wavs:
+                    all_wavs.extend(pause)
+                all_wavs.extend(wav)
+
+            synth.save_wav(all_wavs, str(output_path))
         else:
             logger.info("Synthesizing with XTTS v2 Engine...")
-            chosen_speaker = speaker or "Damien Black"
-            target_lang = "en" if is_bangla and model_type == "xtts" else language
+            # Default to Aaron Dreschner for English narration
+            if not speaker or speaker.strip().lower() in ("aaron", "aaron dreschner", "default", "damien black"):
+                chosen_speaker = "Aaron Dreschner"
+            else:
+                chosen_speaker = speaker
+
+            lang_lower = language.lower()
+            if lang_lower in ("en", "english", "eng"):
+                target_lang = "en"
+            elif is_bangla and model_type == "xtts":
+                target_lang = "en"
+            else:
+                target_lang = lang_lower
+
             self.xtts_model.tts_to_file(
                 text=text,
                 language=target_lang,

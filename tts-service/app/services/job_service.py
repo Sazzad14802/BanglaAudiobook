@@ -60,7 +60,7 @@ class JobService:
             )
             extracted_text = await loop.run_in_executor(
                 None,
-                lambda: pdf_service.extract_text(pdf_bytes),
+                lambda: pdf_service.extract_text(pdf_bytes, language=payload.language),
             )
 
             # If no selectable text found (e.g. scanned image PDF)
@@ -72,10 +72,7 @@ class JobService:
                     else "No selectable text found in the PDF. It may be a scanned document."
                 )
 
-            # Chunk into manageable sections for TTS
-            chunks = pdf_service.chunk_text(extracted_text, max_chunk_chars=400)
-            text_to_synthesize = chunks[0] if chunks else extracted_text[:400]
-            logger.info("Synthesizing audiobook audio (%d chars)...", len(text_to_synthesize))
+            logger.info("Synthesizing audiobook audio (%d total chars)...", len(extracted_text))
 
             output_file = f"audiobook_{payload.audiobook_id[:8]}_{job_id[:8]}.wav"
 
@@ -83,7 +80,7 @@ class JobService:
             audio_path = await loop.run_in_executor(
                 None,
                 lambda: tts_service.synthesize(
-                    text=text_to_synthesize,
+                    text=extracted_text,
                     language=payload.language,
                     output_filename=output_file,
                 )
