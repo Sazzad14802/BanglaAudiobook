@@ -64,11 +64,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const register = useCallback(async (data: RegisterRequest) => {
-    const response = await authApi.register(data);
-    await authStorage.saveToken(response.access_token);
+    // 1. Create the user account
+    await authApi.register(data);
+    // 2. Log in with the newly created credentials to receive JWT token & user profile
+    const tokenResponse = await authApi.login({
+      username_or_email: data.username,
+      password: data.password,
+    });
+    await authStorage.saveToken(tokenResponse.access_token);
     setState({
-      user: response.user,
-      token: response.access_token,
+      user: tokenResponse.user,
+      token: tokenResponse.access_token,
       isLoading: false,
       isAuthenticated: true,
     });
