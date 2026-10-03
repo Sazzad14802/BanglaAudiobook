@@ -86,9 +86,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await authApi.register(data);
     // 2. Log in with the newly created credentials to receive JWT token & user profile
     const tokenResponse = await authApi.login({
-      username_or_email: data.username,
+      username_or_email: data.username || data.email,
       password: data.password,
     });
+
     await authStorage.saveToken(tokenResponse.access_token);
     setState({
       user: tokenResponse.user,

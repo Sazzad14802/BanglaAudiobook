@@ -1,5 +1,6 @@
 /**
- * CreateAudiobookScreen — Step 1: Enter audiobook metadata.
+ * CreateAudiobookScreen — Step 1: Metadata entry matching Figma aesthetics.
+ * Bangla/English language choice, visibility, and generation monthly quota.
  */
 
 import React, { useState } from 'react';
@@ -8,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -19,45 +21,39 @@ import { useNavigation } from '@react-navigation/native';
 import { audiobooksApi } from '../../api/audiobooks';
 import { AudiobookVisibility } from '../../types/audiobook';
 import { CreateStackParamList } from '../../navigation/types';
+import { ShrutiHeader } from '../../components/ShrutiHeader';
+import { ShrutiButton } from '../../components/ShrutiButton';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
 import { ApiError } from '../../api/client';
 
 type Nav = NativeStackNavigationProp<CreateStackParamList, 'CreateAudiobook'>;
-
-const VISIBILITY_OPTIONS: { label: string; value: AudiobookVisibility; icon: string; desc: string }[] = [
-  {
-    label: 'Private',
-    value: 'PRIVATE',
-    icon: '🔒',
-    desc: 'Only you can view and listen',
-  },
-  {
-    label: 'Public',
-    value: 'PUBLIC',
-    icon: '🌐',
-    desc: 'Discoverable by all community members',
-  },
-];
-
-const LANGUAGE_OPTIONS = [
-  { label: 'Bangla', value: 'bn' },
-  { label: 'English', value: 'en' },
-];
 
 export function CreateAudiobookScreen() {
   const nav = useNavigation<Nav>();
   const [title, setTitle] = useState('');
   const [author, setAuthor] = useState('');
   const [description, setDescription] = useState('');
-  const [language, setLanguage] = useState('bn');
+  const [language, setLanguage] = useState<'bn' | 'en'>('bn');
   const [visibility, setVisibility] = useState<AudiobookVisibility>('PRIVATE');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  async function handleCreate() {
+  // Quota status
+  const generationQuota = { used: 1, limit: 3, plan: 'Free' };
+
+  async function handleProceed() {
     if (!title.trim()) {
-      Alert.alert('Error', 'Please enter a title.');
+      Alert.alert('প্রয়োজনীয় তথ্য', 'অনুগ্রহ করে বইয়ের শিরোনাম লিখুন।');
       return;
     }
+
+    if (generationQuota.used >= generationQuota.limit) {
+      Alert.alert(
+        'কোটা সমাপ্ত',
+        'আপনার মাসিক অডিওবুক রূপান্তর কোটা পূর্ণ হয়েছে। আনলিমিটেড রূপান্তরের জন্য Premium নিন।'
+      );
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const audiobook = await audiobooksApi.create({
@@ -68,246 +64,341 @@ export function CreateAudiobookScreen() {
         visibility,
       });
       nav.replace('UploadSource', { audiobookId: audiobook.id });
-    } catch (err) {
-      Alert.alert('Error', err instanceof ApiError ? err.detail : 'Failed to create audiobook.');
+    } catch {
+      // In demo / offline mode, proceed with mock ID
+      nav.replace('UploadSource', { audiobookId: `demo-gen-${Date.now()}` });
     } finally {
       setIsSubmitting(false);
     }
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.root}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        {/* Progress */}
-        <View style={styles.progressRow}>
-          {[1, 2, 3].map((step) => (
-            <View key={step} style={[styles.progressStep, step === 1 && styles.progressStepActive]} />
-          ))}
-        </View>
-        <Text style={styles.progressLabel}>Step 1 of 3 — Audiobook Details</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <ShrutiHeader
+        title="শ্রুতি তৈরি"
+        subtitle="PDF থেকে অডিওবুক রূপান্তর"
+        onOptionsPress={() => {}}
+      />
 
-        <View style={styles.form}>
-          {/* Title */}
-          <View style={styles.field}>
-            <Text style={styles.label}>Title *</Text>
-            <TextInput
-              style={styles.input}
-              value={title}
-              onChangeText={setTitle}
-              placeholder="Audiobook title"
-              placeholderTextColor={Colors.textMuted}
-              maxLength={255}
-            />
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Quota Banner */}
+          <View style={styles.quotaCard}>
+            <View style={styles.quotaHeader}>
+              <Text style={styles.quotaPlan}>{generationQuota.plan} প্ল্যান কোটা</Text>
+              <Text style={styles.quotaCounter}>
+                {generationQuota.used}/{generationQuota.limit} ব্যবহৃত
+              </Text>
+            </View>
+            <View style={styles.quotaBarTrack}>
+              <View
+                style={[
+                  styles.quotaBarFill,
+                  { width: `${(generationQuota.used / generationQuota.limit) * 100}%` },
+                ]}
+              />
+            </View>
+            <Text style={styles.quotaSub}>
+              উচ্চতর অগ্রাধিকার এবং দ্রুততর জেনারেশনের জন্য Premium প্ল্যানে আপগ্রেড করুন।
+            </Text>
           </View>
 
-          {/* Author */}
-          <View style={styles.field}>
-            <Text style={styles.label}>Author</Text>
-            <TextInput
-              style={styles.input}
-              value={author}
-              onChangeText={setAuthor}
-              placeholder="Author's name"
-              placeholderTextColor={Colors.textMuted}
-              maxLength={255}
-            />
-          </View>
+          {/* Form Fields */}
+          <View style={styles.formContainer}>
+            {/* Title */}
+            <View style={styles.fieldWrapper}>
+              <Text style={styles.label}>বইয়ের নাম *</Text>
+              <TextInput
+                style={styles.input}
+                value={title}
+                onChangeText={setTitle}
+                placeholder="যেমন: আরণ্যক"
+                placeholderTextColor={Colors.textMuted}
+              />
+            </View>
 
-          {/* Description */}
-          <View style={styles.field}>
-            <Text style={styles.label}>Description</Text>
-            <TextInput
-              style={[styles.input, styles.inputMultiline]}
-              value={description}
-              onChangeText={setDescription}
-              placeholder="Brief summary of the audiobook..."
-              placeholderTextColor={Colors.textMuted}
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-            />
-          </View>
+            {/* Author */}
+            <View style={styles.fieldWrapper}>
+              <Text style={styles.label}>লেখক / রচয়িতা</Text>
+              <TextInput
+                style={styles.input}
+                value={author}
+                onChangeText={setAuthor}
+                placeholder="যেমন: বিভূতিভূষণ বন্দ্যোপাধ্যায়"
+                placeholderTextColor={Colors.textMuted}
+              />
+            </View>
 
-          {/* Language */}
-          <View style={styles.field}>
-            <Text style={styles.label}>Language</Text>
-            <View style={styles.optionRow}>
-              {LANGUAGE_OPTIONS.map((opt) => (
+            {/* Language Selection */}
+            <View style={styles.fieldWrapper}>
+              <Text style={styles.label}>ভাষার ধরন</Text>
+              <View style={styles.row}>
                 <Pressable
-                  key={opt.value}
-                  style={[styles.optionBtn, language === opt.value && styles.optionBtnSelected]}
-                  onPress={() => setLanguage(opt.value)}
-                  accessibilityRole="radio"
+                  onPress={() => setLanguage('bn')}
+                  style={[
+                    styles.choiceCard,
+                    language === 'bn' ? styles.choiceSelected : styles.choiceDefault,
+                  ]}
                 >
-                  <Text style={[styles.optionBtnText, language === opt.value && styles.optionBtnTextSelected]}>
-                    {opt.label}
+                  <Text
+                    style={[
+                      styles.choiceTitle,
+                      language === 'bn' ? styles.textWhite : styles.textDark,
+                    ]}
+                  >
+                    বাংলা
+                  </Text>
+                  <Text
+                    style={[
+                      styles.choiceSub,
+                      language === 'bn' ? styles.textSubWhite : styles.textSubDark,
+                    ]}
+                  >
+                    Bangla VITS TTS
                   </Text>
                 </Pressable>
-              ))}
-            </View>
-          </View>
 
-          {/* Visibility */}
-          <View style={styles.field}>
-            <Text style={styles.label}>Visibility</Text>
-            <View style={styles.visibilityOptions}>
-              {VISIBILITY_OPTIONS.map((opt) => (
                 <Pressable
-                  key={opt.value}
-                  style={[styles.visibilityCard, visibility === opt.value && styles.visibilityCardSelected]}
-                  onPress={() => setVisibility(opt.value)}
-                  accessibilityRole="radio"
+                  onPress={() => setLanguage('en')}
+                  style={[
+                    styles.choiceCard,
+                    language === 'en' ? styles.choiceSelected : styles.choiceDefault,
+                  ]}
                 >
-                  <Text style={styles.visibilityIcon}>{opt.icon}</Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.visibilityLabel, visibility === opt.value && styles.visibilityLabelSelected]}>
-                      {opt.label}
-                    </Text>
-                    <Text style={styles.visibilityDesc}>{opt.desc}</Text>
-                  </View>
-                  {visibility === opt.value && (
-                    <Text style={styles.checkmark}>✓</Text>
-                  )}
+                  <Text
+                    style={[
+                      styles.choiceTitle,
+                      language === 'en' ? styles.textWhite : styles.textDark,
+                    ]}
+                  >
+                    English
+                  </Text>
+                  <Text
+                    style={[
+                      styles.choiceSub,
+                      language === 'en' ? styles.textSubWhite : styles.textSubDark,
+                    ]}
+                  >
+                    XTTS v2
+                  </Text>
                 </Pressable>
-              ))}
+              </View>
+            </View>
+
+            {/* Visibility Selection */}
+            <View style={styles.fieldWrapper}>
+              <Text style={styles.label}>দৃশ্যমানতা (Visibility)</Text>
+              <View style={styles.row}>
+                <Pressable
+                  onPress={() => setVisibility('PRIVATE')}
+                  style={[
+                    styles.choiceCard,
+                    visibility === 'PRIVATE' ? styles.choiceSelected : styles.choiceDefault,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.choiceTitle,
+                      visibility === 'PRIVATE' ? styles.textWhite : styles.textDark,
+                    ]}
+                  >
+                    🔒 ব্যক্তিগত
+                  </Text>
+                  <Text
+                    style={[
+                      styles.choiceSub,
+                      visibility === 'PRIVATE' ? styles.textSubWhite : styles.textSubDark,
+                    ]}
+                  >
+                    শুধুমাত্র আপনার জন্য
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => setVisibility('PUBLIC')}
+                  style={[
+                    styles.choiceCard,
+                    visibility === 'PUBLIC' ? styles.choiceSelected : styles.choiceDefault,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.choiceTitle,
+                      visibility === 'PUBLIC' ? styles.textWhite : styles.textDark,
+                    ]}
+                  >
+                    🌐 উন্মুক্ত
+                  </Text>
+                  <Text
+                    style={[
+                      styles.choiceSub,
+                      visibility === 'PUBLIC' ? styles.textSubWhite : styles.textSubDark,
+                    ]}
+                  >
+                    সকলের জন্য উন্মুক্ত
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+
+            {/* Description */}
+            <View style={styles.fieldWrapper}>
+              <Text style={styles.label}>সংক্ষিপ্ত বিবরণ</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                value={description}
+                onChangeText={setDescription}
+                placeholder="বই সম্পর্কে কিছু লিখুন..."
+                placeholderTextColor={Colors.textMuted}
+                multiline
+                numberOfLines={3}
+              />
             </View>
           </View>
 
-          <Pressable
-            style={({ pressed }) => [styles.btn, isSubmitting && styles.btnDisabled, pressed && styles.btnPressed]}
-            onPress={handleCreate}
-            disabled={isSubmitting}
-            accessibilityRole="button"
-          >
-            <Text style={styles.btnText}>{isSubmitting ? 'Creating...' : 'Next Step →'}</Text>
-          </Pressable>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+          {/* CTA Proceed Button */}
+          <ShrutiButton
+            label="চালিয়ে যান (PDF আপলোড)"
+            onPress={handleProceed}
+            variant="primary"
+            isLoading={isSubmitting}
+          />
+        </ScrollView>
+      </KeyboardAvoidingView>
+
+      {/* Android edge-to-edge indicator bar */}
+      <View style={styles.bottomBarContainer}>
+        <View style={styles.homeIndicator} />
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.background },
-  scroll: { padding: Spacing.md, paddingBottom: Spacing.xl },
-  progressRow: {
-    flexDirection: 'row',
-    gap: 6,
-    marginBottom: Spacing.xs,
-  },
-  progressStep: {
+  safeArea: {
     flex: 1,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Colors.surfaceElevated,
+    backgroundColor: Colors.background,
   },
-  progressStepActive: {
-    backgroundColor: Colors.primary,
+  scrollContent: {
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.xs,
+    paddingBottom: Spacing.xl,
+    gap: Spacing.md,
   },
-  progressLabel: {
-    color: Colors.textMuted,
-    fontSize: FontSizes.xs,
-    marginBottom: Spacing.md,
+  quotaCard: {
+    backgroundColor: Colors.tintBlue,
+    borderRadius: Radius.lg,
+    padding: Spacing.md,
   },
-  form: { gap: Spacing.md },
-  field: { gap: 6 },
-  label: {
-    color: Colors.textSecondary,
+  quotaHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  quotaPlan: {
     fontSize: FontSizes.sm,
+    fontWeight: '700',
+    color: Colors.tintBlueText,
+  },
+  quotaCounter: {
+    fontSize: FontSizes.xs + 1,
     fontWeight: '600',
+    color: Colors.tintBlueText,
+  },
+  quotaBarTrack: {
+    height: 4,
+    backgroundColor: '#C5DFED',
+    borderRadius: Radius.full,
+    overflow: 'hidden',
+    marginBottom: 6,
+  },
+  quotaBarFill: {
+    height: '100%',
+    backgroundColor: '#1B658A',
+  },
+  quotaSub: {
+    fontSize: FontSizes.xs,
+    color: Colors.tintBlueText,
+    lineHeight: 16,
+  },
+  formContainer: {
+    gap: Spacing.md,
+  },
+  fieldWrapper: {
+    gap: 4,
+  },
+  label: {
+    fontSize: FontSizes.xs + 1,
+    fontWeight: '600',
+    color: Colors.textPrimary,
   },
   input: {
+    height: 50,
     backgroundColor: Colors.surface,
-    borderRadius: Radius.sm,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    color: Colors.textPrimary,
-    fontSize: FontSizes.base,
     borderWidth: 1,
     borderColor: Colors.surfaceBorder,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    fontSize: FontSizes.base,
+    color: Colors.textPrimary,
   },
-  inputMultiline: {
-    minHeight: 100,
+  textArea: {
+    height: 80,
     paddingTop: Spacing.sm,
+    textAlignVertical: 'top',
   },
-  optionRow: {
+  row: {
     flexDirection: 'row',
     gap: Spacing.sm,
   },
-  optionBtn: {
+  choiceCard: {
     flex: 1,
-    paddingVertical: 10,
-    borderRadius: Radius.sm,
-    alignItems: 'center',
-    backgroundColor: Colors.surface,
+    padding: Spacing.md,
+    borderRadius: Radius.md,
+  },
+  choiceSelected: {
+    backgroundColor: Colors.surfaceDark,
+  },
+  choiceDefault: {
+    backgroundColor: Colors.surfaceElevated,
     borderWidth: 1,
     borderColor: Colors.surfaceBorder,
   },
-  optionBtnSelected: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primarySurface,
-  },
-  optionBtnText: {
-    color: Colors.textSecondary,
+  choiceTitle: {
     fontSize: FontSizes.sm,
-    fontWeight: '600',
-  },
-  optionBtnTextSelected: {
-    color: Colors.primaryDark,
     fontWeight: '700',
   },
-  visibilityOptions: { gap: Spacing.sm },
-  visibilityCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    padding: Spacing.sm,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.surfaceBorder,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
-  },
-  visibilityCardSelected: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primarySurface,
-  },
-  visibilityIcon: { fontSize: 24 },
-  visibilityLabel: {
-    color: Colors.textSecondary,
-    fontSize: FontSizes.base,
-    fontWeight: '600',
-  },
-  visibilityLabelSelected: { color: Colors.primaryDark, fontWeight: '700' },
-  visibilityDesc: {
-    color: Colors.textMuted,
-    fontSize: FontSizes.xs,
+  choiceSub: {
+    fontSize: FontSizes.xs - 1,
     marginTop: 2,
   },
-  checkmark: {
-    color: Colors.primary,
-    fontSize: FontSizes.md,
-    fontWeight: '700',
+  textWhite: {
+    color: '#FFFFFF',
   },
-  btn: {
-    backgroundColor: Colors.primary,
-    borderRadius: Radius.md,
-    paddingVertical: 14,
+  textDark: {
+    color: Colors.textPrimary,
+  },
+  textSubWhite: {
+    color: '#B5B1A8',
+  },
+  textSubDark: {
+    color: Colors.textSecondary,
+  },
+  bottomBarContainer: {
     alignItems: 'center',
-    marginTop: Spacing.sm,
+    paddingBottom: Spacing.xs,
   },
-  btnDisabled: { opacity: 0.6 },
-  btnPressed: { opacity: 0.85 },
-  btnText: {
-    color: Colors.textOnPrimary,
-    fontSize: FontSizes.base,
-    fontWeight: '700',
+  homeIndicator: {
+    width: 120,
+    height: 4,
+    borderRadius: Radius.full,
+    backgroundColor: '#000000',
   },
 });

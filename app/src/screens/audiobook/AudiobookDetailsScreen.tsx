@@ -1,376 +1,369 @@
 /**
- * AudiobookDetailsScreen
- * Shows full audiobook details, chapters, and owner controls.
+ * AudiobookDetailsScreen — Details matching Figma Plate 4 Screens 2, 3, 4.
+ * Handles Free, Premium, and Locked preview variants with exact badges,
+ * description, primary CTA, and ActionPillBar (`Save · Playlist · Offline · Report`).
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   Alert,
-  Image,
-  Pressable,
+  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
-import { audiobooksApi } from '../../api/audiobooks';
-import { libraryApi } from '../../api/library';
-import { Audiobook } from '../../types/audiobook';
-import { Loading } from '../../components/Loading';
-import { useAuth } from '../../contexts/AuthContext';
-import { usePlayer } from '../../contexts/PlayerContext';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { HomeStackParamList } from '../../navigation/types';
+import { ShrutiHeader } from '../../components/ShrutiHeader';
+import { EditorialHeroCard } from '../../components/EditorialHeroCard';
+import { TagBadge } from '../../components/TagBadge';
+import { ShrutiButton } from '../../components/ShrutiButton';
+import { ActionItem, ActionPillBar } from '../../components/ActionPillBar';
+import { ModalBottomSheet } from '../../components/ModalBottomSheet';
+import { FIGMA_AUDIOBOOKS } from '../../data/mockAudiobooks';
+import { usePlayer } from '../../contexts/PlayerContext';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
-import { ApiError } from '../../api/client';
-import { playbackApi } from '../../api/playback';
 
 type Nav = NativeStackNavigationProp<HomeStackParamList, 'AudiobookDetails'>;
 type Route = RouteProp<HomeStackParamList, 'AudiobookDetails'>;
 
-const STATUS_LABELS: Record<string, string> = {
-  PENDING: '⏳ Queued',
-  PROCESSING: '⚙️ Processing',
-  COMPLETED: '✅ Ready',
-  FAILED: '❌ Failed',
-};
-
-const LANGUAGE_LABELS: Record<string, string> = {
-  bn: 'Bangla',
-  en: 'English',
-};
-
 export function AudiobookDetailsScreen() {
   const nav = useNavigation<Nav>();
-  const { params } = useRoute<Route>();
-  const { user } = useAuth();
+  const route = useRoute<Route>();
   const { loadAudiobook } = usePlayer();
 
-  const [audiobook, setAudiobook] = useState<Audiobook | null>(null);
-  const [isInLibrary, setIsInLibrary] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isLibraryLoading, setIsLibraryLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const audiobookId = route.params?.audiobookId ?? 'pather-panchali';
+  const audiobook = FIGMA_AUDIOBOOKS.find((b) => b.id === audiobookId) ?? FIGMA_AUDIOBOOKS[0];
 
-  const isOwner = user?.id === audiobook?.owner_id;
-  const isCompleted = audiobook?.status === 'COMPLETED';
+  const isFree = audiobook.access_type === 'FREE';
+  const isLockedPreview = audiobook.id === 'rupashi-bangla';
+  const isPremiumUnlocked = audiobook.access_type === 'PREMIUM' && !isLockedPreview;
 
-  const load = useCallback(async () => {
-    try {
-      const [ab, libRes] = await Promise.all([
-        audiobooksApi.get(params.audiobookId),
-        libraryApi.list().catch(() => ({ items: [] })),
-      ]);
-      setAudiobook(ab);
-      setIsInLibrary(
-        libRes.items.some((item) => item.audiobook_id === params.audiobookId),
-      );
-      setError(null);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.detail : 'Failed to load audiobook.');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [params.audiobookId]);
+  // Subtitle in header
+  const headerSubtitle = isFree
+    ? 'Free audiobook detail'
+    : isLockedPreview
+    ? 'Locked audiobook detail'
+    : 'Premium audiobook detail';
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  // Interactive states
+  const [isSaved, setIsSaved] = useState(false);
+  const [isOfflineSaved, setIsOfflineSaved] = useState(false);
+  const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [reportReason, setReportReason] = useState('কপিরাইট লঙ্ঘন');
+  const [reportSubmitted, setReportSubmitted] = useState(false);
 
-  async function handlePlay() {
-    if (!audiobook) return;
-    try {
-      const progress = await playbackApi.get(audiobook.id).catch(() => null);
-      const startPosition = progress?.position_seconds ?? 0;
-      await loadAudiobook(audiobook, startPosition);
-      nav.navigate('Player', { audiobookId: audiobook.id });
-    } catch {
-      Alert.alert('Error', 'Failed to launch audio player.');
-    }
-  }
+  const handleStartListening = async () => {
+    await loadAudiobook(audiobook);
+    nav.navigate('Player', { audiobookId: audiobook.id });
+  };
 
-  async function handleLibraryToggle() {
-    if (!audiobook) return;
-    setIsLibraryLoading(true);
-    try {
-      if (isInLibrary) {
-        await libraryApi.remove(audiobook.id);
-        setIsInLibrary(false);
-      } else {
-        await libraryApi.add(audiobook.id);
-        setIsInLibrary(true);
-      }
-    } catch (err) {
-      Alert.alert('Error', err instanceof ApiError ? err.detail : 'Failed to update library.');
-    } finally {
-      setIsLibraryLoading(false);
-    }
-  }
-
-  async function handleVisibilityToggle() {
-    if (!audiobook) return;
-    const newVis = audiobook.visibility === 'PUBLIC' ? 'PRIVATE' : 'PUBLIC';
-    try {
-      const updated = await audiobooksApi.updateVisibility(audiobook.id, { visibility: newVis });
-      setAudiobook(updated);
-    } catch (err) {
-      Alert.alert('Error', err instanceof ApiError ? err.detail : 'Failed to update visibility.');
-    }
-  }
-
-  async function handleDelete() {
-    Alert.alert('Delete Audiobook', 'Are you sure? This cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await audiobooksApi.delete(params.audiobookId);
-            nav.goBack();
-          } catch (err) {
-            Alert.alert('Error', err instanceof ApiError ? err.detail : 'Failed to delete audiobook.');
-          }
+  const handleUpgradePremium = () => {
+    Alert.alert(
+      'Premium Subscription',
+      'মাসিক সাবস্ক্রিপশন ফি ৳১৯৯। আপনি কি প্রিমিয়ামে আপগ্রেড করতে চান?',
+      [
+        { text: 'বাতিল', style: 'cancel' },
+        {
+          text: 'আপগ্রেড করুন',
+          onPress: async () => {
+            Alert.alert('সফল', 'আপনি সফলভাবে Premium-এ আপগ্রেড হয়েছেন!');
+            await loadAudiobook(audiobook);
+            nav.navigate('Player', { audiobookId: audiobook.id });
+          },
         },
-      },
-    ]);
-  }
-
-  if (isLoading) return <Loading fullScreen message="Loading audiobook..." />;
-  if (error || !audiobook) {
-    return (
-      <View style={styles.root}>
-        <Text style={styles.errorText}>{error ?? 'Audiobook not found.'}</Text>
-      </View>
+      ]
     );
-  }
+  };
 
-  const langLabel = LANGUAGE_LABELS[audiobook.language] ?? audiobook.language;
+  const actionItems: ActionItem[] = [
+    {
+      id: 'save',
+      label: isSaved ? 'Saved' : 'Save',
+      active: isSaved,
+      onPress: () => {
+        setIsSaved((prev) => !prev);
+        Alert.alert(
+          isSaved ? 'লাইব্রেরি থেকে সরানো হয়েছে' : 'লাইব্রেরিতে সংরক্ষণ করা হয়েছে',
+          audiobook.title
+        );
+      },
+    },
+    {
+      id: 'playlist',
+      label: 'Playlist',
+      onPress: () => {
+        Alert.alert('প্লেলিস্টে যোগ করুন', 'আপনার ব্যক্তিগত প্লেলিস্টে বইটি যোগ করা হয়েছে।');
+      },
+    },
+    {
+      id: 'offline',
+      label: isOfflineSaved ? 'Downloaded' : 'Offline',
+      active: isOfflineSaved,
+      onPress: () => {
+        setIsOfflineSaved((prev) => !prev);
+        Alert.alert(
+          isOfflineSaved ? 'অফলাইন ক্যাশ মুছে ফেলা হয়েছে' : 'অ্যাপের ভেতরে অফলাইন শোনার জন্য সংরক্ষিত হয়েছে',
+          'ইন্টারনেট সংযোগ ছাড়াই শোনা যাবে।'
+        );
+      },
+    },
+    {
+      id: 'report',
+      label: 'Report',
+      onPress: () => setReportModalVisible(true),
+    },
+  ];
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      {/* Cover */}
-      <View style={styles.coverWrapper}>
-        {audiobook.cover_image_url ? (
-          <Image source={{ uri: audiobook.cover_image_url }} style={styles.cover} />
-        ) : (
-          <View style={styles.coverPlaceholder}>
-            <Text style={styles.coverEmoji}>🎧</Text>
-          </View>
-        )}
-      </View>
+    <SafeAreaView style={styles.safeArea}>
+      <ShrutiHeader
+        title={audiobook.title}
+        subtitle={headerSubtitle}
+        onBack={() => nav.goBack()}
+        onOptionsPress={() => {}}
+      />
 
-      {/* Meta */}
-      <View style={styles.meta}>
-        <Text style={styles.title}>{audiobook.title}</Text>
-        {audiobook.author ? (
-          <Text style={styles.author}>{audiobook.author}</Text>
-        ) : null}
-
-        <View style={styles.badgeRow}>
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>{langLabel}</Text>
-          </View>
-          <View style={[styles.badge, audiobook.visibility === 'PRIVATE' ? styles.badgePrivate : styles.badgePublic]}>
-            <Text style={styles.badgeText}>
-              {audiobook.visibility === 'PRIVATE' ? '🔒 Private' : '🌐 Public'}
-            </Text>
-          </View>
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>{STATUS_LABELS[audiobook.status]}</Text>
-          </View>
-          {audiobook.duration_seconds && audiobook.duration_seconds > 0 ? (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>
-                ⏱ {Math.floor(audiobook.duration_seconds / 60) > 0 ? `${Math.floor(audiobook.duration_seconds / 60)}m ` : ''}{Math.round(audiobook.duration_seconds % 60)}s
-              </Text>
-            </View>
-          ) : null}
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Editorial Hero Artwork Card */}
+        <View style={styles.heroWrapper}>
+          <EditorialHeroCard
+            title={audiobook.title}
+            meta={`বাংলা · ★ 4.8 · ${audiobook.duration_label ?? '8h 42m'}`}
+            coverUrl={audiobook.cover_image_url ?? undefined}
+            height={260}
+          />
         </View>
 
-        {audiobook.description ? (
-          <Text style={styles.description}>{audiobook.description}</Text>
-        ) : null}
-      </View>
 
-      {/* Actions */}
-      <View style={styles.actions}>
-        {isCompleted && (
-          <Pressable
-            style={({ pressed }) => [styles.actionBtn, styles.actionBtnPrimary, pressed && styles.btnPressed]}
-            onPress={handlePlay}
-            accessibilityRole="button"
-            accessibilityLabel="Play audiobook"
-          >
-            <Text style={styles.actionBtnTextPrimary}>▶ Listen</Text>
-          </Pressable>
-        )}
+        {/* Badges Row */}
+        <View style={styles.badgesRow}>
+          <TagBadge
+            label={isFree ? 'FREE' : 'PREMIUM'}
+            variant={isFree ? 'free' : 'premium'}
+          />
+          <TagBadge label={audiobook.genre ?? 'সাহিত্য'} variant="genre" />
+          <TagBadge label="Offline" variant="offline" />
+        </View>
 
-        {!isOwner && isCompleted && (
-          <Pressable
-            style={({ pressed }) => [styles.actionBtn, pressed && styles.btnPressed]}
-            onPress={handleLibraryToggle}
-            disabled={isLibraryLoading}
-            accessibilityRole="button"
-          >
-            <Text style={styles.actionBtnText}>
-              {isInLibrary ? '📚 Remove from Library' : '+ Add to Library'}
+        {/* Preview Ended Banner (Plate 4 Screen 4) */}
+        {isLockedPreview && (
+          <View style={styles.previewEndedCard}>
+            <Text style={styles.previewEndedTitle}>Preview শেষ</Text>
+            <Text style={styles.previewEndedSub}>
+              পুরো বই শুনতে Premium নিন। progress saved আছে।
             </Text>
-          </Pressable>
+          </View>
         )}
 
-        {isOwner && (
-          <>
-            <Pressable
-              style={({ pressed }) => [styles.actionBtn, pressed && styles.btnPressed]}
-              onPress={handleVisibilityToggle}
-              accessibilityRole="button"
-            >
-              <Text style={styles.actionBtnText}>
-                {audiobook.visibility === 'PUBLIC' ? '🔒 Make Private' : '🌐 Make Public'}
+        {/* Description Text */}
+        <Text style={styles.description}>
+          {audiobook.description}
+        </Text>
+
+        {/* Primary CTA Button */}
+        <View style={styles.ctaWrapper}>
+          {isLockedPreview ? (
+            <ShrutiButton
+              label="Premium নিন"
+              onPress={handleUpgradePremium}
+              variant="primary"
+              bulletPrefix
+            />
+          ) : (
+            <ShrutiButton
+              label="শোনা শুরু করুন"
+              onPress={handleStartListening}
+              variant="primary"
+              bulletPrefix
+            />
+          )}
+        </View>
+
+        {/* Segmented Action Pill Bar */}
+        <ActionPillBar items={actionItems} />
+      </ScrollView>
+
+      {/* Copyright Report Modal Bottom Sheet */}
+      <ModalBottomSheet
+        visible={reportModalVisible}
+        onClose={() => {
+          setReportModalVisible(false);
+          setReportSubmitted(false);
+        }}
+      >
+        <View style={styles.reportModalContent}>
+          <Text style={styles.reportTitle}>কপিরাইট লঙ্ঘন রিপোর্ট</Text>
+          <Text style={styles.reportSub}>
+            বই: {audiobook.title}
+          </Text>
+
+          {reportSubmitted ? (
+            <View style={styles.reportSuccessBox}>
+              <Text style={styles.reportSuccessTitle}>রিপোর্ট গৃহীত হয়েছে</Text>
+              <Text style={styles.reportSuccessSub}>
+                অ্যাডমিন টিম পর্যালোচনার পর যথাযথ ব্যবস্থা গ্রহণ করবে।
               </Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [styles.actionBtn, styles.actionBtnDanger, pressed && styles.btnPressed]}
-              onPress={handleDelete}
-              accessibilityRole="button"
-            >
-              <Text style={styles.actionBtnText}>🗑 Delete</Text>
-            </Pressable>
-          </>
-        )}
+              <ShrutiButton
+                label="ঠিক আছে"
+                onPress={() => {
+                  setReportModalVisible(false);
+                  setReportSubmitted(false);
+                }}
+                variant="primary"
+              />
+            </View>
+          ) : (
+            <View style={{ gap: Spacing.md }}>
+              <Text style={styles.reportPrompt}>
+                সন্দেহভাজন কপিরাইট লঙ্ঘনের কারণ নির্বাচন করুন:
+              </Text>
+
+              <View style={styles.reasonPillRow}>
+                {['অননুমোদিত অডিও সংস্করণ', 'লেখকের অনুমতি ছাড়া তৈরি', 'অন্যান্য'].map(
+                  (reason) => (
+                    <Text
+                      key={reason}
+                      onPress={() => setReportReason(reason)}
+                      style={[
+                        styles.reasonChip,
+                        reportReason === reason && styles.reasonChipActive,
+                      ]}
+                    >
+                      {reason}
+                    </Text>
+                  )
+                )}
+              </View>
+
+              <ShrutiButton
+                label="রিপোর্ট জমা দিন"
+                onPress={() => setReportSubmitted(true)}
+                variant="primary"
+              />
+            </View>
+          )}
+        </View>
+      </ModalBottomSheet>
+
+      {/* Android edge-to-edge indicator bar */}
+      <View style={styles.bottomBarContainer}>
+        <View style={styles.homeIndicator} />
       </View>
-    </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.background },
-  content: { paddingBottom: Spacing.xl },
-  errorText: {
-    color: Colors.error,
-    textAlign: 'center',
-    margin: Spacing.xl,
-    fontSize: FontSizes.base,
+  safeArea: {
+    flex: 1,
+    backgroundColor: Colors.background,
   },
-  coverWrapper: {
-    alignItems: 'center',
-    paddingTop: Spacing.lg,
-    paddingBottom: Spacing.md,
-    backgroundColor: Colors.surface,
+  scrollContent: {
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.xs,
+    paddingBottom: Spacing.xl,
+    gap: Spacing.sm + 4,
   },
-  cover: {
-    width: 180,
-    height: 180,
-    borderRadius: Radius.md,
+  heroWrapper: {
+    marginBottom: Spacing.xs,
   },
-  coverPlaceholder: {
-    width: 180,
-    height: 180,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.surfaceElevated,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  coverEmoji: { fontSize: 72 },
-  meta: {
-    padding: Spacing.md,
-    gap: Spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.surfaceBorder,
-  },
-  title: {
-    color: Colors.textPrimary,
-    fontSize: FontSizes.xl,
-    fontWeight: '800',
-    lineHeight: 30,
-  },
-  author: {
-    color: Colors.textSecondary,
-    fontSize: FontSizes.base,
-  },
-  badgeRow: {
+  badgesRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.xs,
-    marginTop: Spacing.xs,
+    gap: Spacing.sm,
+    alignItems: 'center',
   },
-  badge: {
-    backgroundColor: Colors.surfaceElevated,
-    borderRadius: Radius.full,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: Colors.surfaceBorder,
+  previewEndedCard: {
+    backgroundColor: Colors.tintPurple,
+    borderRadius: Radius.lg,
+    padding: Spacing.md,
   },
-  badgePublic: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#A7F3D0',
-  },
-  badgePrivate: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#FECACA',
-  },
-  badgeText: {
-    color: Colors.textSecondary,
-    fontSize: FontSizes.xs,
+  previewEndedTitle: {
+    fontSize: FontSizes.base,
     fontWeight: '700',
+    color: Colors.tintPurpleText,
+    marginBottom: 2,
+  },
+  previewEndedSub: {
+    fontSize: FontSizes.xs + 1,
+    color: Colors.tintPurpleText,
+    lineHeight: 18,
   },
   description: {
+    fontSize: FontSizes.base - 0.5,
     color: Colors.textSecondary,
-    fontSize: FontSizes.base,
     lineHeight: 22,
+    letterSpacing: -0.1,
+  },
+  ctaWrapper: {
     marginTop: Spacing.xs,
   },
-  actions: {
-    padding: Spacing.md,
+  reportModalContent: {
     gap: Spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.surfaceBorder,
+    paddingTop: Spacing.xs,
   },
-  actionBtn: {
-    backgroundColor: Colors.surface,
+  reportTitle: {
+    fontSize: FontSizes.lg,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+  },
+  reportSub: {
+    fontSize: FontSizes.xs + 1,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xs,
+  },
+  reportPrompt: {
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+    color: Colors.textPrimary,
+  },
+  reasonPillRow: {
+    gap: Spacing.xs + 2,
+  },
+  reasonChip: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
     borderRadius: Radius.md,
-    paddingVertical: 12,
-    alignItems: 'center',
+    backgroundColor: Colors.surfaceElevated,
+    fontSize: FontSizes.sm,
+    color: Colors.textPrimary,
     borderWidth: 1,
     borderColor: Colors.surfaceBorder,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 1,
   },
-  actionBtnPrimary: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-    shadowColor: Colors.primary,
-    shadowOpacity: 0.25,
-  },
-  actionBtnDanger: {
-    borderColor: Colors.error,
-    backgroundColor: '#FEF2F2',
-  },
-  btnPressed: { opacity: 0.75 },
-  actionBtnText: {
-    color: Colors.textPrimary,
-    fontSize: FontSizes.base,
-    fontWeight: '600',
-  },
-  actionBtnTextPrimary: {
-    color: Colors.textOnPrimary,
-    fontSize: FontSizes.base,
+  reasonChipActive: {
+    backgroundColor: Colors.surfaceDark,
+    color: '#FFFFFF',
     fontWeight: '700',
   },
-  section: {
+  reportSuccessBox: {
+    backgroundColor: Colors.tintGreen,
+    borderRadius: Radius.md,
     padding: Spacing.md,
     gap: Spacing.sm,
   },
-  sectionTitle: {
-    color: Colors.textPrimary,
-    fontSize: FontSizes.md,
+  reportSuccessTitle: {
+    fontSize: FontSizes.base,
     fontWeight: '700',
+    color: Colors.tintGreenText,
+  },
+  reportSuccessSub: {
+    fontSize: FontSizes.xs + 1,
+    color: Colors.tintGreenText,
     marginBottom: Spacing.xs,
+  },
+  bottomBarContainer: {
+    alignItems: 'center',
+    paddingBottom: Spacing.xs,
+  },
+  homeIndicator: {
+    width: 120,
+    height: 4,
+    borderRadius: Radius.full,
+    backgroundColor: '#000000',
   },
 });

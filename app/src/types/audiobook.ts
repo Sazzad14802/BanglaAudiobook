@@ -12,16 +12,21 @@ export interface Audiobook {
   title: string;
   author: string | null;
   description: string | null;
+  genre?: string | null;
+  access_type?: 'FREE' | 'PREMIUM';
   cover_image_url: string | null;
-  source_file_url: string | null;
+  source_file_url?: string | null;
   audio_url?: string | null;
+  audio_file_url?: string | null;
   duration_seconds?: number;
+
   language: string;
   visibility: AudiobookVisibility;
   status: AudiobookStatus;
   created_at: string;
   updated_at: string;
 }
+
 
 export interface AudiobookCreate {
   title: string;

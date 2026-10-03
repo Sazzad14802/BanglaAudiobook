@@ -1,6 +1,6 @@
 /**
- * AudiobookCard component.
- * Displays a single audiobook in the discovery list or library.
+ * AudiobookCard — Row item matching Figma Plate 3 (Home, Explore, Search).
+ * Artwork · Title · Author · Free/Premium status · Circular Peach Play Button.
  */
 
 import React from 'react';
@@ -15,145 +15,138 @@ import { Audiobook } from '../types/audiobook';
 import { Colors, FontSizes, Radius, Spacing } from '../theme';
 
 interface AudiobookCardProps {
-  audiobook: Audiobook;
+  audiobook: Audiobook & { progress_percent?: number; duration_label?: string };
   onPress: () => void;
-  subtitle?: string; // e.g. playback progress label
+  onPlayPress?: () => void;
 }
 
-const LANGUAGE_LABELS: Record<string, string> = {
-  bn: 'Bangla',
-  en: 'English',
-};
-
-export function AudiobookCard({ audiobook, onPress, subtitle }: AudiobookCardProps) {
-  const langLabel = LANGUAGE_LABELS[audiobook.language] ?? audiobook.language.toUpperCase();
+export function AudiobookCard({ audiobook, onPress, onPlayPress }: AudiobookCardProps) {
+  const isPremium = audiobook.access_type === 'PREMIUM';
+  const progressText = audiobook.progress_percent ? ` · ${audiobook.progress_percent}%` : '';
+  const statusLabel = isPremium ? 'Premium' : `Free${progressText}`;
 
   return (
     <Pressable
-      style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+      style={({ pressed }) => [styles.rowContainer, pressed && styles.rowPressed]}
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={`${audiobook.title} by ${audiobook.author ?? 'Unknown'}`}
     >
-      {/* Cover */}
-      <View style={styles.coverContainer}>
+      {/* Thumbnail */}
+      <View style={styles.coverWrapper}>
         {audiobook.cover_image_url ? (
-          <Image source={{ uri: audiobook.cover_image_url }} style={styles.cover} />
+          <Image source={{ uri: audiobook.cover_image_url }} style={styles.coverImage} />
         ) : (
           <View style={styles.coverPlaceholder}>
-            <Text style={styles.coverEmoji}>🎧</Text>
-          </View>
-        )}
-        {audiobook.visibility === 'PRIVATE' && (
-          <View style={styles.privateBadge}>
-            <Text style={styles.privateBadgeText}>🔒</Text>
+            <Text style={styles.coverEmoji}>📖</Text>
           </View>
         )}
       </View>
 
-      {/* Info */}
-      <View style={styles.info}>
-        <Text style={styles.title} numberOfLines={2}>{audiobook.title}</Text>
+      {/* Book Metadata */}
+      <View style={styles.detailsColumn}>
+        <Text style={styles.title} numberOfLines={1}>
+          {audiobook.title}
+        </Text>
         {audiobook.author ? (
-          <Text style={styles.author} numberOfLines={1}>{audiobook.author}</Text>
+          <Text style={styles.author} numberOfLines={1}>
+            {audiobook.author}
+          </Text>
         ) : null}
-        <View style={styles.metaRow}>
-          <View style={styles.langBadge}>
-            <Text style={styles.langText}>{langLabel}</Text>
-          </View>
-          {subtitle ? (
-            <Text style={styles.subtitleText} numberOfLines={1}>{subtitle}</Text>
-          ) : null}
-        </View>
+        <Text style={[styles.metaText, isPremium ? styles.premiumMeta : styles.freeMeta]}>
+          {statusLabel}
+        </Text>
       </View>
+
+      {/* Circular Play Button */}
+      <Pressable
+        style={({ pressed }) => [styles.playButton, pressed && styles.playButtonPressed]}
+        onPress={onPlayPress ?? onPress}
+        hitSlop={10}
+        accessibilityRole="button"
+        accessibilityLabel={`Play ${audiobook.title}`}
+      >
+        <Text style={styles.playIcon}>▶</Text>
+      </Pressable>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
+  rowContainer: {
     flexDirection: 'row',
-    backgroundColor: Colors.surface,
+    alignItems: 'center',
+    paddingVertical: Spacing.sm + 2,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: 'transparent',
+  },
+  rowPressed: {
+    opacity: 0.7,
+    backgroundColor: Colors.overlayLight,
     borderRadius: Radius.md,
-    overflow: 'hidden',
-    marginBottom: Spacing.sm,
-    borderWidth: 1,
-    borderColor: Colors.surfaceBorder,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
   },
-  cardPressed: {
-    opacity: 0.75,
-    transform: [{ scale: 0.99 }],
+  coverWrapper: {
+    marginRight: Spacing.md,
   },
-  coverContainer: {
-    position: 'relative',
-  },
-  cover: {
-    width: 90,
-    height: 90,
+  coverImage: {
+    width: 58,
+    height: 58,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.surfaceElevated,
   },
   coverPlaceholder: {
-    width: 90,
-    height: 90,
+    width: 58,
+    height: 58,
+    borderRadius: Radius.md,
     backgroundColor: Colors.surfaceElevated,
     alignItems: 'center',
     justifyContent: 'center',
   },
   coverEmoji: {
-    fontSize: 32,
+    fontSize: 24,
   },
-  privateBadge: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    backgroundColor: Colors.overlay,
-    borderRadius: Radius.full,
-    padding: 2,
-  },
-  privateBadgeText: {
-    fontSize: 10,
-  },
-  info: {
+  detailsColumn: {
     flex: 1,
-    padding: Spacing.sm,
     justifyContent: 'center',
-    gap: 4,
   },
   title: {
-    color: Colors.textPrimary,
-    fontSize: FontSizes.base,
+    fontSize: FontSizes.base + 0.5,
     fontWeight: '700',
-    lineHeight: 20,
+    color: Colors.textPrimary,
+    letterSpacing: -0.1,
   },
   author: {
-    color: Colors.textSecondary,
     fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
+    marginTop: 2,
   },
-  metaRow: {
-    flexDirection: 'row',
+  metaText: {
+    fontSize: FontSizes.xs,
+    marginTop: 3,
+    fontWeight: '600',
+  },
+  freeMeta: {
+    color: Colors.tintGreenText,
+  },
+  premiumMeta: {
+    color: Colors.tintPurpleText,
+  },
+  playButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#F8E0D9', // soft peach from Figma
     alignItems: 'center',
-    gap: Spacing.xs,
-    marginTop: 4,
-    flexWrap: 'wrap',
+    justifyContent: 'center',
+    marginLeft: Spacing.sm,
   },
-  langBadge: {
-    backgroundColor: Colors.primarySurface,
-    borderRadius: Radius.sm,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+  playButtonPressed: {
+    backgroundColor: '#F0C9BF',
+    transform: [{ scale: 0.96 }],
   },
-  langText: {
-    color: Colors.primaryDark,
-    fontSize: FontSizes.xs,
-    fontWeight: '700',
-  },
-  subtitleText: {
-    color: Colors.textMuted,
-    fontSize: FontSizes.xs,
-    flex: 1,
+  playIcon: {
+    color: Colors.primary,
+    fontSize: 16,
+    marginLeft: 2, // optical center for play triangle
   },
 });

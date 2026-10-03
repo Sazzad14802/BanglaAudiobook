@@ -1,147 +1,130 @@
 /**
- * HomeScreen — public audiobook discovery.
+ * HomeScreen — Discovery matching Figma Plate 3 Screen 1.
+ * Features greeting, editorial pick hero card, and 'শোনা চালিয়ে যান' list.
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   FlatList,
-  RefreshControl,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { audiobooksApi } from '../../api/audiobooks';
-import { Audiobook, AudiobookListResponse } from '../../types/audiobook';
-import { AudiobookCard } from '../../components/AudiobookCard';
-import { Loading } from '../../components/Loading';
-import { EmptyState } from '../../components/EmptyState';
 import { HomeStackParamList } from '../../navigation/types';
-import { Colors, FontSizes, Spacing } from '../../theme';
+import { ShrutiHeader } from '../../components/ShrutiHeader';
+import { EditorialHeroCard } from '../../components/EditorialHeroCard';
+import { AudiobookCard } from '../../components/AudiobookCard';
+import { FIGMA_AUDIOBOOKS } from '../../data/mockAudiobooks';
+import { usePlayer } from '../../contexts/PlayerContext';
+import { Colors, FontSizes, Radius, Spacing } from '../../theme';
 
 type Nav = NativeStackNavigationProp<HomeStackParamList, 'Home'>;
 
 export function HomeScreen() {
   const nav = useNavigation<Nav>();
-  const [audiobooks, setAudiobooks] = useState<Audiobook[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
-  const [isFetchingMore, setIsFetchingMore] = useState(false);
+  const { loadAudiobook } = usePlayer();
 
-  const fetchPage = useCallback(async (pageNum: number, replace: boolean) => {
-    try {
-      const data: AudiobookListResponse = await audiobooksApi.list(pageNum, 20);
-      if (replace) {
-        setAudiobooks(data.items);
-      } else {
-        setAudiobooks((prev) => [...prev, ...data.items]);
-      }
-      setHasMore(pageNum < data.pages);
-      setError(null);
-    } catch {
-      setError('Failed to load audiobooks.');
-    }
-  }, []);
+  const featuredBook = FIGMA_AUDIOBOOKS.find((b) => b.id === 'pather-panchali') ?? FIGMA_AUDIOBOOKS[0];
+  const continueListeningBooks = FIGMA_AUDIOBOOKS.filter(
+    (b) => b.id === 'shesher-kobita' || b.id === 'hajar-bachhor-dhore'
+  );
 
-  useEffect(() => {
-    setIsLoading(true);
-    fetchPage(1, true).finally(() => setIsLoading(false));
-  }, [fetchPage]);
+  const handleBookPress = (audiobookId: string) => {
+    nav.navigate('AudiobookDetails', { audiobookId });
+  };
 
-  const onRefresh = useCallback(async () => {
-    setIsRefreshing(true);
-    setPage(1);
-    await fetchPage(1, true);
-    setIsRefreshing(false);
-  }, [fetchPage]);
-
-  const onEndReached = useCallback(async () => {
-    if (!hasMore || isFetchingMore) return;
-    const nextPage = page + 1;
-    setIsFetchingMore(true);
-    setPage(nextPage);
-    await fetchPage(nextPage, false);
-    setIsFetchingMore(false);
-  }, [hasMore, isFetchingMore, page, fetchPage]);
-
-  if (isLoading) return <Loading fullScreen message="Discovering audiobooks..." />;
-
-  if (error && audiobooks.length === 0) {
-    return (
-      <View style={styles.root}>
-        <EmptyState
-          icon="⚠️"
-          title="Failed to Load"
-          subtitle={error}
-        />
-      </View>
-    );
-  }
+  const handlePlayBook = async (audiobook: any) => {
+    await loadAudiobook(audiobook);
+    nav.navigate('Player', { audiobookId: audiobook.id });
+  };
 
   return (
-    <View style={styles.root}>
-      <FlatList
-        data={audiobooks}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <AudiobookCard
-            audiobook={item}
-            onPress={() => nav.navigate('AudiobookDetails', { audiobookId: item.id })}
-          />
-        )}
-        contentContainerStyle={styles.list}
-        ListHeaderComponent={
-          <View style={styles.listHeader}>
-            <Text style={styles.sectionTitle}>Public Audiobooks</Text>
-            <Text style={styles.sectionSub}>Community-created Bangla audiobooks</Text>
-          </View>
-        }
-        ListEmptyComponent={
-          <EmptyState
-            icon="📭"
-            title="No Audiobooks Yet"
-            subtitle="No public audiobooks available. Be the first to create one!"
-          />
-        }
-        ListFooterComponent={isFetchingMore ? <Loading message="Loading more..." /> : null}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={onRefresh}
-            tintColor={Colors.primary}
-            colors={[Colors.primary]}
-          />
-        }
-        onEndReached={onEndReached}
-        onEndReachedThreshold={0.3}
-        showsVerticalScrollIndicator={false}
+    <SafeAreaView style={styles.safeArea}>
+      <ShrutiHeader
+        title="শুভ সন্ধ্যা, নাবিলা"
+        subtitle="আজ কী শুনবেন?"
+        onOptionsPress={() => nav.navigate('DiscoveryStates')}
       />
-    </View>
+
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Featured Editorial Hero Card */}
+        <View style={styles.heroSection}>
+          <EditorialHeroCard
+            title={featuredBook.title}
+            meta="Editor's pick · 8h 42m"
+            coverUrl={featuredBook.cover_image_url ?? undefined}
+            onPress={() => handleBookPress(featuredBook.id)}
+          />
+        </View>
+
+
+        {/* Section: শোনা চালিয়ে যান */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>শোনা চালিয়ে যান</Text>
+        </View>
+
+        {/* Continue Listening List */}
+        <View style={styles.listContainer}>
+          {continueListeningBooks.map((book) => (
+            <AudiobookCard
+              key={book.id}
+              audiobook={book}
+              onPress={() => handleBookPress(book.id)}
+              onPlayPress={() => handlePlayBook(book)}
+            />
+          ))}
+        </View>
+      </ScrollView>
+
+      {/* Android edge-to-edge indicator bar */}
+      <View style={styles.bottomBarContainer}>
+        <View style={styles.homeIndicator} />
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.background },
-  list: {
-    padding: Spacing.md,
-    paddingBottom: Spacing.xl,
-    flexGrow: 1,
+  safeArea: {
+    flex: 1,
+    backgroundColor: Colors.background,
   },
-  listHeader: {
-    marginBottom: Spacing.md,
+  scrollContent: {
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.xs,
+    paddingBottom: Spacing.xl,
+  },
+  heroSection: {
+    marginBottom: Spacing.lg,
+  },
+  sectionHeader: {
+    marginBottom: Spacing.xs,
   },
   sectionTitle: {
+    fontSize: FontSizes.md + 1,
+    fontWeight: '700',
     color: Colors.textPrimary,
-    fontSize: FontSizes.xl,
-    fontWeight: '800',
+    letterSpacing: -0.1,
   },
-  sectionSub: {
-    color: Colors.textSecondary,
-    fontSize: FontSizes.sm,
-    marginTop: 4,
+  listContainer: {
+    gap: Spacing.xs,
+  },
+  bottomBarContainer: {
+    alignItems: 'center',
+    paddingBottom: Spacing.xs,
+  },
+  homeIndicator: {
+    width: 120,
+    height: 4,
+    borderRadius: Radius.full,
+    backgroundColor: '#000000',
   },
 });
