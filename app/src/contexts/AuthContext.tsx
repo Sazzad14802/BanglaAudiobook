@@ -35,21 +35,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // On mount: restore session if token exists
   useEffect(() => {
+    let isMounted = true;
     (async () => {
       try {
-        const token = await authStorage.getToken();
-        if (token) {
-          const user = await authApi.me();
-          setState({ user, token, isLoading: false, isAuthenticated: true });
-        } else {
+        // Safe timeout for SecureStore read (avoid hanging on locked devices)
+        const token = await Promise.race([
+          authStorage.getToken(),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
+        ]);
+
+        if (token && isMounted) {
+          try {
+            const user = await authApi.me();
+            if (isMounted) {
+              setState({ user, token, isLoading: false, isAuthenticated: true });
+              return;
+            }
+          } catch (apiErr) {
+            // Token is expired or invalid – clear it
+            await authStorage.deleteToken().catch(() => {});
+          }
+        }
+      } catch (err) {
+        console.warn('Session restoration failed:', err);
+      } finally {
+        if (isMounted) {
           setState((s) => ({ ...s, isLoading: false }));
         }
-      } catch {
-        // Token is expired or invalid – clear it
-        await authStorage.deleteToken();
-        setState({ user: null, token: null, isLoading: false, isAuthenticated: false });
       }
     })();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const login = useCallback(async (data: LoginRequest) => {
@@ -64,11 +82,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const register = useCallback(async (data: RegisterRequest) => {
-    const response = await authApi.register(data);
-    await authStorage.saveToken(response.access_token);
+    // 1. Create the user account
+    await authApi.register(data);
+    // 2. Log in with the newly created credentials to receive JWT token & user profile
+    const tokenResponse = await authApi.login({
+      username_or_email: data.username,
+      password: data.password,
+    });
+    await authStorage.saveToken(tokenResponse.access_token);
     setState({
-      user: response.user,
-      token: response.access_token,
+      user: tokenResponse.user,
+      token: tokenResponse.access_token,
       isLoading: false,
       isAuthenticated: true,
     });

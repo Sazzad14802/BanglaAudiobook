@@ -58,7 +58,13 @@ export function RegisterScreen() {
     try {
       await register({ username: username.trim(), email: email.trim(), password });
     } catch (err) {
-      const message = err instanceof ApiError ? err.detail : 'Registration failed.';
+      console.error('Registration failed:', err);
+      const message =
+        err instanceof ApiError
+          ? err.detail
+          : err instanceof Error
+          ? err.message
+          : 'Registration failed.';
       Alert.alert('Registration Failed', message);
     } finally {
       setIsSubmitting(false);

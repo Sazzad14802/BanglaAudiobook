@@ -12,7 +12,25 @@ logger = logging.getLogger(__name__)
 
 
 class PDFService:
-    """Service for extracting and cleaning text from uploaded PDF documents."""
+    """
+    Service for extracting and cleaning text from uploaded PDF documents.
+    Features:
+    1. Fast-path text extraction via pypdf.
+    2. Automatic corruption detection (e.g. broken Word / Bijoy font CMap encodings).
+    3. EasyOCR visual fallback for scanned PDFs or garbled TrueType exports.
+    """
+
+    def __init__(self):
+        self._ocr_reader = None
+
+    @property
+    def ocr_reader(self):
+        """Lazy-loaded EasyOCR reader instance."""
+        if self._ocr_reader is None:
+            logger.info("Initializing EasyOCR reader for Bengali and English...")
+            import easyocr
+            self._ocr_reader = easyocr.Reader(["bn", "en"], gpu=settings.USE_CUDA)
+        return self._ocr_reader
 
     def resolve_pdf_bytes(self, source_url_or_path: str) -> bytes:
         """
@@ -57,23 +75,121 @@ class PDFService:
             resp.raise_for_status()
             return resp.content
 
-    def extract_text(self, pdf_bytes: bytes) -> str:
-        """Extract raw text from PDF bytes using pypdf."""
+    def is_text_corrupted(self, text: str, language: str = "bn") -> bool:
+        """
+        Detects if extracted text is empty or suffers from font encoding corruption
+        (common when exporting from Microsoft Word / InDesign with custom TrueType fonts).
+        """
+        if not text or len(text.strip()) < 10:
+            return True
+
+        if language == "bn":
+            # 1. Standalone ি placed before consonants or at start of words (e.g. িার, িখন, িাই)
+            detached_i_count = len(re.findall(r"(?:^|\s)ি[ক-হ]", text))
+            # 2. False 'স' acting as E-kar prefix before consonants (e.g. সস, সপশায়, সলখক, সরচখ, সকউ, সগালাপ)
+            e_kar_as_sa_count = len(re.findall(r"(?:^|\s)স[ক-হ][ক-হ]", text))
+            # 3. False 'চ' acting as E-kar infix before consonants (e.g. সকাচল, এচস, বচস, ভচর, ধচর)
+            e_kar_as_cha_count = len(re.findall(r"[ক-হ]চ[ক-হ]", text))
+            # 4. Words with repeated false 'ত' (hrosh-I) before consonants (e.g. তনতরতবতল, একতট, তকন্তু)
+            false_ta_count = len(re.findall(r"ত[ক-হ]", text))
+
+            # 5. Known corrupted tokens from Word Kalpurush / Bijoy exports
+            telltale_tokens = [
+                "প্রতিতিন", "শাতিচি", "তনতরতবতল", "একতট", "অদ্ভুি",
+                "ঘটচে", "হিাৎ", "তজচেস", "বযতি", "তিিীয়", "সািা", "সোট", "তেল", "তিক", "িরজা"
+            ]
+            telltale_count = sum(1 for token in telltale_tokens if token in text)
+
+            words = text.split()
+            total_words = max(1, len(words))
+
+            if telltale_count >= 1:
+                logger.warning(
+                    "Detected %d telltale corrupted Bengali tokens in extracted PDF text.",
+                    telltale_count,
+                )
+                return True
+
+            corruption_density = (detached_i_count + e_kar_as_sa_count + e_kar_as_cha_count) / total_words
+            if corruption_density > 0.08:
+                logger.warning(
+                    "High Bengali font corruption density: %.2f%%",
+                    corruption_density * 100,
+                )
+                return True
+
+            if false_ta_count / total_words > 0.2:
+                logger.warning(
+                    "Unusual ratio of false 'ত' prefixes: %.2f%%",
+                    (false_ta_count / total_words) * 100,
+                )
+                return True
+
+        return False
+
+    def extract_text_via_ocr(self, pdf_bytes: bytes) -> str:
+        """
+        Renders PDF pages to images via pypdfium2 and runs EasyOCR on the visual canvas.
+        Bypasses broken ToUnicode / font tables completely.
+        """
+        try:
+            import pypdfium2 as pdfium
+            import numpy as np
+
+            logger.info("Starting EasyOCR visual extraction on PDF...")
+            pdf = pdfium.PdfDocument(io.BytesIO(pdf_bytes))
+            all_text_lines: List[str] = []
+
+            for page_idx in range(len(pdf)):
+                logger.info("Running EasyOCR on page %d/%d...", page_idx + 1, len(pdf))
+                page = pdf[page_idx]
+                image = page.render(scale=2.0).to_pil()
+                img_np = np.array(image)
+
+                page_lines = self.ocr_reader.readtext(img_np, detail=0)
+                if page_lines:
+                    all_text_lines.extend(page_lines)
+
+            full_ocr_text = "\n".join(all_text_lines)
+            logger.info(
+                "EasyOCR successfully extracted %d lines from %d pages.",
+                len(all_text_lines),
+                len(pdf),
+            )
+            return self.clean_text(full_ocr_text)
+        except Exception as e:
+            logger.error("EasyOCR fallback failed: %s", e)
+            return ""
+
+    def extract_text(self, pdf_bytes: bytes, language: str = "bn") -> str:
+        """
+        Extract text with smart two-tier pipeline:
+        1. Fast text extraction via pypdf.
+        2. If text is empty or corrupted, automatically triggers EasyOCR fallback.
+        """
+        raw_text = ""
         try:
             reader = pypdf.PdfReader(io.BytesIO(pdf_bytes))
             pages_text: List[str] = []
 
-            for idx, page in enumerate(reader.pages):
+            for page in reader.pages:
                 text = page.extract_text() or ""
                 text = text.strip()
                 if text:
                     pages_text.append(text)
 
-            full_text = "\n\n".join(pages_text)
-            return self.clean_text(full_text)
+            raw_text = "\n\n".join(pages_text)
         except Exception as e:
-            logger.warning("pypdf extraction error (file may be malformed or non-standard PDF): %s", e)
-            return ""
+            logger.warning("pypdf extraction error: %s", e)
+
+        # Check if extracted text is valid or corrupted
+        if self.is_text_corrupted(raw_text, language=language):
+            logger.info("Extracted text is empty or corrupted. Engaging EasyOCR visual pipeline...")
+            ocr_text = self.extract_text_via_ocr(pdf_bytes)
+            if ocr_text:
+                return ocr_text
+
+        return self.clean_text(raw_text)
 
     def clean_text(self, text: str) -> str:
         """Clean up extracted PDF text for natural TTS reading."""

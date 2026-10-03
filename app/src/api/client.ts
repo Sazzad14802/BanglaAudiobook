@@ -61,16 +61,51 @@ async function handleResponse<T>(response: Response): Promise<T> {
   throw new ApiError(response.status, detail);
 }
 
+const REQUEST_TIMEOUT_MS = 30_000;
+
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit = {},
+  timeoutMs = REQUEST_TIMEOUT_MS,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  console.log(`[HTTP Request] ${options.method || 'GET'} ${url}`);
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    console.log(`[HTTP Response] ${response.status} ${url}`);
+    return response;
+  } catch (err: any) {
+    console.error(`[HTTP Error] ${url}:`, err);
+    if (
+      err?.name === 'AbortError' ||
+      err?.message?.includes('cancelled') ||
+      err?.message?.includes('aborted')
+    ) {
+      throw new ApiError(
+        0,
+        `Connection timed out (${timeoutMs / 1000}s). Server at ${url} did not respond. Check your Wi-Fi or firewall.`,
+      );
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export const apiClient = {
   async get<T>(path: string, authenticated = true): Promise<T> {
     const headers = await getHeaders(authenticated);
-    const response = await fetch(`${API_V1}${path}`, { method: 'GET', headers });
+    const response = await fetchWithTimeout(`${API_V1}${path}`, { method: 'GET', headers });
     return handleResponse<T>(response);
   },
 
   async post<T>(path: string, body?: unknown, authenticated = true): Promise<T> {
     const headers = await getHeaders(authenticated);
-    const response = await fetch(`${API_V1}${path}`, {
+    const response = await fetchWithTimeout(`${API_V1}${path}`, {
       method: 'POST',
       headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -80,7 +115,7 @@ export const apiClient = {
 
   async patch<T>(path: string, body?: unknown, authenticated = true): Promise<T> {
     const headers = await getHeaders(authenticated);
-    const response = await fetch(`${API_V1}${path}`, {
+    const response = await fetchWithTimeout(`${API_V1}${path}`, {
       method: 'PATCH',
       headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -90,7 +125,7 @@ export const apiClient = {
 
   async put<T>(path: string, body?: unknown, authenticated = true): Promise<T> {
     const headers = await getHeaders(authenticated);
-    const response = await fetch(`${API_V1}${path}`, {
+    const response = await fetchWithTimeout(`${API_V1}${path}`, {
       method: 'PUT',
       headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -100,7 +135,7 @@ export const apiClient = {
 
   async delete<T>(path: string, authenticated = true): Promise<T> {
     const headers = await getHeaders(authenticated);
-    const response = await fetch(`${API_V1}${path}`, { method: 'DELETE', headers });
+    const response = await fetchWithTimeout(`${API_V1}${path}`, { method: 'DELETE', headers });
     return handleResponse<T>(response);
   },
 

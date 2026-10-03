@@ -2,7 +2,7 @@ import os
 import sys
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import engine_from_config, pool, create_engine
 from alembic import context
 
 # Ensure app is importable from project root
@@ -23,12 +23,16 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 # Override sqlalchemy.url with dynamic settings from app.core.config
+<<<<<<< HEAD
+=======
+# Escape '%' to '%%' for configparser interpolation safety
+>>>>>>> 6e9cec77362fcaccf6295d25dde6b56d7b9bf32b
 config.set_main_option("sqlalchemy.url", settings.sync_database_url.replace("%", "%%"))
 
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode."""
-    url = config.get_main_option("sqlalchemy.url")
+    url = settings.sync_database_url
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -43,9 +47,8 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode."""
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
+    connectable = create_engine(
+        settings.sync_database_url,
         poolclass=pool.NullPool,
     )
 

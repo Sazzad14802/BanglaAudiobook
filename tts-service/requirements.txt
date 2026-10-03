@@ -10,3 +10,5 @@ TTS>=0.22.0
 scipy>=1.11.0
 numpy>=1.24.0
 pypdf>=5.0.0
+pypdfium2>=5.0.0
+easyocr>=1.7.0
