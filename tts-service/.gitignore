@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Environments
+venv/
+.venv/
+*-venv/
+env/
+
+# Model checkpoints & cache
+*.pth
+*.pt
+*.bin
+*.safetensors
+*.onnx
+models/
+checkpoints/
+.cache/
+
+# Audio outputs
+output/
+*.wav
+*.mp3
+*.ogg
+
+# Environment variables
+.env

@@ -12,7 +12,6 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { usePlayer } from '../../contexts/PlayerContext';
-import { ChapterItem } from '../../components/ChapterItem';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -26,8 +25,6 @@ export function PlayerScreen() {
   const nav = useNavigation();
   const {
     audiobook,
-    chapters,
-    currentChapterIndex,
     isPlaying,
     isLoading,
     positionSeconds,
@@ -35,12 +32,9 @@ export function PlayerScreen() {
     play,
     pause,
     seek,
-    nextChapter,
-    prevChapter,
-    loadAudiobook,
   } = usePlayer();
 
-  const progress = durationSeconds > 0 ? positionSeconds / durationSeconds : 0;
+  const progress = durationSeconds > 0 ? Math.min(1, positionSeconds / durationSeconds) : 0;
 
   const handleSeekBar = useCallback(
     (fraction: number) => {
@@ -59,8 +53,6 @@ export function PlayerScreen() {
       </SafeAreaView>
     );
   }
-
-  const currentChapter = chapters[currentChapterIndex];
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
@@ -83,14 +75,10 @@ export function PlayerScreen() {
           {audiobook.author ? (
             <Text style={styles.audiobookAuthor}>{audiobook.author}</Text>
           ) : null}
-        </View>
-
-        {/* Chapter Info */}
-        {currentChapter && (
-          <Text style={styles.chapterLabel}>
-            {currentChapter.chapter_number}. {currentChapter.title}
+          <Text style={styles.audiobookLanguage}>
+            {audiobook.language === 'bn' ? '🇧🇩 Bangla Audiobook' : 'Audiobook'}
           </Text>
-        )}
+        </View>
 
         {/* Seek Bar */}
         <View style={styles.seekContainer}>
@@ -99,15 +87,14 @@ export function PlayerScreen() {
             style={styles.seekTrack}
             onPress={(e) => {
               const { locationX } = e.nativeEvent;
-              // Approximate width from layout
               const fraction = Math.min(1, Math.max(0, locationX / 260));
               handleSeekBar(fraction);
             }}
             accessibilityRole="adjustable"
           >
             <View style={styles.seekFill} pointerEvents="none">
-              <View style={[styles.seekProgress, { flex: progress }]} />
-              <View style={{ flex: 1 - progress }} />
+              <View style={[styles.seekProgress, { flex: Math.max(0.001, progress) }]} />
+              <View style={{ flex: Math.max(0.001, 1 - progress) }} />
             </View>
             <View
               style={[styles.seekThumb, { left: `${progress * 100}%` as unknown as number }]}
@@ -117,24 +104,15 @@ export function PlayerScreen() {
           <Text style={styles.timeLabel}>{formatTime(durationSeconds)}</Text>
         </View>
 
-        {/* Controls */}
+        {/* Controls: -15s | Play/Pause | +15s */}
         <View style={styles.controls}>
           <Pressable
-            onPress={prevChapter}
-            style={({ pressed }) => [styles.controlBtn, pressed && styles.btnPressed]}
+            onPress={() => seek(Math.max(0, positionSeconds - 15))}
+            style={({ pressed }) => [styles.skipBtn, pressed && styles.btnPressed]}
             accessibilityRole="button"
-            accessibilityLabel="Previous Chapter"
+            accessibilityLabel="Rewind 15 seconds"
           >
-            <Text style={styles.controlIcon}>⏮</Text>
-          </Pressable>
-
-          <Pressable
-            onPress={() => seek(Math.max(0, positionSeconds - 10))}
-            style={({ pressed }) => [styles.controlBtn, pressed && styles.btnPressed]}
-            accessibilityRole="button"
-            accessibilityLabel="Rewind 10 seconds"
-          >
-            <Text style={styles.controlIcon}>⏪</Text>
+            <Text style={styles.skipBtnText}>-15s</Text>
           </Pressable>
 
           <Pressable
@@ -148,44 +126,14 @@ export function PlayerScreen() {
           </Pressable>
 
           <Pressable
-            onPress={() => seek(Math.min(durationSeconds, positionSeconds + 10))}
-            style={({ pressed }) => [styles.controlBtn, pressed && styles.btnPressed]}
+            onPress={() => seek(Math.min(durationSeconds, positionSeconds + 15))}
+            style={({ pressed }) => [styles.skipBtn, pressed && styles.btnPressed]}
             accessibilityRole="button"
-            accessibilityLabel="Forward 10 seconds"
+            accessibilityLabel="Forward 15 seconds"
           >
-            <Text style={styles.controlIcon}>⏩</Text>
-          </Pressable>
-
-          <Pressable
-            onPress={nextChapter}
-            style={({ pressed }) => [styles.controlBtn, pressed && styles.btnPressed]}
-            accessibilityRole="button"
-            accessibilityLabel="Next Chapter"
-          >
-            <Text style={styles.controlIcon}>⏭</Text>
+            <Text style={styles.skipBtnText}>+15s</Text>
           </Pressable>
         </View>
-
-        {/* Chapter List */}
-        {chapters.length > 0 && (
-          <View style={styles.chapterSection}>
-            <Text style={styles.chapterSectionTitle}>Chapters</Text>
-            {chapters.map((ch, idx) => (
-              <ChapterItem
-                key={ch.id}
-                chapter={ch}
-                isActive={idx === currentChapterIndex}
-                onPress={async () => {
-                  if (idx === currentChapterIndex) {
-                    await seek(0);
-                  } else if (audiobook) {
-                    await loadAudiobook(audiobook, chapters, idx, 0);
-                  }
-                }}
-              />
-            ))}
-          </View>
-        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -305,16 +253,25 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
   },
+  audiobookLanguage: {
+    color: Colors.primary,
+    fontSize: FontSizes.xs,
+    fontWeight: '700',
+    marginTop: Spacing.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
   controls: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.md,
+    gap: Spacing.xl,
+    marginTop: Spacing.md,
     marginBottom: Spacing.xl,
   },
-  controlBtn: {
-    width: 48,
-    height: 48,
+  skipBtn: {
+    width: 54,
+    height: 54,
     borderRadius: Radius.full,
     alignItems: 'center',
     justifyContent: 'center',
@@ -325,29 +282,26 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 3,
-    elevation: 1,
+    elevation: 2,
+  },
+  skipBtnText: {
+    color: Colors.textPrimary,
+    fontSize: FontSizes.sm,
+    fontWeight: '700',
   },
   playBtn: {
-    width: 68,
-    height: 68,
+    width: 72,
+    height: 72,
     borderRadius: Radius.full,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.primary,
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.35,
     shadowRadius: 8,
-    elevation: 4,
+    elevation: 5,
   },
   btnPressed: { opacity: 0.75 },
-  controlIcon: { fontSize: 20 },
-  playIcon: { fontSize: 28, color: Colors.textOnPrimary },
-  chapterSection: { gap: Spacing.sm },
-  chapterSectionTitle: {
-    color: Colors.textPrimary,
-    fontSize: FontSizes.md,
-    fontWeight: '700',
-    marginBottom: Spacing.xs,
-  },
+  playIcon: { fontSize: 30, color: Colors.textOnPrimary },
 });

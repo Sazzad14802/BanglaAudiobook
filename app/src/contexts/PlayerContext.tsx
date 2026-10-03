@@ -21,7 +21,7 @@ import {
 import { Chapter } from '../types/chapter';
 import { Audiobook } from '../types/audiobook';
 import { playbackApi } from '../api/playback';
-import { PLAYBACK_SYNC_INTERVAL_MS } from '../config';
+import { API_BASE_URL, PLAYBACK_SYNC_INTERVAL_MS } from '../config';
 
 export interface PlayerState {
   audiobook: Audiobook | null;
@@ -36,9 +36,9 @@ export interface PlayerState {
 interface PlayerContextValue extends PlayerState {
   loadAudiobook: (
     audiobook: Audiobook,
-    chapters: Chapter[],
-    startChapterIndex?: number,
-    startPosition?: number
+    arg2?: any,
+    arg3?: any,
+    arg4?: any
   ) => Promise<void>;
   play: () => Promise<void>;
   pause: () => Promise<void>;
@@ -129,13 +129,36 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }, PLAYBACK_SYNC_INTERVAL_MS);
   }, [stopSyncTimer, saveProgress]);
 
-  const loadChapter = useCallback(
-    async (chapters: Chapter[], index: number, startPosition = 0) => {
-      const chapter = chapters[index];
-      if (!chapter?.audio_url) {
+  const loadAudiobook = useCallback(
+    async (
+      audiobook: Audiobook,
+      arg2?: any,
+      _arg3?: any,
+      arg4?: any,
+    ) => {
+      // Support both loadAudiobook(audiobook, startPosition)
+      // and legacy loadAudiobook(audiobook, chapters, startChapterIndex, startPosition)
+      let startPosition = 0;
+      let rawAudioUrl = audiobook.audio_url;
+
+      if (typeof arg2 === 'number') {
+        startPosition = arg2;
+      } else if (Array.isArray(arg2) && arg2.length > 0) {
+        if (!rawAudioUrl && arg2[0]?.audio_url) {
+          rawAudioUrl = arg2[0].audio_url;
+        }
+        if (typeof arg4 === 'number') {
+          startPosition = arg4;
+        }
+      }
+
+      if (!rawAudioUrl) {
         setState((s) => ({ ...s, isLoading: false }));
         return;
       }
+
+      currentAudiobookIdRef.current = audiobook.id;
+      currentPosRef.current = startPosition;
 
       // Cleanup previous player & listener
       if (subRef.current) {
@@ -150,21 +173,21 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         playerRef.current = null;
       }
 
-      chapterIdxRef.current = index;
-      chaptersRef.current = chapters;
-      currentChapterIdRef.current = chapter.id;
-      currentPosRef.current = startPosition;
-
       setState((s) => ({
         ...s,
+        audiobook,
         isLoading: true,
-        currentChapterIndex: index,
         positionSeconds: startPosition,
+        durationSeconds: audiobook.duration_seconds || s.durationSeconds,
       }));
 
       try {
+        const fullAudioUrl = rawAudioUrl.startsWith('http')
+          ? rawAudioUrl
+          : `${API_BASE_URL}${rawAudioUrl.startsWith('/') ? '' : '/'}${rawAudioUrl}`;
+
         const player = createAudioPlayer(
-          { uri: chapter.audio_url },
+          { uri: fullAudioUrl },
           { updateInterval: 500 },
         );
 
@@ -178,17 +201,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
               ...s,
               isPlaying: status.playing,
               positionSeconds: status.currentTime,
-              durationSeconds: status.duration || s.durationSeconds,
+              durationSeconds: status.duration || audiobook.duration_seconds || s.durationSeconds,
               isLoading: status.isBuffering && !status.playing,
             }));
-
-            // Auto-advance to next chapter if finished
-            if (status.didJustFinish) {
-              const nextIndex = chapterIdxRef.current + 1;
-              if (nextIndex < chaptersRef.current.length) {
-                loadChapter(chaptersRef.current, nextIndex, 0);
-              }
-            }
           },
         );
         subRef.current = sub;
@@ -203,30 +218,13 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           isLoading: false,
           isPlaying: true,
         }));
+
+        startSyncTimer();
       } catch {
         setState((s) => ({ ...s, isLoading: false }));
       }
     },
-    [],
-  );
-
-  const loadAudiobook = useCallback(
-    async (
-      audiobook: Audiobook,
-      chapters: Chapter[],
-      startChapterIndex = 0,
-      startPosition = 0,
-    ) => {
-      currentAudiobookIdRef.current = audiobook.id;
-      chaptersRef.current = chapters;
-      chapterIdxRef.current = startChapterIndex;
-
-      setState((s) => ({ ...s, audiobook, chapters, isLoading: true }));
-
-      await loadChapter(chapters, startChapterIndex, startPosition);
-      startSyncTimer();
-    },
-    [loadChapter, startSyncTimer],
+    [startSyncTimer],
   );
 
   const play = useCallback(async () => {
@@ -254,20 +252,16 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const nextChapter = useCallback(async () => {
-    const nextIndex = chapterIdxRef.current + 1;
-    if (nextIndex < chaptersRef.current.length) {
-      await loadChapter(chaptersRef.current, nextIndex, 0);
-    }
-  }, [loadChapter]);
+    // Jump forward 15 seconds
+    currentPosRef.current += 15;
+    await seek(currentPosRef.current);
+  }, [seek]);
 
   const prevChapter = useCallback(async () => {
-    const prevIndex = chapterIdxRef.current - 1;
-    if (prevIndex >= 0) {
-      await loadChapter(chaptersRef.current, prevIndex, 0);
-    } else {
-      await seek(0);
-    }
-  }, [loadChapter, seek]);
+    // Jump back 15 seconds
+    currentPosRef.current = Math.max(0, currentPosRef.current - 15);
+    await seek(currentPosRef.current);
+  }, [seek]);
 
   const stop = useCallback(async () => {
     stopSyncTimer();

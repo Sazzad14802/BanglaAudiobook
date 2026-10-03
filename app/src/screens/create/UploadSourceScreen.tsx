@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import {
   Alert,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -67,12 +68,30 @@ export function UploadSourceScreen() {
       setStep('uploading');
       setStatusMessage('Uploading PDF...');
 
+      // Convert local URI to a standard Blob (required by React Native New Architecture / WinterCG standard)
+      const fileResponse = await fetch(pickedFile.uri);
+      const blob = await fileResponse.blob();
+
+      // Sanitize filename to ensure ASCII safety
+      const originalName = pickedFile.name || 'document.pdf';
+      let safeFileName = originalName.replace(/[^\x20-\x7E]/g, '_');
+      if (!safeFileName.toLowerCase().endsWith('.pdf')) {
+        safeFileName += '.pdf';
+      }
+
       const formData = new FormData();
-      formData.append('file', {
-        uri: pickedFile.uri,
-        name: pickedFile.name,
-        type: pickedFile.mimeType ?? 'application/pdf',
-      } as unknown as Blob);
+      if (typeof File !== 'undefined') {
+        try {
+          const fileObj = new File([blob], safeFileName, {
+            type: pickedFile.mimeType || 'application/pdf',
+          });
+          formData.append('file', fileObj, safeFileName);
+        } catch {
+          formData.append('file', blob, safeFileName);
+        }
+      } else {
+        formData.append('file', blob, safeFileName);
+      }
 
       await audiobooksApi.uploadSource(params.audiobookId, formData);
 
@@ -83,10 +102,14 @@ export function UploadSourceScreen() {
 
       setStep('done');
       nav.replace('GenerationStatus', { audiobookId: params.audiobookId });
-    } catch (err) {
+    } catch (err: any) {
       setStep('error');
-      setStatusMessage(err instanceof ApiError ? err.detail : 'Upload failed.');
-      Alert.alert('Error', statusMessage || 'Failed to upload or start generation.');
+      const errorMsg =
+        err instanceof ApiError
+          ? err.detail
+          : err?.detail || err?.message || 'Upload failed.';
+      setStatusMessage(errorMsg);
+      Alert.alert('Upload Error', errorMsg);
     }
   }
 

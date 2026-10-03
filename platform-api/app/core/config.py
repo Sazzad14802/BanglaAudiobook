@@ -66,7 +66,8 @@ class Settings(BaseSettings):
 
     # ── Model Runner Dispatcher ────────────────────────────────────────────
     # Dispatcher strategy for AI Model Runner boundary
-    MODEL_RUNNER_DISPATCHER: str = "mock"  # "mock", future: "redis", "http"
+    MODEL_RUNNER_DISPATCHER: str = "http"  # "mock", "http"
+    MODEL_RUNNER_URL: str = "http://localhost:8001/jobs"
 
 
 settings = Settings()

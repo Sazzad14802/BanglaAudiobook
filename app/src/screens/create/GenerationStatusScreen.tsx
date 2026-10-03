@@ -108,7 +108,7 @@ export function GenerationStatusScreen() {
             <Text style={[styles.statusLabel, { color: display.color }]}>{display.label}</Text>
 
             {currentStatus === 'PROCESSING' && (
-              <Text style={styles.statusHint}>Generating audiobook chapters and audio. This may take a few minutes.</Text>
+              <Text style={styles.statusHint}>Generating audiobook speech and audio. This may take a few minutes.</Text>
             )}
             {currentStatus === 'PENDING' && (
               <Text style={styles.statusHint}>Queued for processing. Generation will start shortly.</Text>

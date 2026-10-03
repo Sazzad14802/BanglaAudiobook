@@ -24,7 +24,6 @@ import { UploadSourceScreen } from '../screens/create/UploadSourceScreen';
 import { GenerationStatusScreen } from '../screens/create/GenerationStatusScreen';
 import { ProfileScreen } from '../screens/profile/ProfileScreen';
 import { AudiobookDetailsScreen } from '../screens/audiobook/AudiobookDetailsScreen';
-import { ChapterListScreen } from '../screens/audiobook/ChapterListScreen';
 import { PlayerScreen } from '../screens/audiobook/PlayerScreen';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -48,11 +47,6 @@ function HomeStackNavigator() {
         options={{ title: 'Audiobook Details' }}
       />
       <HomeStack.Screen
-        name="ChapterList"
-        component={ChapterListScreen}
-        options={{ title: 'Chapters' }}
-      />
-      <HomeStack.Screen
         name="Player"
         component={PlayerScreen}
         options={{ title: 'Now Playing', headerShown: false }}
@@ -71,11 +65,6 @@ function LibraryStackNavigator() {
         name="AudiobookDetails"
         component={AudiobookDetailsScreen}
         options={{ title: 'Audiobook Details' }}
-      />
-      <LibraryStack.Screen
-        name="ChapterList"
-        component={ChapterListScreen}
-        options={{ title: 'Chapters' }}
       />
       <LibraryStack.Screen
         name="Player"
@@ -111,6 +100,11 @@ function CreateStackNavigator() {
         component={AudiobookDetailsScreen}
         options={{ title: 'Audiobook Details' }}
       />
+      <CreateStack.Screen
+        name="Player"
+        component={PlayerScreen}
+        options={{ title: 'Now Playing', headerShown: false }}
+      />
     </CreateStack.Navigator>
   );
 }
@@ -125,6 +119,11 @@ function ProfileStackNavigator() {
         name="AudiobookDetails"
         component={AudiobookDetailsScreen}
         options={{ title: 'Audiobook Details' }}
+      />
+      <ProfileStack.Screen
+        name="Player"
+        component={PlayerScreen}
+        options={{ title: 'Now Playing', headerShown: false }}
       />
     </ProfileStack.Navigator>
   );

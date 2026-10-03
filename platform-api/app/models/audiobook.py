@@ -5,7 +5,7 @@ Audiobook database model and status/visibility enums.
 import enum
 from typing import TYPE_CHECKING, Optional
 import uuid
-from sqlalchemy import Enum, ForeignKey, String, Text, Uuid
+from sqlalchemy import Enum, Float, ForeignKey, String, Text, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -60,6 +60,15 @@ class Audiobook(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     source_file_url: Mapped[Optional[str]] = mapped_column(
         String(1024),
         nullable=True,
+    )
+    audio_url: Mapped[Optional[str]] = mapped_column(
+        String(1024),
+        nullable=True,
+    )
+    duration_seconds: Mapped[float] = mapped_column(
+        Float,
+        default=0.0,
+        nullable=False,
     )
     language: Mapped[str] = mapped_column(
         String(10),

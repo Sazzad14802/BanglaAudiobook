@@ -12,14 +12,12 @@ export type HomeStackParamList = {
   Home: undefined;
   AudiobookDetails: { audiobookId: string };
   Player: { audiobookId: string };
-  ChapterList: { audiobookId: string };
 };
 
 export type LibraryStackParamList = {
   Library: undefined;
   AudiobookDetails: { audiobookId: string };
   Player: { audiobookId: string };
-  ChapterList: { audiobookId: string };
 };
 
 export type CreateStackParamList = {
@@ -27,11 +25,13 @@ export type CreateStackParamList = {
   UploadSource: { audiobookId: string };
   GenerationStatus: { audiobookId: string };
   AudiobookDetails: { audiobookId: string };
+  Player: { audiobookId: string };
 };
 
 export type ProfileStackParamList = {
   Profile: undefined;
   AudiobookDetails: { audiobookId: string };
+  Player: { audiobookId: string };
 };
 
 export type MainTabParamList = {

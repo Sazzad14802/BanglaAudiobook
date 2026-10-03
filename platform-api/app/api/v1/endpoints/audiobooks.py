@@ -19,6 +19,7 @@ from app.schemas.audiobook import (
 from app.schemas.chapter import ChapterRead
 from app.schemas.generation import (
     AudiobookGenerationStatusResponse,
+    GenerationCallbackRequest,
     GenerationJobRead,
     GenerationJobResponse,
 )
@@ -357,3 +358,84 @@ async def get_audiobook_chapter(
         user=current_user,
     )
     return ChapterRead.model_validate(chapter)
+
+
+# ── Generation Webhook Callback ───────────────────────────────────────────────
+
+@router.post(
+    "/generation-callback",
+    summary="Webhook callback from TTS Service upon job completion",
+    status_code=status.HTTP_200_OK,
+)
+async def generation_callback(
+    data: GenerationCallbackRequest,
+    db: DatabaseDep,
+):
+    """
+    Webhook endpoint invoked by the AI TTS Service when a generation job finishes.
+    Updates Audiobook and GenerationJob statuses, and creates the single main audio chapter.
+    """
+    from datetime import datetime, timezone
+    from fastapi import HTTPException
+    from sqlalchemy import select
+    from app.models.chapter import Chapter
+    from app.models.generation_job import GenerationJob
+
+    # Fetch audiobook
+    audiobook = await audiobook_service.get_audiobook_raw(db, data.audiobook_id)
+    if not audiobook:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Audiobook {data.audiobook_id} not found",
+        )
+
+    # Fetch job
+    job_result = await db.execute(
+        select(GenerationJob).where(GenerationJob.id == data.job_id)
+    )
+    job = job_result.scalar_one_or_none()
+
+    if data.status == AudiobookStatus.COMPLETED:
+        audiobook.status = AudiobookStatus.COMPLETED
+        audiobook.audio_url = data.audio_url
+        audiobook.duration_seconds = data.duration_seconds or 0.0
+        if job:
+            job.status = AudiobookStatus.COMPLETED
+            job.completed_at = datetime.now(timezone.utc)
+
+        # Create or update single full audiobook chapter
+        chap_result = await db.execute(
+            select(Chapter).where(
+                Chapter.audiobook_id == audiobook.id,
+                Chapter.chapter_number == 1,
+            )
+        )
+        chapter = chap_result.scalar_one_or_none()
+
+        if chapter:
+            chapter.audio_url = data.audio_url
+            chapter.duration_seconds = data.duration_seconds or 0.0
+        else:
+            chapter = Chapter(
+                audiobook_id=audiobook.id,
+                title=audiobook.title,
+                chapter_number=1,
+                duration_seconds=data.duration_seconds or 0.0,
+                audio_url=data.audio_url,
+            )
+            db.add(chapter)
+
+    elif data.status == AudiobookStatus.FAILED:
+        audiobook.status = AudiobookStatus.FAILED
+        if job:
+            job.status = AudiobookStatus.FAILED
+            job.error_message = data.error or "Generation failed in TTS service"
+            job.completed_at = datetime.now(timezone.utc)
+
+    await db.commit()
+    await db.refresh(audiobook)
+    return {
+        "status": "ok",
+        "audiobook_id": str(audiobook.id),
+        "audiobook_status": audiobook.status,
+    }

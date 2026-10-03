@@ -35,21 +35,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // On mount: restore session if token exists
   useEffect(() => {
+    let isMounted = true;
     (async () => {
       try {
-        const token = await authStorage.getToken();
-        if (token) {
-          const user = await authApi.me();
-          setState({ user, token, isLoading: false, isAuthenticated: true });
-        } else {
+        // Safe timeout for SecureStore read (avoid hanging on locked devices)
+        const token = await Promise.race([
+          authStorage.getToken(),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
+        ]);
+
+        if (token && isMounted) {
+          try {
+            const user = await authApi.me();
+            if (isMounted) {
+              setState({ user, token, isLoading: false, isAuthenticated: true });
+              return;
+            }
+          } catch (apiErr) {
+            // Token is expired or invalid – clear it
+            await authStorage.deleteToken().catch(() => {});
+          }
+        }
+      } catch (err) {
+        console.warn('Session restoration failed:', err);
+      } finally {
+        if (isMounted) {
           setState((s) => ({ ...s, isLoading: false }));
         }
-      } catch {
-        // Token is expired or invalid – clear it
-        await authStorage.deleteToken();
-        setState({ user: null, token: null, isLoading: false, isAuthenticated: false });
       }
     })();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const login = useCallback(async (data: LoginRequest) => {

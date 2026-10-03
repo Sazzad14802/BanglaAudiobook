@@ -45,6 +45,8 @@ class AudiobookRead(BaseModel):
     description: Optional[str]
     cover_image_url: Optional[str]
     source_file_url: Optional[str]
+    audio_url: Optional[str] = None
+    duration_seconds: float = 0.0
     language: str
     visibility: AudiobookVisibility
     status: AudiobookStatus

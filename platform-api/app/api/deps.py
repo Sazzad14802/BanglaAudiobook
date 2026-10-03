@@ -14,7 +14,7 @@ from app.models.user import User
 from app.services.auth_service import get_user_by_id
 
 oauth2_scheme = OAuth2PasswordBearer(
-    tokenUrl="/api/v1/auth/login",
+    tokenUrl="/api/v1/auth/token",
     auto_error=False,
 )
 

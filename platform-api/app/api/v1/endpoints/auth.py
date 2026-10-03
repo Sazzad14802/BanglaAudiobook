@@ -27,6 +27,29 @@ async def register(
     return UserRead.model_validate(user)
 
 
+from typing import Annotated
+from fastapi import Depends
+from fastapi.security import OAuth2PasswordRequestForm
+
+
+@router.post(
+    "/token",
+    response_model=TokenResponse,
+    summary="OAuth2 form login (for Swagger UI Authorize)",
+)
+async def login_oauth(
+    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+    db: DatabaseDep,
+) -> TokenResponse:
+    """OAuth2 standard form-based login for Swagger UI authorization modal."""
+    user = await auth_service.authenticate_user(
+        db,
+        username_or_email=form_data.username,
+        password=form_data.password,
+    )
+    return auth_service.create_user_token(user)
+
+
 @router.post(
     "/login",
     response_model=TokenResponse,
