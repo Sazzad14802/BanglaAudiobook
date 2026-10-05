@@ -6,11 +6,12 @@
 import React from 'react';
 import {
   Pressable,
-  SafeAreaView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { ShrutiHeader } from '../../components/ShrutiHeader';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
 
@@ -26,8 +27,9 @@ export function NotificationsPromptScreen({
   onSkip,
 }: NotificationsPromptScreenProps) {
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ShrutiHeader
+
         title="Notifications"
         subtitle="Context → system prompt"
         onBack={onBack}

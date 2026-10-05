@@ -6,13 +6,14 @@
 import React, { useState } from 'react';
 import {
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ExploreStackParamList } from '../../navigation/types';
@@ -49,8 +50,9 @@ export function ExploreScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ShrutiHeader
+
         title="এক্সপ্লোর"
         subtitle="Bangla + English"
         onOptionsPress={() => {}}

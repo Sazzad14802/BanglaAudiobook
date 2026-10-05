@@ -7,12 +7,13 @@ import React, { useState } from 'react';
 import {
   Alert,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { useAuth } from '../../contexts/AuthContext';
 import { ShrutiHeader } from '../../components/ShrutiHeader';
 import { ShrutiButton } from '../../components/ShrutiButton';
@@ -52,7 +53,7 @@ export function ProfileScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ShrutiHeader
         title="প্রোফাইল ও সেটিংস"
         subtitle="User Account & Ecosystem"
@@ -66,11 +67,14 @@ export function ProfileScreen() {
         {/* User Card */}
         <View style={styles.userCard}>
           <View style={styles.avatarCircle}>
-            <Text style={styles.avatarChar}>না</Text>
+            <Text style={styles.avatarChar}>
+              {(user?.full_name ?? user?.username ?? 'নাবিলা').charAt(0).toUpperCase()}
+            </Text>
           </View>
           <View style={styles.userMeta}>
-            <Text style={styles.userName}>{user?.full_name ?? 'নাবিলা'}</Text>
+            <Text style={styles.userName}>{user?.full_name ?? user?.username ?? 'নাবিলা'}</Text>
             <Text style={styles.userEmail}>{user?.email ?? 'nabila@example.com'}</Text>
+
             <View style={styles.badgeRow}>
               <TagBadge
                 label={isPremium ? 'PREMIUM MEMBER' : 'FREE PLAN'}

@@ -3,7 +3,9 @@
  */
 
 import React, { useEffect } from 'react';
-import { Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { ShrutiHeader } from '../../components/ShrutiHeader';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
 
@@ -20,8 +22,9 @@ export function SplashScreen({ onContinue }: SplashScreenProps) {
   }, [onContinue]);
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ShrutiHeader
+
         title="শ্রুতি"
         subtitle="বাংলা অডিওবুক, নিজের মতো"
         onOptionsPress={() => {}}

@@ -1,18 +1,24 @@
 /**
  * HomeScreen — Discovery matching Figma Plate 3 Screen 1.
- * Features greeting, editorial pick hero card, and 'শোনা চালিয়ে যান' list.
+ * Features:
+ * - Proper notch-safe edge handling (react-native-safe-area-context)
+ * - Real live fetching from FastAPI backend & PostgreSQL database (Repository Pattern)
+ * - Fallback to curated Figma classics if offline or disconnected
+ * - Pull-to-refresh
+ * - Playback integration via usePlayer facade
  */
 
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   FlatList,
   Pressable,
-  SafeAreaView,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { HomeStackParamList } from '../../navigation/types';
@@ -20,6 +26,8 @@ import { ShrutiHeader } from '../../components/ShrutiHeader';
 import { EditorialHeroCard } from '../../components/EditorialHeroCard';
 import { AudiobookCard } from '../../components/AudiobookCard';
 import { FIGMA_AUDIOBOOKS } from '../../data/mockAudiobooks';
+import { audiobooksApi } from '../../api/audiobooks';
+import { Audiobook } from '../../types/audiobook';
 import { usePlayer } from '../../contexts/PlayerContext';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
 
@@ -29,22 +37,49 @@ export function HomeScreen() {
   const nav = useNavigation<Nav>();
   const { loadAudiobook } = usePlayer();
 
-  const featuredBook = FIGMA_AUDIOBOOKS.find((b) => b.id === 'pather-panchali') ?? FIGMA_AUDIOBOOKS[0];
-  const continueListeningBooks = FIGMA_AUDIOBOOKS.filter(
-    (b) => b.id === 'shesher-kobita' || b.id === 'hajar-bachhor-dhore'
-  );
+  const [audiobooks, setAudiobooks] = useState<Audiobook[]>(FIGMA_AUDIOBOOKS);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Repository Pattern: Fetch from live backend
+  const loadData = useCallback(async () => {
+    try {
+      const res = await audiobooksApi.list(1, 20);
+      if (res && res.items && res.items.length > 0) {
+        setAudiobooks(res.items);
+      }
+    } catch (e) {
+      // Gracefully fall back to local seed data if network is unreachable
+      console.log('Using local fallback audiobooks:', e);
+      setAudiobooks(FIGMA_AUDIOBOOKS);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const onRefresh = async () => {
+    setIsRefreshing(true);
+    await loadData();
+    setIsRefreshing(false);
+  };
+
+  const featuredBook =
+    audiobooks.find((b) => b.title === 'পথের পাঁচালী') ?? audiobooks[0] ?? FIGMA_AUDIOBOOKS[0];
+
+  const continueListeningBooks = audiobooks.filter((b) => b.id !== featuredBook.id).slice(0, 4);
 
   const handleBookPress = (audiobookId: string) => {
     nav.navigate('AudiobookDetails', { audiobookId });
   };
 
-  const handlePlayBook = async (audiobook: any) => {
-    await loadAudiobook(audiobook);
-    nav.navigate('Player', { audiobookId: audiobook.id });
+  const handlePlayBook = async (book: any) => {
+    await loadAudiobook(book);
+    nav.navigate('Player', { audiobookId: book.id });
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ShrutiHeader
         title="শুভ সন্ধ্যা, নাবিলা"
         subtitle="আজ কী শুনবেন?"
@@ -54,6 +89,14 @@ export function HomeScreen() {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            tintColor={Colors.primary}
+            colors={[Colors.primary]}
+          />
+        }
       >
         {/* Featured Editorial Hero Card */}
         <View style={styles.heroSection}>
@@ -64,7 +107,6 @@ export function HomeScreen() {
             onPress={() => handleBookPress(featuredBook.id)}
           />
         </View>
-
 
         {/* Section: শোনা চালিয়ে যান */}
         <View style={styles.sectionHeader}>

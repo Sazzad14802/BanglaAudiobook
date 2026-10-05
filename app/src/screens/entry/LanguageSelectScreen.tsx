@@ -6,11 +6,12 @@
 import React, { useState } from 'react';
 import {
   Pressable,
-  SafeAreaView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { ShrutiHeader } from '../../components/ShrutiHeader';
 import { ShrutiButton } from '../../components/ShrutiButton';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
@@ -45,8 +46,9 @@ export function LanguageSelectScreen({ onBack, onContinue }: LanguageSelectScree
   ];
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ShrutiHeader
+
         title="ভাষা বেছে নিন"
         subtitle="Bangla-first"
         onBack={onBack}

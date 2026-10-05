@@ -6,12 +6,13 @@
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { useNavigation } from '@react-navigation/native';
 import { ShrutiHeader } from '../../components/ShrutiHeader';
 import { ShrutiButton } from '../../components/ShrutiButton';
@@ -30,8 +31,9 @@ export function DiscoveryStatesScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ShrutiHeader
+
         title="Discovery states"
         subtitle="Loading · no results · offline · error"
         onBack={() => nav.goBack()}

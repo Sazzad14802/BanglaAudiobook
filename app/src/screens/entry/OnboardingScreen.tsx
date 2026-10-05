@@ -6,11 +6,12 @@
 import React, { useState } from 'react';
 import {
   Image,
-  SafeAreaView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { ShrutiHeader } from '../../components/ShrutiHeader';
 import { ShrutiButton } from '../../components/ShrutiButton';
 import { TagBadge } from '../../components/TagBadge';
@@ -66,8 +67,9 @@ export function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ShrutiHeader
+
         title={currentStep.title}
         subtitle={currentStep.stepLabel}
         onOptionsPress={() => {}}

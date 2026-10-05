@@ -7,12 +7,13 @@ import React, { useState } from 'react';
 import {
   Alert,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { useNavigation } from '@react-navigation/native';
 import { ShrutiHeader } from '../../components/ShrutiHeader';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
@@ -89,8 +90,9 @@ export function ChaptersQueueScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ShrutiHeader
+
         title="Chapters & queue"
         subtitle="12 chapters · 4 up next"
         onBack={() => nav.goBack()}

@@ -31,7 +31,7 @@ function getDevHost(): string {
       return match[1];
     }
   }
-  return '192.168.0.131';
+  return '192.168.0.118';
 }
 
 const host = getDevHost();
@@ -42,6 +42,7 @@ export const API_BASE_URL =
     : `http://${host}:8000`;
 
 export const API_V1 = `${API_BASE_URL}/api/v1`;
+
 
 /** Playback progress sync interval in milliseconds */
 export const PLAYBACK_SYNC_INTERVAL_MS = 10_000;
