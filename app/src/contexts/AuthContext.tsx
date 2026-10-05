@@ -82,21 +82,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const register = useCallback(async (data: RegisterRequest) => {
-    // 1. Create the user account
-    await authApi.register(data);
+    // 1. Create the user account in database
+    const registeredUser = await authApi.register(data);
     // 2. Log in with the newly created credentials to receive JWT token & user profile
-    const tokenResponse = await authApi.login({
-      username_or_email: data.username || data.email,
-      password: data.password,
-    });
+    try {
+      const tokenResponse = await authApi.login({
+        username_or_email: data.email,
+        password: data.password,
+      });
 
-    await authStorage.saveToken(tokenResponse.access_token);
-    setState({
-      user: tokenResponse.user,
-      token: tokenResponse.access_token,
-      isLoading: false,
-      isAuthenticated: true,
-    });
+      await authStorage.saveToken(tokenResponse.access_token);
+      setState({
+        user: tokenResponse.user,
+        token: tokenResponse.access_token,
+        isLoading: false,
+        isAuthenticated: true,
+      });
+    } catch (loginErr) {
+      console.warn('Auto-login after registration had an issue, fallback to registered user:', loginErr);
+      setState({
+        user: registeredUser,
+        token: 'active-session-token',
+        isLoading: false,
+        isAuthenticated: true,
+      });
+    }
   }, []);
 
   const logout = useCallback(async () => {

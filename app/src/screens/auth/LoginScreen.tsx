@@ -5,7 +5,8 @@
  * - Sign In & Sign Up connected to live FastAPI backend & PostgreSQL database
  * - Secure JWT storage
  * - Quick Google Sign-In / Demo Login bypass
- * - Strategy pattern for auth input validation
+ * - Strategy pattern for auth input validation & registration resolution
+ * - Failover resilience: never hangs in loading state
  */
 
 import React, { useState } from 'react';
@@ -53,7 +54,7 @@ export function LoginScreen() {
 
     // Strategy Pattern: Validation Strategy
     if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
-      setValidationError('nabila@ - সঠিক ইমেইল লিখুন');
+      setValidationError('সঠিক ইমেইল ঠিকানা লিখুন (যেমন: user@example.com)');
       return;
     }
     if (!cleanPassword || cleanPassword.length < 6) {
@@ -62,21 +63,27 @@ export function LoginScreen() {
     }
 
     setIsSubmitting(true);
+
+    // Fail-safe safety timer: guarantees loading state never freezes indefinitely
+    const safetyTimer = setTimeout(() => {
+      setIsSubmitting(false);
+    }, 8000);
+
     try {
       if (isSignUp) {
-        // Derive unique username from name or email prefix
-        const derivedUsername =
-          (name.trim() ? name.trim().toLowerCase().replace(/[^a-z0-9_]/g, '') : '') ||
-          cleanEmail.split('@')[0].replace(/[^a-z0-9_]/g, '');
-
-        const finalUsername =
-          derivedUsername.length >= 3 ? derivedUsername : `user_${Math.floor(Math.random() * 10000)}`;
+        // Strategy Pattern: Username generation strategy
+        // Generates an alphanumeric username with random salt to avoid 409 unique constraint errors
+        const namePart = name.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+        const emailPart = cleanEmail.split('@')[0].replace(/[^a-z0-9_]/g, '');
+        const basePart =
+          namePart.length >= 3 ? namePart : emailPart.length >= 3 ? emailPart : 'user';
+        const finalUsername = `${basePart}_${Math.floor(1000 + Math.random() * 9000)}`;
 
         await register({
           username: finalUsername,
           email: cleanEmail,
           password: cleanPassword,
-          full_name: name.trim() || 'নাবিলা',
+          full_name: name.trim() || undefined,
         });
         setSuccessMessage('অ্যাকাউন্ট সফলভাবে তৈরি হয়েছে!');
       } else {
@@ -87,20 +94,43 @@ export function LoginScreen() {
         setSuccessMessage('সফলভাবে সাইন ইন হয়েছে!');
       }
     } catch (err: any) {
-      console.log('Backend auth error:', err);
+      console.warn('Backend auth error:', err);
       if (err instanceof ApiError) {
-        setValidationError(err.detail || 'অনুরোধটি সম্পন্ন করা যায়নি।');
-      } else if (err?.message?.includes('already registered') || err?.message?.includes('400')) {
-        setValidationError('এই ইমেইল দিয়ে আগেই অ্যাকাউন্ট খোলা হয়েছে। Sign In করুন।');
+        if (
+          err.status === 409 ||
+          err.detail?.toLowerCase().includes('already exists') ||
+          err.detail?.toLowerCase().includes('already registered')
+        ) {
+          setValidationError(
+            'এই ইমেইল দিয়ে আগেই অ্যাকাউন্ট খোলা হয়েছে। দয়া করে "Sign In" ট্যাবে যান।',
+          );
+        } else if (
+          err.status === 401 ||
+          err.detail?.toLowerCase().includes('incorrect')
+        ) {
+          setValidationError('ভুল ইমেইল বা পাসওয়ার্ড দেওয়া হয়েছে। আবার চেষ্টা করুন।');
+        } else if (err.status === 422) {
+          setValidationError(err.detail || 'তথ্যের সঠিক ফরম্যাট দিন।');
+        } else {
+          setValidationError(err.detail || 'অনুরোধটি সম্পন্ন করা যায়নি।');
+        }
+      } else if (
+        err?.message?.includes('already registered') ||
+        err?.message?.includes('already exists') ||
+        err?.message?.includes('409')
+      ) {
+        setValidationError(
+          'এই ইমেইল দিয়ে আগেই অ্যাকাউন্ট খোলা হয়েছে। দয়া করে "Sign In" ট্যাবে যান।',
+        );
       } else if (err?.message?.includes('Incorrect') || err?.message?.includes('401')) {
         setValidationError('ভুল ইমেইল বা পাসওয়ার্ড দেওয়া হয়েছে।');
       } else {
-        // In case local network is unreachable from phone, offer clear diagnostics
         setValidationError(
-          'সার্ভার রেসপন্স করছে না। Wi-Fi IP বা backend চালু আছে কিনা নিশ্চিত করুন।'
+          'সার্ভারের সাথে সংযোগ করা যায়নি। Wi-Fi বা মোবাইল ডাটা চেক করুন।',
         );
       }
     } finally {
+      clearTimeout(safetyTimer);
       setIsSubmitting(false);
     }
   };
@@ -109,7 +139,6 @@ export function LoginScreen() {
     setIsSubmitting(true);
     setValidationError(null);
     try {
-      // Connects with standard demo account on backend or creates user session
       try {
         await login({
           username_or_email: 'salehsadid16@gmail.com',
@@ -155,6 +184,9 @@ export function LoginScreen() {
               onPress={() => {
                 setIsSignUp(false);
                 setValidationError(null);
+                setSuccessMessage(null);
+                if (!email) setEmail('nabila@example.com');
+                if (!password) setPassword('password123');
               }}
               style={[styles.toggleTab, !isSignUp && styles.toggleTabActive]}
             >
@@ -166,6 +198,11 @@ export function LoginScreen() {
               onPress={() => {
                 setIsSignUp(true);
                 setValidationError(null);
+                setSuccessMessage(null);
+                if (email === 'nabila@example.com') {
+                  setEmail('');
+                  setPassword('');
+                }
               }}
               style={[styles.toggleTab, isSignUp && styles.toggleTabActive]}
             >
@@ -179,10 +216,10 @@ export function LoginScreen() {
           <View style={styles.formContainer}>
             {/* Name Field (Sign up only) */}
             <View style={styles.fieldWrapper}>
-              <Text style={styles.fieldLabel}>নাম · Sign up only</Text>
+              <Text style={styles.fieldLabel}>নাম {isSignUp ? '' : '· Sign up only'}</Text>
               <TextInput
                 style={[styles.textInput, !isSignUp && styles.inputDisabled]}
-                placeholder="আপনার নাম"
+                placeholder={isSignUp ? 'আপনার নাম (যেমন: সাদিদ)' : '—'}
                 placeholderTextColor={Colors.textMuted}
                 value={name}
                 onChangeText={setName}
@@ -195,7 +232,7 @@ export function LoginScreen() {
               <Text style={styles.fieldLabel}>ইমেইল</Text>
               <TextInput
                 style={styles.textInput}
-                placeholder="nabila@example.com"
+                placeholder="your.email@example.com"
                 placeholderTextColor={Colors.textMuted}
                 value={email}
                 onChangeText={setEmail}
@@ -210,7 +247,7 @@ export function LoginScreen() {
               <View style={styles.passwordRow}>
                 <TextInput
                   style={styles.passwordInput}
-                  placeholder="••••••••"
+                  placeholder="কমপক্ষে ৬ অক্ষরের পাসওয়ার্ড"
                   placeholderTextColor={Colors.textMuted}
                   value={password}
                   onChangeText={setPassword}
@@ -230,7 +267,15 @@ export function LoginScreen() {
           {/* Action Buttons */}
           <View style={styles.actionsContainer}>
             <ShrutiButton
-              label={isSignUp ? 'Sign up' : 'Sign in'}
+              label={
+                isSubmitting
+                  ? isSignUp
+                    ? 'তৈরি হচ্ছে...'
+                    : 'লগইন হচ্ছে...'
+                  : isSignUp
+                  ? 'Sign up'
+                  : 'Sign in'
+              }
               onPress={handleSubmit}
               variant="primary"
               isLoading={isSubmitting}
@@ -246,15 +291,27 @@ export function LoginScreen() {
           {/* Validation Error Message Box */}
           {validationError && (
             <View style={styles.validationCard}>
-              <Text style={styles.validationTitle}>Validation notice</Text>
+              <Text style={styles.validationTitle}>নোটিশ</Text>
               <Text style={styles.validationDetail}>{validationError}</Text>
+
+              {/* If server connection failed, offer instant Demo fallback */}
+              {validationError.includes('সংযোগ') && (
+                <Pressable
+                  style={styles.demoBypassButton}
+                  onPress={handleGoogleSignIn}
+                >
+                  <Text style={styles.demoBypassText}>
+                    ⚡ ডেমো মোডে প্রবেশ করুন (Offline Demo)
+                  </Text>
+                </Pressable>
+              )}
             </View>
           )}
 
           {/* Success Message Box */}
           {successMessage && (
             <View style={styles.successCard}>
-              <Text style={styles.successTitle}>Success</Text>
+              <Text style={styles.successTitle}>অভিনন্দন</Text>
               <Text style={styles.successDetail}>{successMessage}</Text>
             </View>
           )}
@@ -386,6 +443,19 @@ const styles = StyleSheet.create({
   validationDetail: {
     fontSize: FontSizes.xs,
     color: Colors.tintErrorText,
+  },
+  demoBypassButton: {
+    marginTop: Spacing.sm,
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.xs + 2,
+    paddingHorizontal: Spacing.md,
+    borderRadius: Radius.sm,
+    alignItems: 'center',
+  },
+  demoBypassText: {
+    color: Colors.textOnPrimary,
+    fontSize: FontSizes.xs + 1,
+    fontWeight: '700',
   },
   successCard: {
     backgroundColor: Colors.tintGreen,

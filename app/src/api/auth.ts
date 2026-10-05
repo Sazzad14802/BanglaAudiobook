@@ -8,7 +8,12 @@ import { User } from '../types/auth';
 
 export const authApi = {
   register(data: RegisterRequest): Promise<User> {
-    return apiClient.post<User>('/auth/register', data, false);
+    const payload = {
+      username: data.username?.trim(),
+      email: data.email.trim().toLowerCase(),
+      password: data.password,
+    };
+    return apiClient.post<User>('/auth/register', payload, false);
   },
 
   login(data: LoginRequest): Promise<TokenResponse> {
