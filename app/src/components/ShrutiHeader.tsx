@@ -4,8 +4,8 @@
  */
 
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Colors, FontSizes, Spacing } from '../theme';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Colors, FontSizes, Radius, Spacing } from '../theme';
 
 interface ShrutiHeaderProps {
   title: string;
@@ -13,6 +13,7 @@ interface ShrutiHeaderProps {
   onBack?: () => void;
   onOptionsPress?: () => void;
   alignCenter?: boolean;
+  showLogo?: boolean;
 }
 
 export function ShrutiHeader({
@@ -21,6 +22,7 @@ export function ShrutiHeader({
   onBack,
   onOptionsPress,
   alignCenter = false,
+  showLogo = false,
 }: ShrutiHeaderProps) {
   return (
     <View style={styles.header}>
@@ -35,6 +37,12 @@ export function ShrutiHeader({
           >
             <Text style={styles.backChevron}>‹</Text>
           </Pressable>
+        ) : showLogo ? (
+          <Image
+            source={require('../../assets/logo.png')}
+            style={styles.headerLogo}
+            resizeMode="contain"
+          />
         ) : null}
 
         {!alignCenter && (
@@ -143,5 +151,11 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     lineHeight: 24,
     fontWeight: 'bold',
+  },
+  headerLogo: {
+    width: 38,
+    height: 38,
+    borderRadius: Radius.sm + 2,
+    marginRight: Spacing.xs,
   },
 });

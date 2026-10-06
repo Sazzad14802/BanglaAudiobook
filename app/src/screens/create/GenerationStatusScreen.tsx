@@ -22,6 +22,7 @@ import { ShrutiHeader } from '../../components/ShrutiHeader';
 import { ShrutiButton } from '../../components/ShrutiButton';
 import { TagBadge } from '../../components/TagBadge';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 type Nav = NativeStackNavigationProp<CreateStackParamList, 'GenerationStatus'>;
 type Route = RouteProp<CreateStackParamList, 'GenerationStatus'>;
@@ -32,6 +33,7 @@ export function GenerationStatusScreen() {
   const nav = useNavigation<Nav>();
   const route = useRoute<Route>();
   const audiobookId = route.params?.audiobookId ?? 'new-book';
+  const { t } = useLanguage();
 
   const [currentStep, setCurrentStep] = useState<PipelineStep>('queued');
   const [queuePosition, setQueuePosition] = useState(2);
@@ -61,11 +63,14 @@ export function GenerationStatusScreen() {
   }, []);
 
   const stepsList = [
-    { key: 'uploading', label: 'PDF আপলোড সম্পন্ন' },
-    { key: 'processing', label: 'টেক্সট নিষ্কাশন ও ওসিআর' },
-    { key: 'queued', label: `কিউতে অপেক্ষারত (অগ্রাধিকার: উচ্চ, অবস্থান: #${queuePosition})` },
-    { key: 'generating', label: 'বাংলা এআই স্পিচ সংশ্লেষণ (TTS)' },
-    { key: 'completed', label: 'অডিওবুক তৈরি সম্পন্ন' },
+    { key: 'uploading', label: t('stepPdfUploaded') },
+    { key: 'processing', label: t('stepTextOcr') },
+    {
+      key: 'queued',
+      label: t('stepQueued', { pos: queuePosition }),
+    },
+    { key: 'generating', label: t('stepSpeechSynthesis') },
+    { key: 'completed', label: t('stepGenDone') },
   ];
 
   const isCompleted = currentStep === 'completed';
@@ -77,9 +82,8 @@ export function GenerationStatusScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ShrutiHeader
-
-        title="রূপান্তর অগ্রগতি"
-        subtitle="AI Audiobook Generation"
+        title={t('genProgressTitle')}
+        subtitle={t('genProgressSub')}
         onBack={() => nav.goBack()}
         onOptionsPress={() => {}}
       />
@@ -99,9 +103,7 @@ export function GenerationStatusScreen() {
           </View>
 
           <Text style={styles.statusTitle}>
-            {isCompleted
-              ? 'অডিওবুক সফলভাবে তৈরি হয়েছে!'
-              : 'কৃত্রিম বুদ্ধিমত্তা দিয়ে অডিও তৈরি হচ্ছে'}
+            {isCompleted ? t('statusCompleted') : t('statusInProgress')}
           </Text>
 
           {/* Progress bar */}
@@ -117,7 +119,7 @@ export function GenerationStatusScreen() {
 
         {/* Pipeline Step List */}
         <View style={styles.pipelineContainer}>
-          <Text style={styles.pipelineHeading}>ধাপসমূহ (Pipeline)</Text>
+          <Text style={styles.pipelineHeading}>{t('pipelineStepsHeading')}</Text>
 
           {stepsList.map((step, idx) => {
             const isDone =
@@ -163,7 +165,7 @@ export function GenerationStatusScreen() {
         {/* Action Button */}
         {isCompleted && (
           <ShrutiButton
-            label="• অডিওবুক শুনুন"
+            label={t('btnListenAudiobook')}
             onPress={handleListen}
             variant="primary"
           />

@@ -20,6 +20,7 @@ import { CreateStackParamList } from '../../navigation/types';
 import { ShrutiHeader } from '../../components/ShrutiHeader';
 import { ShrutiButton } from '../../components/ShrutiButton';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 type Nav = NativeStackNavigationProp<CreateStackParamList, 'UploadSource'>;
 type Route = RouteProp<CreateStackParamList, 'UploadSource'>;
@@ -28,6 +29,7 @@ export function UploadSourceScreen() {
   const nav = useNavigation<Nav>();
   const route = useRoute<Route>();
   const audiobookId = route.params?.audiobookId ?? 'new-book';
+  const { t } = useLanguage();
 
   const [pickedFile, setPickedFile] = useState<DocumentPicker.DocumentPickerAsset | null>({
     name: 'aranyak_bangla_book.pdf',
@@ -54,7 +56,7 @@ export function UploadSourceScreen() {
 
   const handleStartGeneration = () => {
     if (!pickedFile) {
-      Alert.alert('ফাইল প্রয়োজন', 'অনুগ্রহ করে প্রথমে একটি PDF ফাইল নির্বাচন করুন।');
+      Alert.alert(t('noticeTitle'), t('fileRequiredAlert'));
       return;
     }
     setIsProcessing(true);
@@ -67,9 +69,8 @@ export function UploadSourceScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ShrutiHeader
-
-        title="PDF আপলোড"
-        subtitle="সোর্স ফাইল নির্বাচন ও এআই প্রসেসিং"
+        title={t('uploadPdfTitle')}
+        subtitle={t('uploadPdfSub')}
         onBack={() => nav.goBack()}
         onOptionsPress={() => {}}
       />
@@ -87,27 +88,27 @@ export function UploadSourceScreen() {
             <Text style={styles.pdfIcon}>📄</Text>
           </View>
           <Text style={styles.dropzoneTitle}>
-            {pickedFile ? pickedFile.name : 'PDF ফাইল বেছে নিন'}
+            {pickedFile ? pickedFile.name : t('pickPdfPrompt')}
           </Text>
           <Text style={styles.dropzoneSub}>
             {pickedFile
-              ? `${((pickedFile.size ?? 0) / 1024 / 1024).toFixed(1)} MB · ট্যাপ করে বদলান`
-              : 'ডিভাইস থেকে বাংলা বা ইংরেজি বই নির্বাচন করুন'}
+              ? `${((pickedFile.size ?? 0) / 1024 / 1024).toFixed(1)} MB · ${t('tapToChange')}`
+              : t('pickPdfSub')}
           </Text>
         </Pressable>
 
         {/* Feature Information Cards */}
         <View style={styles.infoCard}>
-          <Text style={styles.infoTitle}>প্রসেসিং পাইপলাইন ফিচারসমূহ</Text>
-          <Text style={styles.infoBullet}>• বাংলা লিপির বিশেষায়িত অপটিক্যাল ক্যারেক্টার রিকগনিশন (OCR)</Text>
-          <Text style={styles.infoBullet}>• বাক্য বিভাজন ও স্বরচিহ্ন প্রাক-প্রক্রিয়াকরণ</Text>
-          <Text style={styles.infoBullet}>• প্রাকৃতিক বাংলা কণ্ঠ সংমিশ্রণ (Bangla VITS Engine)</Text>
-          <Text style={styles.infoBullet}>• অধ্যায়ভিত্তিক স্বয়ংক্রিয় অডিও ট্র্যাকিং</Text>
+          <Text style={styles.infoTitle}>{t('processingPipelineFeatures')}</Text>
+          <Text style={styles.infoBullet}>{t('pipelineFeature1')}</Text>
+          <Text style={styles.infoBullet}>{t('pipelineFeature2')}</Text>
+          <Text style={styles.infoBullet}>{t('pipelineFeature3')}</Text>
+          <Text style={styles.infoBullet}>{t('pipelineFeature4')}</Text>
         </View>
 
         {/* CTA Button */}
         <ShrutiButton
-          label="অডিওবুক তৈরি শুরু করুন"
+          label={t('btnStartGeneration')}
           onPress={handleStartGeneration}
           variant="primary"
           isLoading={isProcessing}

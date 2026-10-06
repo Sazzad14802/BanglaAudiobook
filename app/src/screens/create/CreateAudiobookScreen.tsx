@@ -26,15 +26,17 @@ import { ShrutiHeader } from '../../components/ShrutiHeader';
 import { ShrutiButton } from '../../components/ShrutiButton';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
 import { ApiError } from '../../api/client';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 type Nav = NativeStackNavigationProp<CreateStackParamList, 'CreateAudiobook'>;
 
 export function CreateAudiobookScreen() {
   const nav = useNavigation<Nav>();
+  const { t, isEnglish } = useLanguage();
   const [title, setTitle] = useState('');
   const [author, setAuthor] = useState('');
   const [description, setDescription] = useState('');
-  const [language, setLanguage] = useState<'bn' | 'en'>('bn');
+  const [narrationLanguage, setNarrationLanguage] = useState<'bn' | 'en'>('bn');
   const [visibility, setVisibility] = useState<AudiobookVisibility>('PRIVATE');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -43,14 +45,19 @@ export function CreateAudiobookScreen() {
 
   async function handleProceed() {
     if (!title.trim()) {
-      Alert.alert('প্রয়োজনীয় তথ্য', 'অনুগ্রহ করে বইয়ের শিরোনাম লিখুন।');
+      Alert.alert(
+        isEnglish ? 'Required Field' : 'প্রয়োজনীয় তথ্য',
+        isEnglish ? 'Please enter a book title.' : 'অনুগ্রহ করে বইয়ের শিরোনাম লিখুন।',
+      );
       return;
     }
 
     if (generationQuota.used >= generationQuota.limit) {
       Alert.alert(
-        'কোটা সমাপ্ত',
-        'আপনার মাসিক অডিওবুক রূপান্তর কোটা পূর্ণ হয়েছে। আনলিমিটেড রূপান্তরের জন্য Premium নিন।'
+        isEnglish ? 'Quota Exceeded' : 'কোটা সমাপ্ত',
+        isEnglish
+          ? 'Monthly generation quota reached. Upgrade to Premium for unlimited creations.'
+          : 'আপনার মাসিক অডিওবুক রূপান্তর কোটা পূর্ণ হয়েছে। আনলিমিটেড রূপান্তরের জন্য Premium নিন।',
       );
       return;
     }
@@ -61,7 +68,7 @@ export function CreateAudiobookScreen() {
         title: title.trim(),
         author: author.trim() || undefined,
         description: description.trim() || undefined,
-        language,
+        language: narrationLanguage,
         visibility,
       });
       nav.replace('UploadSource', { audiobookId: audiobook.id });
@@ -76,9 +83,8 @@ export function CreateAudiobookScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ShrutiHeader
-
-        title="শ্রুতি তৈরি"
-        subtitle="PDF থেকে অডিওবুক রূপান্তর"
+        title={t('createTitle')}
+        subtitle={t('createSub')}
         onOptionsPress={() => {}}
       />
 
@@ -93,9 +99,15 @@ export function CreateAudiobookScreen() {
           {/* Quota Banner */}
           <View style={styles.quotaCard}>
             <View style={styles.quotaHeader}>
-              <Text style={styles.quotaPlan}>{generationQuota.plan} প্ল্যান কোটা</Text>
+              <Text style={styles.quotaPlan}>
+                {isEnglish
+                  ? `${generationQuota.plan} Plan Quota`
+                  : `${generationQuota.plan} প্ল্যান কোটা`}
+              </Text>
               <Text style={styles.quotaCounter}>
-                {generationQuota.used}/{generationQuota.limit} ব্যবহৃত
+                {isEnglish
+                  ? `${generationQuota.used}/${generationQuota.limit} Used`
+                  : `${generationQuota.used}/${generationQuota.limit} ব্যবহৃত`}
               </Text>
             </View>
             <View style={styles.quotaBarTrack}>
@@ -107,7 +119,9 @@ export function CreateAudiobookScreen() {
               />
             </View>
             <Text style={styles.quotaSub}>
-              উচ্চতর অগ্রাধিকার এবং দ্রুততর জেনারেশনের জন্য Premium প্ল্যানে আপগ্রেড করুন।
+              {isEnglish
+                ? 'Upgrade to Premium for higher priority and unlimited conversions.'
+                : 'উচ্চতর অগ্রাধিকার এবং দ্রুততর জেনারেশনের জন্য Premium প্ল্যানে আপগ্রেড করুন।'}
             </Text>
           </View>
 
@@ -115,43 +129,43 @@ export function CreateAudiobookScreen() {
           <View style={styles.formContainer}>
             {/* Title */}
             <View style={styles.fieldWrapper}>
-              <Text style={styles.label}>বইয়ের নাম *</Text>
+              <Text style={styles.label}>{t('inputBookTitle')} *</Text>
               <TextInput
                 style={styles.input}
                 value={title}
                 onChangeText={setTitle}
-                placeholder="যেমন: আরণ্যক"
+                placeholder={t('inputBookTitlePlaceholder')}
                 placeholderTextColor={Colors.textMuted}
               />
             </View>
 
             {/* Author */}
             <View style={styles.fieldWrapper}>
-              <Text style={styles.label}>লেখক / রচয়িতা</Text>
+              <Text style={styles.label}>{t('inputAuthorName')}</Text>
               <TextInput
                 style={styles.input}
                 value={author}
                 onChangeText={setAuthor}
-                placeholder="যেমন: বিভূতিভূষণ বন্দ্যোপাধ্যায়"
+                placeholder={t('inputAuthorPlaceholder')}
                 placeholderTextColor={Colors.textMuted}
               />
             </View>
 
             {/* Language Selection */}
             <View style={styles.fieldWrapper}>
-              <Text style={styles.label}>ভাষার ধরন</Text>
+              <Text style={styles.label}>{t('languageSelectChoice')}</Text>
               <View style={styles.row}>
                 <Pressable
-                  onPress={() => setLanguage('bn')}
+                  onPress={() => setNarrationLanguage('bn')}
                   style={[
                     styles.choiceCard,
-                    language === 'bn' ? styles.choiceSelected : styles.choiceDefault,
+                    narrationLanguage === 'bn' ? styles.choiceSelected : styles.choiceDefault,
                   ]}
                 >
                   <Text
                     style={[
                       styles.choiceTitle,
-                      language === 'bn' ? styles.textWhite : styles.textDark,
+                      narrationLanguage === 'bn' ? styles.textWhite : styles.textDark,
                     ]}
                   >
                     বাংলা
@@ -159,7 +173,7 @@ export function CreateAudiobookScreen() {
                   <Text
                     style={[
                       styles.choiceSub,
-                      language === 'bn' ? styles.textSubWhite : styles.textSubDark,
+                      narrationLanguage === 'bn' ? styles.textSubWhite : styles.textSubDark,
                     ]}
                   >
                     Bangla VITS TTS
@@ -167,16 +181,16 @@ export function CreateAudiobookScreen() {
                 </Pressable>
 
                 <Pressable
-                  onPress={() => setLanguage('en')}
+                  onPress={() => setNarrationLanguage('en')}
                   style={[
                     styles.choiceCard,
-                    language === 'en' ? styles.choiceSelected : styles.choiceDefault,
+                    narrationLanguage === 'en' ? styles.choiceSelected : styles.choiceDefault,
                   ]}
                 >
                   <Text
                     style={[
                       styles.choiceTitle,
-                      language === 'en' ? styles.textWhite : styles.textDark,
+                      narrationLanguage === 'en' ? styles.textWhite : styles.textDark,
                     ]}
                   >
                     English
@@ -184,7 +198,7 @@ export function CreateAudiobookScreen() {
                   <Text
                     style={[
                       styles.choiceSub,
-                      language === 'en' ? styles.textSubWhite : styles.textSubDark,
+                      narrationLanguage === 'en' ? styles.textSubWhite : styles.textSubDark,
                     ]}
                   >
                     XTTS v2
@@ -195,7 +209,7 @@ export function CreateAudiobookScreen() {
 
             {/* Visibility Selection */}
             <View style={styles.fieldWrapper}>
-              <Text style={styles.label}>দৃশ্যমানতা (Visibility)</Text>
+              <Text style={styles.label}>{t('visibilityChoice')}</Text>
               <View style={styles.row}>
                 <Pressable
                   onPress={() => setVisibility('PRIVATE')}
@@ -210,7 +224,7 @@ export function CreateAudiobookScreen() {
                       visibility === 'PRIVATE' ? styles.textWhite : styles.textDark,
                     ]}
                   >
-                    🔒 ব্যক্তিগত
+                    {isEnglish ? '🔒 Private' : '🔒 ব্যক্তিগত'}
                   </Text>
                   <Text
                     style={[
@@ -218,7 +232,7 @@ export function CreateAudiobookScreen() {
                       visibility === 'PRIVATE' ? styles.textSubWhite : styles.textSubDark,
                     ]}
                   >
-                    শুধুমাত্র আপনার জন্য
+                    {isEnglish ? 'Only for you' : 'শুধুমাত্র আপনার জন্য'}
                   </Text>
                 </Pressable>
 
@@ -235,7 +249,7 @@ export function CreateAudiobookScreen() {
                       visibility === 'PUBLIC' ? styles.textWhite : styles.textDark,
                     ]}
                   >
-                    🌐 উন্মুক্ত
+                    {isEnglish ? '🌐 Public' : '🌐 সবার জন্য'}
                   </Text>
                   <Text
                     style={[
@@ -243,7 +257,7 @@ export function CreateAudiobookScreen() {
                       visibility === 'PUBLIC' ? styles.textSubWhite : styles.textSubDark,
                     ]}
                   >
-                    সকলের জন্য উন্মুক্ত
+                    {isEnglish ? 'Added to catalog' : 'ক্যাটালগে যুক্ত হবে'}
                   </Text>
                 </Pressable>
               </View>
@@ -251,12 +265,18 @@ export function CreateAudiobookScreen() {
 
             {/* Description */}
             <View style={styles.fieldWrapper}>
-              <Text style={styles.label}>সংক্ষিপ্ত বিবরণ</Text>
+              <Text style={styles.label}>
+                {isEnglish ? 'Description (Optional)' : 'সংক্ষিপ্ত বিবরণ'}
+              </Text>
               <TextInput
                 style={[styles.input, styles.textArea]}
                 value={description}
                 onChangeText={setDescription}
-                placeholder="বই সম্পর্কে কিছু লিখুন..."
+                placeholder={
+                  isEnglish
+                    ? 'Write a short synopsis or chapter summary...'
+                    : 'বই সম্পর্কে কিছু লিখুন...'
+                }
                 placeholderTextColor={Colors.textMuted}
                 multiline
                 numberOfLines={3}
@@ -266,7 +286,7 @@ export function CreateAudiobookScreen() {
 
           {/* CTA Proceed Button */}
           <ShrutiButton
-            label="চালিয়ে যান (PDF আপলোড)"
+            label={t('btnUploadSource')}
             onPress={handleProceed}
             variant="primary"
             isLoading={isSubmitting}

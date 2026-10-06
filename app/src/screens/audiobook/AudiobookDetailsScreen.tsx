@@ -25,6 +25,7 @@ import { ActionItem, ActionPillBar } from '../../components/ActionPillBar';
 import { ModalBottomSheet } from '../../components/ModalBottomSheet';
 import { FIGMA_AUDIOBOOKS } from '../../data/mockAudiobooks';
 import { usePlayer } from '../../contexts/PlayerContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
 
 type Nav = NativeStackNavigationProp<HomeStackParamList, 'AudiobookDetails'>;
@@ -34,6 +35,7 @@ export function AudiobookDetailsScreen() {
   const nav = useNavigation<Nav>();
   const route = useRoute<Route>();
   const { loadAudiobook } = usePlayer();
+  const { t, isEnglish } = useLanguage();
 
   const audiobookId = route.params?.audiobookId ?? 'pather-panchali';
   const audiobook = FIGMA_AUDIOBOOKS.find((b) => b.id === audiobookId) ?? FIGMA_AUDIOBOOKS[0];
@@ -44,16 +46,16 @@ export function AudiobookDetailsScreen() {
 
   // Subtitle in header
   const headerSubtitle = isFree
-    ? 'Free audiobook detail'
+    ? isEnglish ? 'Free audiobook detail' : 'ফ্রি অডিওবুক'
     : isLockedPreview
-    ? 'Locked audiobook detail'
-    : 'Premium audiobook detail';
+    ? isEnglish ? 'Locked audiobook detail' : 'লকড অডিওবুক'
+    : isEnglish ? 'Premium audiobook detail' : 'প্রিমিয়াম অডিওবুক';
 
   // Interactive states
   const [isSaved, setIsSaved] = useState(false);
   const [isOfflineSaved, setIsOfflineSaved] = useState(false);
   const [reportModalVisible, setReportModalVisible] = useState(false);
-  const [reportReason, setReportReason] = useState('কপিরাইট লঙ্ঘন');
+  const [reportReason, setReportReason] = useState(isEnglish ? 'Copyright Infringement' : 'কপিরাইট লঙ্ঘন');
   const [reportSubmitted, setReportSubmitted] = useState(false);
 
   const handleStartListening = async () => {
@@ -63,14 +65,21 @@ export function AudiobookDetailsScreen() {
 
   const handleUpgradePremium = () => {
     Alert.alert(
-      'Premium Subscription',
-      'মাসিক সাবস্ক্রিপশন ফি ৳১৯৯। আপনি কি প্রিমিয়ামে আপগ্রেড করতে চান?',
+      isEnglish ? 'Premium Subscription' : 'প্রিমিয়াম সাবস্ক্রিপশন',
+      isEnglish
+        ? 'Monthly fee is ৳199. Would you like to upgrade to Premium?'
+        : 'মাসিক সাবস্ক্রিপশন ফি ৳১৯৯। আপনি কি প্রিমিয়ামে আপগ্রেড করতে চান?',
       [
-        { text: 'বাতিল', style: 'cancel' },
+        { text: isEnglish ? 'Cancel' : 'বাতিল', style: 'cancel' },
         {
-          text: 'আপগ্রেড করুন',
+          text: isEnglish ? 'Upgrade' : 'আপগ্রেড করুন',
           onPress: async () => {
-            Alert.alert('সফল', 'আপনি সফলভাবে Premium-এ আপগ্রেড হয়েছেন!');
+            Alert.alert(
+              isEnglish ? 'Success' : 'সফল',
+              isEnglish
+                ? 'You have successfully upgraded to Premium!'
+                : 'আপনি সফলভাবে Premium-এ আপগ্রেড হয়েছেন!',
+            );
             await loadAudiobook(audiobook);
             nav.navigate('Player', { audiobookId: audiobook.id });
           },
@@ -82,38 +91,45 @@ export function AudiobookDetailsScreen() {
   const actionItems: ActionItem[] = [
     {
       id: 'save',
-      label: isSaved ? 'Saved' : 'Save',
+      label: isSaved ? (isEnglish ? 'Saved' : 'সংরক্ষিত') : (isEnglish ? 'Save' : 'সেভ'),
       active: isSaved,
       onPress: () => {
         setIsSaved((prev) => !prev);
         Alert.alert(
-          isSaved ? 'লাইব্রেরি থেকে সরানো হয়েছে' : 'লাইব্রেরিতে সংরক্ষণ করা হয়েছে',
+          isSaved
+            ? isEnglish ? 'Removed from Library' : 'লাইব্রেরি থেকে সরানো হয়েছে'
+            : isEnglish ? 'Saved to Library' : 'লাইব্রেরিতে সংরক্ষণ করা হয়েছে',
           audiobook.title
         );
       },
     },
     {
       id: 'playlist',
-      label: 'Playlist',
+      label: isEnglish ? 'Playlist' : 'প্লেলিস্ট',
       onPress: () => {
-        Alert.alert('প্লেলিস্টে যোগ করুন', 'আপনার ব্যক্তিগত প্লেলিস্টে বইটি যোগ করা হয়েছে।');
+        Alert.alert(
+          isEnglish ? 'Added to Playlist' : 'প্লেলিস্টে যোগ করুন',
+          isEnglish ? 'Audiobook added to your private playlist.' : 'আপনার ব্যক্তিগত প্লেলিস্টে বইটি যোগ করা হয়েছে।'
+        );
       },
     },
     {
       id: 'offline',
-      label: isOfflineSaved ? 'Downloaded' : 'Offline',
+      label: isOfflineSaved ? (isEnglish ? 'Downloaded' : 'ডাউনলোডেড') : (isEnglish ? 'Offline' : 'অফলাইন'),
       active: isOfflineSaved,
       onPress: () => {
         setIsOfflineSaved((prev) => !prev);
         Alert.alert(
-          isOfflineSaved ? 'অফলাইন ক্যাশ মুছে ফেলা হয়েছে' : 'অ্যাপের ভেতরে অফলাইন শোনার জন্য সংরক্ষিত হয়েছে',
-          'ইন্টারনেট সংযোগ ছাড়াই শোনা যাবে।'
+          isOfflineSaved
+            ? isEnglish ? 'Offline cache cleared' : 'অফলাইন ক্যাশ মুছে ফেলা হয়েছে'
+            : isEnglish ? 'Cached for offline playback' : 'অ্যাপের ভেতরে অফলাইন শোনার জন্য সংরক্ষিত হয়েছে',
+          isEnglish ? 'Listen anytime without internet.' : 'ইন্টারনেট সংযোগ ছাড়াই শোনা যাবে।'
         );
       },
     },
     {
       id: 'report',
-      label: 'Report',
+      label: isEnglish ? 'Report' : 'রিপোর্ট',
       onPress: () => setReportModalVisible(true),
     },
   ];
@@ -121,7 +137,6 @@ export function AudiobookDetailsScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ShrutiHeader
-
         title={audiobook.title}
         subtitle={headerSubtitle}
         onBack={() => nav.goBack()}
@@ -136,29 +151,32 @@ export function AudiobookDetailsScreen() {
         <View style={styles.heroWrapper}>
           <EditorialHeroCard
             title={audiobook.title}
-            meta={`বাংলা · ★ 4.8 · ${audiobook.duration_label ?? '8h 42m'}`}
+            meta={`${isEnglish ? 'Bangla' : 'বাংলা'} · ★ 4.8 · ${audiobook.duration_label ?? '8h 42m'}`}
             coverUrl={audiobook.cover_image_url ?? undefined}
             height={260}
           />
         </View>
 
-
         {/* Badges Row */}
         <View style={styles.badgesRow}>
           <TagBadge
-            label={isFree ? 'FREE' : 'PREMIUM'}
+            label={isFree ? (isEnglish ? 'FREE' : 'ফ্রি') : (isEnglish ? 'PREMIUM' : 'প্রিমিয়াম')}
             variant={isFree ? 'free' : 'premium'}
           />
-          <TagBadge label={audiobook.genre ?? 'সাহিত্য'} variant="genre" />
-          <TagBadge label="Offline" variant="offline" />
+          <TagBadge label={audiobook.genre ?? (isEnglish ? 'Literature' : 'সাহিত্য')} variant="genre" />
+          <TagBadge label={isEnglish ? 'Offline' : 'অফলাইন'} variant="offline" />
         </View>
 
-        {/* Preview Ended Banner (Plate 4 Screen 4) */}
+        {/* Preview Ended Banner */}
         {isLockedPreview && (
           <View style={styles.previewEndedCard}>
-            <Text style={styles.previewEndedTitle}>Preview শেষ</Text>
+            <Text style={styles.previewEndedTitle}>
+              {isEnglish ? 'Preview Ended' : 'Preview শেষ'}
+            </Text>
             <Text style={styles.previewEndedSub}>
-              পুরো বই শুনতে Premium নিন। progress saved আছে।
+              {isEnglish
+                ? 'Upgrade to Premium to continue listening. Your progress is saved.'
+                : 'পুরো বই শুনতে Premium নিন। progress saved আছে।'}
             </Text>
           </View>
         )}
@@ -172,14 +190,14 @@ export function AudiobookDetailsScreen() {
         <View style={styles.ctaWrapper}>
           {isLockedPreview ? (
             <ShrutiButton
-              label="Premium নিন"
+              label={isEnglish ? 'Upgrade to Premium' : 'Premium নিন'}
               onPress={handleUpgradePremium}
               variant="primary"
               bulletPrefix
             />
           ) : (
             <ShrutiButton
-              label="শোনা শুরু করুন"
+              label={t('btnStartListening')}
               onPress={handleStartListening}
               variant="primary"
               bulletPrefix
@@ -200,19 +218,23 @@ export function AudiobookDetailsScreen() {
         }}
       >
         <View style={styles.reportModalContent}>
-          <Text style={styles.reportTitle}>কপিরাইট লঙ্ঘন রিপোর্ট</Text>
+          <Text style={styles.reportTitle}>{t('copyrightReportTitle')}</Text>
           <Text style={styles.reportSub}>
-            বই: {audiobook.title}
+            {isEnglish ? 'Book:' : 'বই:'} {audiobook.title}
           </Text>
 
           {reportSubmitted ? (
             <View style={styles.reportSuccessBox}>
-              <Text style={styles.reportSuccessTitle}>রিপোর্ট গৃহীত হয়েছে</Text>
+              <Text style={styles.reportSuccessTitle}>
+                {isEnglish ? 'Report Received' : 'রিপোর্ট গৃহীত হয়েছে'}
+              </Text>
               <Text style={styles.reportSuccessSub}>
-                অ্যাডমিন টিম পর্যালোচনার পর যথাযথ ব্যবস্থা গ্রহণ করবে।
+                {isEnglish
+                  ? 'Our moderation team will review this notice and take appropriate action.'
+                  : 'অ্যাডমিন টিম পর্যালোচনার পর যথাযথ ব্যবস্থা গ্রহণ করবে।'}
               </Text>
               <ShrutiButton
-                label="ঠিক আছে"
+                label={isEnglish ? 'OK' : 'ঠিক আছে'}
                 onPress={() => {
                   setReportModalVisible(false);
                   setReportSubmitted(false);
@@ -223,28 +245,31 @@ export function AudiobookDetailsScreen() {
           ) : (
             <View style={{ gap: Spacing.md }}>
               <Text style={styles.reportPrompt}>
-                সন্দেহভাজন কপিরাইট লঙ্ঘনের কারণ নির্বাচন করুন:
+                {isEnglish
+                  ? 'Select reason for suspected copyright infringement:'
+                  : 'সন্দেহভাজন কপিরাইট লঙ্ঘনের কারণ নির্বাচন করুন:'}
               </Text>
 
               <View style={styles.reasonPillRow}>
-                {['অননুমোদিত অডিও সংস্করণ', 'লেখকের অনুমতি ছাড়া তৈরি', 'অন্যান্য'].map(
-                  (reason) => (
-                    <Text
-                      key={reason}
-                      onPress={() => setReportReason(reason)}
-                      style={[
-                        styles.reasonChip,
-                        reportReason === reason && styles.reasonChipActive,
-                      ]}
-                    >
-                      {reason}
-                    </Text>
-                  )
-                )}
+                {(isEnglish
+                  ? ['Unauthorized Audio Version', 'Created Without Author Consent', 'Other Infringement']
+                  : ['অননুমোদিত অডিও সংস্করণ', 'লেখকের অনুমতি ছাড়া তৈরি', 'অন্যান্য']
+                ).map((reason) => (
+                  <Text
+                    key={reason}
+                    onPress={() => setReportReason(reason)}
+                    style={[
+                      styles.reasonChip,
+                      reportReason === reason && styles.reasonChipActive,
+                    ]}
+                  >
+                    {reason}
+                  </Text>
+                ))}
               </View>
 
               <ShrutiButton
-                label="রিপোর্ট জমা দিন"
+                label={isEnglish ? 'Submit Report' : 'রিপোর্ট জমা দিন'}
                 onPress={() => setReportSubmitted(true)}
                 variant="primary"
               />

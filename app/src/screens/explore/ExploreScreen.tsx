@@ -21,6 +21,7 @@ import { ShrutiHeader } from '../../components/ShrutiHeader';
 import { AudiobookCard } from '../../components/AudiobookCard';
 import { FIGMA_AUDIOBOOKS } from '../../data/mockAudiobooks';
 import { usePlayer } from '../../contexts/PlayerContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
 
 type Nav = NativeStackNavigationProp<ExploreStackParamList, 'Explore'>;
@@ -28,16 +29,20 @@ type Nav = NativeStackNavigationProp<ExploreStackParamList, 'Explore'>;
 export function ExploreScreen() {
   const nav = useNavigation<Nav>();
   const { loadAudiobook } = usePlayer();
+  const { t, isEnglish } = useLanguage();
 
-  const [activeCategory, setActiveCategory] = useState('সাহিত্য');
-  const categories = ['সাহিত্য', 'রহস্য', 'কবিতা', 'ইতিহাস'];
+  const categories = isEnglish
+    ? ['Literature', 'Mystery', 'Poetry', 'History']
+    : ['সাহিত্য', 'রহস্য', 'কবিতা', 'ইতিহাস'];
+
+  const [activeCategory, setActiveCategory] = useState(categories[0]);
 
   const exploreBooks = FIGMA_AUDIOBOOKS.filter(
     (b) => b.id === 'neelkantha-pakhir-khoje' || b.id === 'chander-pahar'
   );
 
   const handleSearchFocus = () => {
-    nav.navigate('SearchResults', { query: 'রবীন্দ্রনাথ' });
+    nav.navigate('SearchResults', { query: isEnglish ? 'Tagore' : 'রবীন্দ্রনাথ' });
   };
 
   const handleBookPress = (audiobookId: string) => {
@@ -52,9 +57,8 @@ export function ExploreScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ShrutiHeader
-
-        title="এক্সপ্লোর"
-        subtitle="Bangla + English"
+        title={t('exploreTitle')}
+        subtitle={t('exploreSub')}
         onOptionsPress={() => {}}
       />
 
@@ -65,7 +69,7 @@ export function ExploreScreen() {
         {/* Search Bar */}
         <Pressable style={styles.searchBar} onPress={handleSearchFocus}>
           <Text style={styles.searchIcon}>🔍</Text>
-          <Text style={styles.searchPlaceholder}>বই, লেখক বা কণ্ঠ খুঁজুন</Text>
+          <Text style={styles.searchPlaceholder}>{t('searchPlaceholder')}</Text>
           <Text style={styles.micIcon}>🎙️</Text>
         </Pressable>
 
@@ -101,8 +105,14 @@ export function ExploreScreen() {
 
         {/* Curated Highlight Card */}
         <View style={styles.curatedCard}>
-          <Text style={styles.curatedTitle}>শহরের গল্প</Text>
-          <Text style={styles.curatedSub}>Curated Kolkata, Dhaka ও নদীর গল্প</Text>
+          <Text style={styles.curatedTitle}>
+            {isEnglish ? 'Stories of the Cities' : 'শহরের গল্প'}
+          </Text>
+          <Text style={styles.curatedSub}>
+            {isEnglish
+              ? 'Curated Kolkata, Dhaka & River narratives'
+              : 'Curated Kolkata, Dhaka ও নদীর গল্প'}
+          </Text>
         </View>
 
         {/* Audiobooks List */}

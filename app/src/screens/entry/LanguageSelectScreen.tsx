@@ -15,32 +15,63 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ShrutiHeader } from '../../components/ShrutiHeader';
 import { ShrutiButton } from '../../components/ShrutiButton';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
+import { useLanguage } from '../../contexts/LanguageContext';
+import { AppLanguage } from '../../storage/languageStorage';
 
 interface LanguageSelectScreenProps {
   onBack: () => void;
-  onContinue: (lang: 'bn' | 'en' | 'mixed') => void;
+  onContinue: (lang: AppLanguage) => void;
 }
 
 export function LanguageSelectScreen({ onBack, onContinue }: LanguageSelectScreenProps) {
-  const [selectedLang, setSelectedLang] = useState<'bn' | 'en' | 'mixed'>('bn');
+  const { language, setLanguage, t, isEnglish } = useLanguage();
+
+  const handleSelect = async (lang: AppLanguage) => {
+    await setLanguage(lang);
+  };
+
+  const handleContinue = async () => {
+    onContinue(language);
+  };
 
   const options = [
     {
       id: 'bn' as const,
       title: 'বাংলা',
-      subtitle: 'বাংলা UI · selected',
+      subtitle:
+        language === 'bn'
+          ? isEnglish
+            ? 'Bangla UI · Active'
+            : 'বাংলা UI · সক্রিয়'
+          : isEnglish
+          ? 'Bangla interface'
+          : 'বাংলা ইন্টারফেস',
       styleType: 'dark',
     },
     {
       id: 'en' as const,
       title: 'English',
-      subtitle: 'English interface',
+      subtitle:
+        language === 'en'
+          ? isEnglish
+            ? 'English UI · Active'
+            : 'English UI · সক্রিয়'
+          : isEnglish
+          ? 'English interface'
+          : 'ইংরেজি ইন্টারফেস',
       styleType: 'neutral',
     },
     {
       id: 'mixed' as const,
       title: 'বাংলা + English',
-      subtitle: 'Mixed labels',
+      subtitle:
+        language === 'mixed'
+          ? isEnglish
+            ? 'Mixed UI · Active'
+            : 'মিশ্র UI · সক্রিয়'
+          : isEnglish
+          ? 'Bilingual labels'
+          : 'মিশ্র ইন্টারফেস',
       styleType: 'blue',
     },
   ];
@@ -48,9 +79,8 @@ export function LanguageSelectScreen({ onBack, onContinue }: LanguageSelectScree
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ShrutiHeader
-
-        title="ভাষা বেছে নিন"
-        subtitle="Bangla-first"
+        title={t('langSelectTitle')}
+        subtitle={t('langSelectSub')}
         onBack={onBack}
         onOptionsPress={() => {}}
       />
@@ -58,11 +88,11 @@ export function LanguageSelectScreen({ onBack, onContinue }: LanguageSelectScree
       <View style={styles.content}>
         <View style={styles.optionsList}>
           {options.map((opt) => {
-            const isSelected = selectedLang === opt.id;
+            const isSelected = language === opt.id;
             return (
               <Pressable
                 key={opt.id}
-                onPress={() => setSelectedLang(opt.id)}
+                onPress={() => handleSelect(opt.id)}
                 style={({ pressed }) => [
                   styles.optionCard,
                   opt.styleType === 'dark' && styles.cardDark,
@@ -98,8 +128,8 @@ export function LanguageSelectScreen({ onBack, onContinue }: LanguageSelectScree
         {/* CTA Button */}
         <View style={styles.buttonWrapper}>
           <ShrutiButton
-            label="চালিয়ে যান"
-            onPress={() => onContinue(selectedLang)}
+            label={t('btnContinue')}
+            onPress={handleContinue}
             variant="primary"
           />
         </View>

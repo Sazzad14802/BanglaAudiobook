@@ -5,6 +5,7 @@
 import React, { useState } from 'react';
 import {
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -17,6 +18,7 @@ import {
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { AuthStackParamList } from '../../navigation/types';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
 import { ApiError } from '../../api/client';
@@ -26,6 +28,7 @@ type Nav = NativeStackNavigationProp<AuthStackParamList, 'Register'>;
 export function RegisterScreen() {
   const nav = useNavigation<Nav>();
   const { register } = useAuth();
+  const { t, isEnglish } = useLanguage();
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -34,23 +37,23 @@ export function RegisterScreen() {
 
   async function handleRegister() {
     if (!username.trim() || !email.trim() || !password) {
-      Alert.alert('Error', 'Please fill in all fields.');
+      Alert.alert(isEnglish ? 'Error' : 'ত্রুটি', isEnglish ? 'Please fill in all fields.' : 'অনুগ্রহ করে সব ঘর পূরণ করুন।');
       return;
     }
     if (username.trim().length < 3) {
-      Alert.alert('Error', 'Username must be at least 3 characters.');
+      Alert.alert(isEnglish ? 'Error' : 'ত্রুটি', isEnglish ? 'Username must be at least 3 characters.' : 'ব্যবহারকারীর নাম কমপক্ষে ৩ অক্ষরের হতে হবে।');
       return;
     }
     if (!email.includes('@')) {
-      Alert.alert('Error', 'Please enter a valid email address.');
+      Alert.alert(isEnglish ? 'Error' : 'ত্রুটি', isEnglish ? 'Please enter a valid email address.' : 'একটি সঠিক ইমেইল ঠিকানা দিন।');
       return;
     }
     if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters.');
+      Alert.alert(isEnglish ? 'Error' : 'ত্রুটি', isEnglish ? 'Password must be at least 6 characters.' : 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।');
       return;
     }
     if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match.');
+      Alert.alert(isEnglish ? 'Error' : 'ত্রুটি', isEnglish ? 'Passwords do not match.' : 'পাসওয়ার্ড দুটি মেলেনি।');
       return;
     }
 
@@ -64,8 +67,8 @@ export function RegisterScreen() {
           ? err.detail
           : err instanceof Error
           ? err.message
-          : 'Registration failed.';
-      Alert.alert('Registration Failed', message);
+          : (isEnglish ? 'Registration failed.' : 'নিবন্ধন ব্যর্থ হয়েছে।');
+      Alert.alert(isEnglish ? 'Registration Failed' : 'নিবন্ধন ব্যর্থ হয়েছে', message);
     } finally {
       setIsSubmitting(false);
     }
@@ -78,21 +81,25 @@ export function RegisterScreen() {
     >
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
-          <Text style={styles.emoji}>🎧</Text>
-          <Text style={styles.appName}>Bangla AudioBook</Text>
-          <Text style={styles.tagline}>Create a new account</Text>
+          <Image
+            source={require('../../../assets/logo.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
+          <Text style={styles.appName}>{t('appName')}</Text>
+          <Text style={styles.tagline}>{t('registerTitle')}</Text>
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.formTitle}>Sign Up</Text>
+          <Text style={styles.formTitle}>{t('tabSignUp')}</Text>
 
           <View style={styles.field}>
-            <Text style={styles.label}>Username</Text>
+            <Text style={styles.label}>{t('fieldUsername')}</Text>
             <TextInput
               style={styles.input}
               value={username}
               onChangeText={setUsername}
-              placeholder="Unique username"
+              placeholder={isEnglish ? 'Unique username' : 'ইউনিক ইউজারনেম'}
               placeholderTextColor={Colors.textMuted}
               autoCapitalize="none"
               autoComplete="username"
@@ -100,12 +107,12 @@ export function RegisterScreen() {
           </View>
 
           <View style={styles.field}>
-            <Text style={styles.label}>Email</Text>
+            <Text style={styles.label}>{t('fieldEmailLabel')}</Text>
             <TextInput
               style={styles.input}
               value={email}
               onChangeText={setEmail}
-              placeholder="Your email address"
+              placeholder={t('fieldEmailPlaceholder')}
               placeholderTextColor={Colors.textMuted}
               autoCapitalize="none"
               keyboardType="email-address"
@@ -114,12 +121,12 @@ export function RegisterScreen() {
           </View>
 
           <View style={styles.field}>
-            <Text style={styles.label}>Password</Text>
+            <Text style={styles.label}>{t('fieldPasswordLabel')}</Text>
             <TextInput
               style={styles.input}
               value={password}
               onChangeText={setPassword}
-              placeholder="At least 6 characters"
+              placeholder={t('fieldPasswordPlaceholder')}
               placeholderTextColor={Colors.textMuted}
               secureTextEntry
               autoComplete="new-password"
@@ -127,12 +134,12 @@ export function RegisterScreen() {
           </View>
 
           <View style={styles.field}>
-            <Text style={styles.label}>Confirm Password</Text>
+            <Text style={styles.label}>{t('fieldConfirmPassword')}</Text>
             <TextInput
               style={styles.input}
               value={confirmPassword}
               onChangeText={setConfirmPassword}
-              placeholder="Re-enter your password"
+              placeholder={isEnglish ? 'Re-enter your password' : 'পাসওয়ার্ড আবার লিখুন'}
               placeholderTextColor={Colors.textMuted}
               secureTextEntry
               autoComplete="new-password"
@@ -144,16 +151,18 @@ export function RegisterScreen() {
             onPress={handleRegister}
             disabled={isSubmitting}
             accessibilityRole="button"
-            accessibilityLabel="Sign Up"
+            accessibilityLabel={t('btnCreateAccount')}
           >
-            <Text style={styles.btnText}>{isSubmitting ? 'Creating account...' : 'Create Account'}</Text>
+            <Text style={styles.btnText}>
+              {isSubmitting ? t('btnCreatingAccount') : t('btnCreateAccount')}
+            </Text>
           </Pressable>
         </View>
 
         <View style={styles.switchRow}>
-          <Text style={styles.switchText}>Already have an account? </Text>
+          <Text style={styles.switchText}>{t('alreadyHaveAccount')} </Text>
           <Pressable onPress={() => nav.navigate('Login')} accessibilityRole="link">
-            <Text style={styles.switchLink}>Log In</Text>
+            <Text style={styles.switchLink}>{t('linkLogIn')}</Text>
           </Pressable>
         </View>
       </ScrollView>
@@ -173,7 +182,12 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xl,
     gap: Spacing.xs,
   },
-  emoji: { fontSize: 56 },
+  logoImage: {
+    width: 84,
+    height: 84,
+    borderRadius: Radius.lg,
+    marginBottom: Spacing.xs,
+  },
   appName: {
     color: Colors.textPrimary,
     fontSize: FontSizes['2xl'],

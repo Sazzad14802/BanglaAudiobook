@@ -23,6 +23,7 @@ import { ModalBottomSheet } from '../../components/ModalBottomSheet';
 import { ShrutiButton } from '../../components/ShrutiButton';
 import { FIGMA_AUDIOBOOKS } from '../../data/mockAudiobooks';
 import { usePlayer } from '../../contexts/PlayerContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
 
 type Nav = NativeStackNavigationProp<ExploreStackParamList, 'SearchResults'>;
@@ -31,8 +32,11 @@ export function SearchResultsScreen() {
   const nav = useNavigation<Nav>();
   const route = useRoute<any>();
   const { loadAudiobook } = usePlayer();
+  const { t, isEnglish } = useLanguage();
 
-  const [query, setQuery] = useState(route.params?.query ?? 'রবীন্দ্রনাথ');
+  const [query, setQuery] = useState(
+    route.params?.query ?? (isEnglish ? 'Rabindranath' : 'রবীন্দ্রনাথ')
+  );
   const [filterModalVisible, setFilterModalVisible] = useState(false);
 
   // Filter chips state
@@ -43,7 +47,7 @@ export function SearchResultsScreen() {
     premium: true,
   });
 
-  const [sortOption, setSortOption] = useState('আপনার জন্য');
+  const [sortOption, setSortOption] = useState(isEnglish ? 'For You' : 'আপনার জন্য');
 
   const rabindranathBooks = FIGMA_AUDIOBOOKS.filter(
     (b) => b.id === 'shesher-kobita' || b.id === 'gitanjali'
@@ -65,9 +69,8 @@ export function SearchResultsScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ShrutiHeader
-
-        title="Search results"
-        subtitle="Suggestion · history · results"
+        title={t('searchResultsTitle')}
+        subtitle={t('searchResultsSub')}
         onBack={() => nav.goBack()}
         onOptionsPress={() => {}}
       />
@@ -83,7 +86,7 @@ export function SearchResultsScreen() {
             style={styles.input}
             value={query}
             onChangeText={setQuery}
-            placeholder="বই, লেখক বা কণ্ঠ খুঁজুন"
+            placeholder={t('searchPlaceholder')}
             placeholderTextColor={Colors.textMuted}
           />
           <Text style={styles.micIcon}>🎙️</Text>
@@ -91,17 +94,21 @@ export function SearchResultsScreen() {
 
         {/* Suggestions Card */}
         <View style={styles.suggestionsCard}>
-          <Text style={styles.suggestionsTitle}>Suggestions</Text>
+          <Text style={styles.suggestionsTitle}>{t('searchSuggestions')}</Text>
           <Text style={styles.suggestionsSub}>
-            রবীন্দ্রনাথ ঠাকুর · শেষের কবিতা · গীতাঞ্জলি
+            {isEnglish
+              ? 'Rabindranath Tagore · Shesher Kobita · Gitanjali'
+              : 'রবীন্দ্রনাথ ঠাকুর · শেষের কবিতা · গীতাঞ্জলি'}
           </Text>
         </View>
 
         {/* Recent History Card */}
         <View style={styles.historyCard}>
-          <Text style={styles.historyTitle}>Recent history</Text>
+          <Text style={styles.historyTitle}>{t('recentHistory')}</Text>
           <Text style={styles.historySub}>
-            পথের পাঁচালী · বাংলা কবিতা · রহস্য গল্প
+            {isEnglish
+              ? 'Pather Panchali · Bangla Poetry · Mystery'
+              : 'পথের পাঁচালী · বাংলা কবিতা · রহস্য গল্প'}
           </Text>
         </View>
 
@@ -123,7 +130,7 @@ export function SearchResultsScreen() {
             style={({ pressed }) => [styles.filterButton, pressed && styles.pressed]}
             onPress={() => setFilterModalVisible(true)}
           >
-            <Text style={styles.filterButtonText}>Filter · 3 / Sort</Text>
+            <Text style={styles.filterButtonText}>{t('filterSortBtn')}</Text>
           </Pressable>
         </View>
       </ScrollView>
@@ -134,10 +141,10 @@ export function SearchResultsScreen() {
         onClose={() => setFilterModalVisible(false)}
       >
         <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>ফিল্টার ও সাজান</Text>
+          <Text style={styles.modalTitle}>{t('filterModalHeading')}</Text>
 
           <Text style={styles.filterSectionTitle}>
-            Language · Access · Length
+            {t('filterSectionTitle')}
           </Text>
 
           {/* Filter Chips Row */}
@@ -156,7 +163,13 @@ export function SearchResultsScreen() {
                   selectedFilters.bn ? styles.textWhite : styles.textDark,
                 ]}
               >
-                {selectedFilters.bn ? '✓ বাংলা' : 'বাংলা'}
+                {selectedFilters.bn
+                  ? isEnglish
+                    ? '✓ Bangla'
+                    : '✓ বাংলা'
+                  : isEnglish
+                  ? 'Bangla'
+                  : 'বাংলা'}
               </Text>
             </Pressable>
 
@@ -192,7 +205,13 @@ export function SearchResultsScreen() {
                   selectedFilters.free ? styles.textWhite : styles.textMint,
                 ]}
               >
-                {selectedFilters.free ? '✓ Free' : 'Free'}
+                {selectedFilters.free
+                  ? isEnglish
+                    ? '✓ Free'
+                    : '✓ ফ্রি'
+                  : isEnglish
+                  ? 'Free'
+                  : 'ফ্রি'}
               </Text>
             </Pressable>
 
@@ -210,22 +229,28 @@ export function SearchResultsScreen() {
                   selectedFilters.premium ? styles.textWhite : styles.textPurple,
                 ]}
               >
-                {selectedFilters.premium ? '✓ Premium' : 'Premium'}
+                {selectedFilters.premium
+                  ? isEnglish
+                    ? '✓ Premium'
+                    : '✓ প্রিমিয়াম'
+                  : isEnglish
+                  ? 'Premium'
+                  : 'প্রিমিয়াম'}
               </Text>
             </Pressable>
           </View>
 
           {/* Sort Option Container Card */}
           <View style={styles.sortCard}>
-            <Text style={styles.sortCardTitle}>Sort: আপনার জন্য</Text>
+            <Text style={styles.sortCardTitle}>{t('sortForYou')}</Text>
             <Text style={styles.sortCardSub}>
-              নতুন · সর্বাধিক শোনা · rating · duration
+              {t('sortOptionsSub')}
             </Text>
           </View>
 
           {/* Apply CTA Button */}
           <ShrutiButton
-            label="২৪টি ফলাফল দেখুন"
+            label={t('btnViewResults')}
             onPress={() => setFilterModalVisible(false)}
             variant="primary"
           />

@@ -6,6 +6,7 @@
 
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { LanguageProvider } from './src/contexts/LanguageContext';
 import { AuthProvider } from './src/contexts/AuthContext';
 import { PlayerProvider } from './src/contexts/PlayerContext';
 import { AppNavigator } from './src/navigation/AppNavigator';
@@ -13,12 +14,14 @@ import { AppNavigator } from './src/navigation/AppNavigator';
 export default function App() {
   return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <PlayerProvider>
-          <AppNavigator />
-          <StatusBar style="dark" />
-        </PlayerProvider>
-      </AuthProvider>
+      <LanguageProvider>
+        <AuthProvider>
+          <PlayerProvider>
+            <AppNavigator />
+            <StatusBar style="dark" />
+          </PlayerProvider>
+        </AuthProvider>
+      </LanguageProvider>
     </SafeAreaProvider>
   );
 }

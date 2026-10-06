@@ -11,6 +11,7 @@
 
 import React, { useState } from 'react';
 import {
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -24,6 +25,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { AuthStackParamList } from '../../navigation/types';
 import { ShrutiHeader } from '../../components/ShrutiHeader';
 import { ShrutiButton } from '../../components/ShrutiButton';
@@ -35,6 +37,7 @@ type Nav = NativeStackNavigationProp<AuthStackParamList, 'Login'>;
 export function LoginScreen() {
   const nav = useNavigation<Nav>();
   const { login, register } = useAuth();
+  const { t, isEnglish } = useLanguage();
 
   const [isSignUp, setIsSignUp] = useState(false);
   const [name, setName] = useState('');
@@ -164,8 +167,8 @@ export function LoginScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ShrutiHeader
-        title="Account access"
-        subtitle="Sign in / Sign up / Google"
+        title={t('authHeaderTitle')}
+        subtitle={t('authHeaderSub')}
         onBack={() => nav.goBack()}
         onOptionsPress={() => {}}
       />
@@ -178,6 +181,17 @@ export function LoginScreen() {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
+          {/* Brand Hero */}
+          <View style={styles.brandHero}>
+            <Image
+              source={require('../../../assets/logo.png')}
+              style={styles.brandLogo}
+              resizeMode="contain"
+            />
+            <Text style={styles.brandTitle}>{t('appName')}</Text>
+            <Text style={styles.brandTagline}>{t('appTagline')}</Text>
+          </View>
+
           {/* Tab Selector for Sign In vs Sign Up */}
           <View style={styles.tabToggleRow}>
             <Pressable
@@ -191,7 +205,7 @@ export function LoginScreen() {
               style={[styles.toggleTab, !isSignUp && styles.toggleTabActive]}
             >
               <Text style={[styles.toggleTabText, !isSignUp && styles.toggleTabTextActive]}>
-                Sign In
+                {t('tabSignIn')}
               </Text>
             </Pressable>
             <Pressable
@@ -207,7 +221,7 @@ export function LoginScreen() {
               style={[styles.toggleTab, isSignUp && styles.toggleTabActive]}
             >
               <Text style={[styles.toggleTabText, isSignUp && styles.toggleTabTextActive]}>
-                Sign Up
+                {t('tabSignUp')}
               </Text>
             </Pressable>
           </View>
@@ -216,10 +230,12 @@ export function LoginScreen() {
           <View style={styles.formContainer}>
             {/* Name Field (Sign up only) */}
             <View style={styles.fieldWrapper}>
-              <Text style={styles.fieldLabel}>নাম {isSignUp ? '' : '· Sign up only'}</Text>
+              <Text style={styles.fieldLabel}>
+                {isSignUp ? t('fieldNameLabel') : t('fieldNameOptional')}
+              </Text>
               <TextInput
                 style={[styles.textInput, !isSignUp && styles.inputDisabled]}
-                placeholder={isSignUp ? 'আপনার নাম (যেমন: সাদিদ)' : '—'}
+                placeholder={isSignUp ? t('fieldNamePlaceholder') : '—'}
                 placeholderTextColor={Colors.textMuted}
                 value={name}
                 onChangeText={setName}
@@ -229,10 +245,10 @@ export function LoginScreen() {
 
             {/* Email Field */}
             <View style={styles.fieldWrapper}>
-              <Text style={styles.fieldLabel}>ইমেইল</Text>
+              <Text style={styles.fieldLabel}>{t('fieldEmailLabel')}</Text>
               <TextInput
                 style={styles.textInput}
-                placeholder="your.email@example.com"
+                placeholder={t('fieldEmailPlaceholder')}
                 placeholderTextColor={Colors.textMuted}
                 value={email}
                 onChangeText={setEmail}
@@ -243,11 +259,11 @@ export function LoginScreen() {
 
             {/* Password Field */}
             <View style={styles.fieldWrapper}>
-              <Text style={styles.fieldLabel}>পাসওয়ার্ড</Text>
+              <Text style={styles.fieldLabel}>{t('fieldPasswordLabel')}</Text>
               <View style={styles.passwordRow}>
                 <TextInput
                   style={styles.passwordInput}
-                  placeholder="কমপক্ষে ৬ অক্ষরের পাসওয়ার্ড"
+                  placeholder={t('fieldPasswordPlaceholder')}
                   placeholderTextColor={Colors.textMuted}
                   value={password}
                   onChangeText={setPassword}
@@ -270,11 +286,11 @@ export function LoginScreen() {
               label={
                 isSubmitting
                   ? isSignUp
-                    ? 'তৈরি হচ্ছে...'
-                    : 'লগইন হচ্ছে...'
+                    ? t('btnCreatingAccount')
+                    : t('btnSigningIn')
                   : isSignUp
-                  ? 'Sign up'
-                  : 'Sign in'
+                  ? t('tabSignUp')
+                  : t('tabSignIn')
               }
               onPress={handleSubmit}
               variant="primary"
@@ -282,7 +298,7 @@ export function LoginScreen() {
             />
 
             <ShrutiButton
-              label="Google দিয়ে চালিয়ে যান"
+              label={t('btnGoogleSignIn')}
               onPress={handleGoogleSignIn}
               variant="google"
             />
@@ -291,7 +307,7 @@ export function LoginScreen() {
           {/* Validation Error Message Box */}
           {validationError && (
             <View style={styles.validationCard}>
-              <Text style={styles.validationTitle}>নোটিশ</Text>
+              <Text style={styles.validationTitle}>{t('noticeTitle')}</Text>
               <Text style={styles.validationDetail}>{validationError}</Text>
 
               {/* If server connection failed, offer instant Demo fallback */}
@@ -301,7 +317,7 @@ export function LoginScreen() {
                   onPress={handleGoogleSignIn}
                 >
                   <Text style={styles.demoBypassText}>
-                    ⚡ ডেমো মোডে প্রবেশ করুন (Offline Demo)
+                    {t('offlineDemoBypass')}
                   </Text>
                 </Pressable>
               )}
@@ -311,7 +327,7 @@ export function LoginScreen() {
           {/* Success Message Box */}
           {successMessage && (
             <View style={styles.successCard}>
-              <Text style={styles.successTitle}>অভিনন্দন</Text>
+              <Text style={styles.successTitle}>{t('successTitle')}</Text>
               <Text style={styles.successDetail}>{successMessage}</Text>
             </View>
           )}
@@ -322,7 +338,7 @@ export function LoginScreen() {
             onPress={() => nav.navigate('ForgotPassword')}
           >
             <Text style={styles.forgotLinkText}>
-              পাসওয়ার্ড ভুলে গেছেন? রিকভারি করুন ›
+              {t('forgotPasswordLink')}
             </Text>
           </Pressable>
         </ScrollView>
@@ -346,6 +362,28 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.xs,
     paddingBottom: Spacing.xl,
     gap: Spacing.md,
+  },
+  brandHero: {
+    alignItems: 'center',
+    marginVertical: Spacing.sm,
+    gap: 4,
+  },
+  brandLogo: {
+    width: 72,
+    height: 72,
+    borderRadius: Radius.lg,
+    marginBottom: 4,
+  },
+  brandTitle: {
+    fontSize: FontSizes.xl,
+    fontWeight: '800',
+    color: Colors.textPrimary,
+    letterSpacing: -0.2,
+  },
+  brandTagline: {
+    fontSize: FontSizes.xs,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xs,
   },
   tabToggleRow: {
     flexDirection: 'row',

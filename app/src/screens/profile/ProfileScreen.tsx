@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { ShrutiHeader } from '../../components/ShrutiHeader';
 import { ShrutiButton } from '../../components/ShrutiButton';
 import { TagBadge } from '../../components/TagBadge';
@@ -23,6 +24,7 @@ import { Colors, FontSizes, Radius, Spacing } from '../../theme';
 
 export function ProfileScreen() {
   const { user, logout } = useAuth();
+  const { language, setLanguage, t, isEnglish } = useLanguage();
 
   const [isPremium, setIsPremium] = useState(false);
   const [publisherStatus, setPublisherStatus] = useState<
@@ -31,32 +33,41 @@ export function ProfileScreen() {
 
   const [upgradeModalVisible, setUpgradeModalVisible] = useState(false);
   const [publisherModalVisible, setPublisherModalVisible] = useState(false);
-  const [selectedLanguage, setSelectedLanguage] = useState<'bn' | 'en' | 'mixed'>('bn');
 
   const handleUpgradePayment = () => {
     setIsPremium(true);
     setUpgradeModalVisible(false);
-    Alert.alert('অভিনন্দন!', 'আপনার সাবস্ক্রিপশন সফলভাবে Premium-এ আপগ্রেড করা হয়েছে।');
+    Alert.alert(
+      isEnglish ? 'Congratulations!' : 'অভিনন্দন!',
+      isEnglish
+        ? 'Your subscription has been successfully upgraded to Premium.'
+        : 'আপনার সাবস্ক্রিপশন সফলভাবে Premium-এ আপগ্রেড করা হয়েছে।',
+    );
   };
 
   const handlePublisherSubmit = () => {
     setPublisherStatus('Submitted');
     setPublisherModalVisible(false);
-    Alert.alert('আবেদন জমা হয়েছে', 'আপনার প্রকাশক আবেদনটি অ্যাডমিন রিভিউয়ের জন্য জমা করা হয়েছে।');
+    Alert.alert(
+      isEnglish ? 'Application Submitted' : 'আবেদন জমা হয়েছে',
+      isEnglish
+        ? 'Your publisher application has been submitted for admin review.'
+        : 'আপনার প্রকাশক আবেদনটি অ্যাডমিন রিভিউয়ের জন্য জমা করা হয়েছে।',
+    );
   };
 
   const handleLogout = () => {
-    Alert.alert('লগআউট', 'আপনি কি নিশ্চিত যে লগআউট করতে চান?', [
-      { text: 'বাতিল', style: 'cancel' },
-      { text: 'লগআউট', style: 'destructive', onPress: () => logout() },
+    Alert.alert(t('logoutConfirmTitle'), t('logoutConfirmMessage'), [
+      { text: t('btnCancel'), style: 'cancel' },
+      { text: t('btnLogout'), style: 'destructive', onPress: () => logout() },
     ]);
   };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ShrutiHeader
-        title="প্রোফাইল ও সেটিংস"
-        subtitle="User Account & Ecosystem"
+        title={t('profileTitle')}
+        subtitle={t('profileSub')}
         onOptionsPress={() => {}}
       />
 
@@ -88,7 +99,7 @@ export function ProfileScreen() {
         {/* Subscription Plan Card */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>সাবস্ক্রিপশন প্ল্যান</Text>
+            <Text style={styles.sectionTitle}>{t('subscriptionSection')}</Text>
             <TagBadge
               label={isPremium ? 'PREMIUM' : 'FREE'}
               variant={isPremium ? 'premium' : 'free'}
@@ -96,12 +107,16 @@ export function ProfileScreen() {
           </View>
           <Text style={styles.sectionDescription}>
             {isPremium
-              ? 'আপনি সকল প্রিমিয়াম অডিওবুক শুনতে পারবেন, অফলাইনে সংরক্ষণ করতে পারবেন এবং আনলিমিটেড রূপান্তর সুবিধা পাবেন।'
+              ? isEnglish
+                ? 'You can listen to all premium audiobooks, save for offline playback, and enjoy unlimited AI conversions.'
+                : 'আপনি সকল প্রিমিয়াম অডিওবুক শুনতে পারবেন, অফলাইনে সংরক্ষণ করতে পারবেন এবং আনলিমিটেড রূপান্তর সুবিধা পাবেন।'
+              : isEnglish
+              ? 'On the free plan, you can create 3 audiobooks per month and listen to our free catalog.'
               : 'ফ্রি প্ল্যানে প্রতি মাসে ৩টি অডিওবুক তৈরি ও ফ্রি ক্যাটালগ শোনা যায়।'}
           </Text>
           {!isPremium && (
             <ShrutiButton
-              label="Premium-এ আপগ্রেড করুন (৳১৯৯/মাস)"
+              label={t('upgradeToPremium')}
               onPress={() => setUpgradeModalVisible(true)}
               variant="primary"
             />
@@ -111,18 +126,20 @@ export function ProfileScreen() {
         {/* Publisher Program Card */}
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>প্রকাশক প্রোগ্রাম (Publisher)</Text>
+            <Text style={styles.sectionTitle}>{t('publisherProgram')}</Text>
             <TagBadge
               label={publisherStatus}
               variant={publisherStatus === 'Approved' ? 'free' : 'genre'}
             />
           </View>
           <Text style={styles.sectionDescription}>
-            অনুমোদিত প্রকাশক হিসেবে নিজের চ্যানেল খুলুন, একাধিক বইয়ের প্লেলিস্ট তৈরি করুন এবং চ্যানেল পরিচালনা করুন।
+            {isEnglish
+              ? 'As an approved publisher, launch your channel, create multi-book playlists, and manage your catalog.'
+              : 'অনুমোদিত প্রকাশক হিসেবে নিজের চ্যানেল খুলুন, একাধিক বইয়ের প্লেলিস্ট তৈরি করুন এবং চ্যানেল পরিচালনা করুন।'}
           </Text>
 
           <ShrutiButton
-            label={publisherStatus === 'Approved' ? 'চ্যানেল পরিচালনা করুন' : 'প্রকাশক হিসেবে আবেদন করুন'}
+            label={publisherStatus === 'Approved' ? t('publisherManage') : t('publisherApply')}
             onPress={() => setPublisherModalVisible(true)}
             variant="secondary"
           />
@@ -130,7 +147,7 @@ export function ProfileScreen() {
 
         {/* Language Selection Setting */}
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>অ্যাপের ভাষা (Language)</Text>
+          <Text style={styles.sectionTitle}>{t('appLanguageSection')}</Text>
           <View style={styles.langChoicesRow}>
             {[
               { id: 'bn' as const, label: 'বাংলা' },
@@ -139,19 +156,19 @@ export function ProfileScreen() {
             ].map((lang) => (
               <Pressable
                 key={lang.id}
-                onPress={() => setSelectedLanguage(lang.id)}
+                onPress={() => setLanguage(lang.id)}
                 style={[
                   styles.langChoiceButton,
-                  selectedLanguage === lang.id && styles.langChoiceActive,
+                  language === lang.id && styles.langChoiceActive,
                 ]}
               >
                 <Text
                   style={[
                     styles.langChoiceText,
-                    selectedLanguage === lang.id && styles.langChoiceTextActive,
+                    language === lang.id && styles.langChoiceTextActive,
                   ]}
                 >
-                  {selectedLanguage === lang.id ? `✓ ${lang.label}` : lang.label}
+                  {language === lang.id ? `✓ ${lang.label}` : lang.label}
                 </Text>
               </Pressable>
             ))}
@@ -160,15 +177,13 @@ export function ProfileScreen() {
 
         {/* Copyright Management Info */}
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>কপিরাইট ও স্বত্বাধিকার নীতিমালা</Text>
-          <Text style={styles.sectionDescription}>
-            শ্রুতি প্ল্যাটফর্মে সকল স্বত্বাধিকারীর অধিকার সুরক্ষিত রাখা হয়। যে কোনো বইয়ের বিরুদ্ধে লঙ্ঘনের অভিযোগ সরাসরি প্রতিটি বইয়ের বিস্তারিত পাতা থেকে রিপোর্ট করা যায়।
-          </Text>
+          <Text style={styles.sectionTitle}>{t('copyrightPolicySection')}</Text>
+          <Text style={styles.sectionDescription}>{t('copyrightPolicyDesc')}</Text>
         </View>
 
         {/* Logout Button */}
         <ShrutiButton
-          label="লগআউট করুন"
+          label={t('btnLogout')}
           onPress={handleLogout}
           variant="secondary"
         />
@@ -180,18 +195,26 @@ export function ProfileScreen() {
         onClose={() => setUpgradeModalVisible(false)}
       >
         <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>Upgrade to Premium</Text>
-          <Text style={styles.modalSub}>মাসিক ৳১৯৯ / আনলিমিটেড লিসেনিং ও অফলাইন</Text>
+          <Text style={styles.modalTitle}>{t('paymentModalTitle')}</Text>
+          <Text style={styles.modalSub}>{t('paymentModalSub')}</Text>
 
           <View style={styles.benefitsList}>
-            <Text style={styles.benefitItem}>✓ সকল প্রিমিয়াম অডিওবুক আনলকড</Text>
-            <Text style={styles.benefitItem}>✓ অফলাইন শোনার জন্য সরাসরি ক্যাশ সংরক্ষণ</Text>
-            <Text style={styles.benefitItem}>✓ উচ্চ অগ্রাধিকার (High Priority Queue) রূপান্তর</Text>
-            <Text style={styles.benefitItem}>✓ বিজ্ঞাপন ও সীমা মুক্ত অভিজ্ঞতা</Text>
+            <Text style={styles.benefitItem}>
+              {isEnglish ? '✓ All premium audiobooks unlocked' : '✓ সকল প্রিমিয়াম অডিওবুক আনলকড'}
+            </Text>
+            <Text style={styles.benefitItem}>
+              {isEnglish ? '✓ Direct offline caching for listening anywhere' : '✓ অফলাইন শোনার জন্য সরাসরি ক্যাশ সংরক্ষণ'}
+            </Text>
+            <Text style={styles.benefitItem}>
+              {isEnglish ? '✓ High priority queue for speech conversions' : '✓ উচ্চ অগ্রাধিকার (High Priority Queue) রূপান্তর'}
+            </Text>
+            <Text style={styles.benefitItem}>
+              {isEnglish ? '✓ Ad-free unlimited listening experience' : '✓ বিজ্ঞাপন ও সীমা মুক্ত অভিজ্ঞতা'}
+            </Text>
           </View>
 
           <ShrutiButton
-            label="পেমেন্ট সম্পন্ন করুন (bKash / Card)"
+            label={t('btnCompletePayment')}
             onPress={handleUpgradePayment}
             variant="primary"
           />
@@ -204,19 +227,23 @@ export function ProfileScreen() {
         onClose={() => setPublisherModalVisible(false)}
       >
         <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>প্রকাশক আবেদন ফর্ম</Text>
-          <Text style={styles.modalSub}>
-            জাতীয় পরিচয়পত্র (NID), ট্রেড লাইসেন্স ও প্রকাশনা সংক্রান্ত তথ্য
-          </Text>
+          <Text style={styles.modalTitle}>{t('publisherFormTitle')}</Text>
+          <Text style={styles.modalSub}>{t('publisherFormSub')}</Text>
 
           <View style={styles.docUploadCard}>
-            <Text style={styles.docUploadTitle}>সংযুক্ত ডকুমেন্টস:</Text>
-            <Text style={styles.docItem}>📄 NID_Front_Back.pdf (সংযুক্ত)</Text>
-            <Text style={styles.docItem}>📄 Trade_License_2026.pdf (সংযুক্ত)</Text>
+            <Text style={styles.docUploadTitle}>
+              {isEnglish ? 'Attached Documents:' : 'সংযুক্ত ডকুমেন্টস:'}
+            </Text>
+            <Text style={styles.docItem}>
+              📄 {isEnglish ? 'NID_Front_Back.pdf (Attached)' : 'NID_Front_Back.pdf (সংযুক্ত)'}
+            </Text>
+            <Text style={styles.docItem}>
+              📄 {isEnglish ? 'Trade_License_2026.pdf (Attached)' : 'Trade_License_2026.pdf (সংযুক্ত)'}
+            </Text>
           </View>
 
           <ShrutiButton
-            label="আবেদনপত্র দাখিল করুন"
+            label={t('btnSubmitApplication')}
             onPress={handlePublisherSubmit}
             variant="primary"
           />

@@ -20,6 +20,7 @@ import { ShrutiHeader } from '../../components/ShrutiHeader';
 import { AudiobookCard } from '../../components/AudiobookCard';
 import { FIGMA_AUDIOBOOKS } from '../../data/mockAudiobooks';
 import { usePlayer } from '../../contexts/PlayerContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
 
 type Nav = NativeStackNavigationProp<LibraryStackParamList, 'Library'>;
@@ -27,6 +28,7 @@ type Nav = NativeStackNavigationProp<LibraryStackParamList, 'Library'>;
 export function LibraryScreen() {
   const nav = useNavigation<Nav>();
   const { loadAudiobook } = usePlayer();
+  const { t, isEnglish } = useLanguage();
 
   const [activeTab, setActiveTab] = useState<'saved' | 'playlists' | 'offline'>('saved');
 
@@ -45,9 +47,8 @@ export function LibraryScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ShrutiHeader
-
-        title="লাইব্রেরি"
-        subtitle="সংরক্ষিত ও অফলাইন বই"
+        title={t('libraryTitle')}
+        subtitle={t('librarySub')}
         onOptionsPress={() => {}}
       />
 
@@ -62,7 +63,7 @@ export function LibraryScreen() {
             style={[styles.tabButton, activeTab === 'saved' && styles.tabButtonActive]}
           >
             <Text style={[styles.tabText, activeTab === 'saved' && styles.tabTextActive]}>
-              সংরক্ষিত ({savedBooks.length})
+              {isEnglish ? `Saved (${savedBooks.length})` : `সংরক্ষিত (${savedBooks.length})`}
             </Text>
           </Pressable>
 
@@ -71,7 +72,7 @@ export function LibraryScreen() {
             style={[styles.tabButton, activeTab === 'playlists' && styles.tabButtonActive]}
           >
             <Text style={[styles.tabText, activeTab === 'playlists' && styles.tabTextActive]}>
-              প্লেলিস্ট
+              {isEnglish ? 'Playlists' : 'প্লেলিস্ট'}
             </Text>
           </Pressable>
 
@@ -80,7 +81,9 @@ export function LibraryScreen() {
             style={[styles.tabButton, activeTab === 'offline' && styles.tabButtonActive]}
           >
             <Text style={[styles.tabText, activeTab === 'offline' && styles.tabTextActive]}>
-              অফলাইন (১)
+              {isEnglish
+                ? `Downloaded (${offlineBooks.length})`
+                : `অফলাইন (${offlineBooks.length})`}
             </Text>
           </Pressable>
         </View>
@@ -90,7 +93,9 @@ export function LibraryScreen() {
           <View style={styles.offlineNotice}>
             <Text style={styles.offlineTitle}>Offline Mode Active</Text>
             <Text style={styles.offlineSub}>
-              শুধু ডাউনলোড করা বইগুলো ইন্টারনেট সংযোগ ছাড়া শোনা যাবে।
+              {isEnglish
+                ? 'Only downloaded audiobooks are playable without an internet connection.'
+                : 'শুধু ডাউনলোড করা বইগুলো ইন্টারনেট সংযোগ ছাড়া শোনা যাবে।'}
             </Text>
           </View>
         )}
@@ -99,8 +104,14 @@ export function LibraryScreen() {
         {activeTab === 'playlists' ? (
           <View style={styles.playlistContainer}>
             <View style={styles.playlistCard}>
-              <Text style={styles.playlistTitle}>প্রিয় গল্প সংকলন</Text>
-              <Text style={styles.playlistSub}>৩টি অডিওবুক · ব্যক্তিগত প্লেলিস্ট</Text>
+              <Text style={styles.playlistTitle}>
+                {isEnglish ? 'Favorite Stories Collection' : 'প্রিয় গল্প সংকলন'}
+              </Text>
+              <Text style={styles.playlistSub}>
+                {isEnglish
+                  ? '3 Audiobooks · Private Playlist'
+                  : '৩টি অডিওবুক · ব্যক্তিগত প্লেলিস্ট'}
+              </Text>
             </View>
           </View>
         ) : (

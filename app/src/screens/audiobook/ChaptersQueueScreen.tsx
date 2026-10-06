@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { ShrutiHeader } from '../../components/ShrutiHeader';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface ChapterItemData {
   id: string;
@@ -29,35 +30,36 @@ interface ChapterItemData {
 
 export function ChaptersQueueScreen() {
   const nav = useNavigation();
+  const { t, isEnglish } = useLanguage();
 
   const [chapters, setChapters] = useState<ChapterItemData[]>([
     {
       id: '1',
-      number: '১',
-      title: 'নিশ্চিন্দিপুর',
+      number: isEnglish ? '1' : '১',
+      title: isEnglish ? 'Nishchindipur' : 'নিশ্চিন্দিপুর',
       duration: '38 min',
-      status: 'Downloaded',
+      status: t('tabDownloaded'),
     },
     {
       id: '2',
-      number: '২',
-      title: 'দুর্গা',
+      number: isEnglish ? '2' : '২',
+      title: isEnglish ? 'Durga' : 'দুর্গা',
       duration: '39 min',
-      status: 'Downloaded',
+      status: t('tabDownloaded'),
     },
     {
       id: '3',
-      number: '৩',
-      title: 'ইন্দির ঠাকরুন',
+      number: isEnglish ? '3' : '৩',
+      title: isEnglish ? 'Indir Thakrun' : 'ইন্দির ঠাকরুন',
       duration: '40 min',
-      status: 'Downloaded',
+      status: t('tabDownloaded'),
     },
     {
       id: '4',
-      number: '৪',
-      title: 'দূরের রেলগাড়ি',
+      number: isEnglish ? '4' : '৪',
+      title: isEnglish ? 'Durer Railgari' : 'দূরের রেলগাড়ি',
       duration: '41 min',
-      status: 'Now playing',
+      status: t('playerNowPlaying'),
       isPlaying: true,
     },
   ]);
@@ -66,15 +68,15 @@ export function ChaptersQueueScreen() {
 
   const handleReorderOrClear = () => {
     Alert.alert(
-      'Queue Options',
-      'সারিবদ্ধ বইগুলোর ক্রম পরিবর্তন বা মুছতে চান?',
+      t('queueOptionsTitle'),
+      t('queueOptionsMessage'),
       [
         {
-          text: 'কিউ খালি করুন',
+          text: t('btnClearQueue'),
           style: 'destructive',
           onPress: () => setQueueCleared(true),
         },
-        { text: 'ঠিক আছে', style: 'cancel' },
+        { text: t('btnOk'), style: 'cancel' },
       ]
     );
   };
@@ -84,7 +86,7 @@ export function ChaptersQueueScreen() {
       prev.map((c) => ({
         ...c,
         isPlaying: c.id === chapter.id,
-        status: c.id === chapter.id ? 'Now playing' : 'Downloaded',
+        status: c.id === chapter.id ? t('playerNowPlaying') : t('tabDownloaded'),
       }))
     );
   };
@@ -92,9 +94,8 @@ export function ChaptersQueueScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ShrutiHeader
-
-        title="Chapters & queue"
-        subtitle="12 chapters · 4 up next"
+        title={t('chaptersQueueTitle')}
+        subtitle={t('chaptersQueueSub', { count: 12, next: 4 })}
         onBack={() => nav.goBack()}
         onOptionsPress={() => {}}
       />
@@ -141,9 +142,11 @@ export function ChaptersQueueScreen() {
         {/* Up Next Section */}
         {!queueCleared && (
           <View style={styles.upNextCard}>
-            <Text style={styles.upNextTitle}>Up next</Text>
+            <Text style={styles.upNextTitle}>{t('upNextSection')}</Text>
             <Text style={styles.upNextSub}>
-              শেষের কবিতা → চাঁদের পাহাড় → গীতাঞ্জলি
+              {isEnglish
+                ? 'Shesher Kobita → Chander Pahar → Gitanjali'
+                : 'শেষের কবিতা → চাঁদের পাহাড় → গীতাঞ্জলি'}
             </Text>
           </View>
         )}
@@ -153,7 +156,7 @@ export function ChaptersQueueScreen() {
           style={({ pressed }) => [styles.reorderButton, pressed && styles.pressed]}
           onPress={handleReorderOrClear}
         >
-          <Text style={styles.reorderButtonText}>Reorder / clear queue</Text>
+          <Text style={styles.reorderButtonText}>{t('reorderClearQueue')}</Text>
         </Pressable>
       </ScrollView>
 

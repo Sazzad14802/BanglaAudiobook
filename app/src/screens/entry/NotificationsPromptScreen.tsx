@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ShrutiHeader } from '../../components/ShrutiHeader';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface NotificationsPromptScreenProps {
   onBack: () => void;
@@ -26,12 +27,13 @@ export function NotificationsPromptScreen({
   onAllow,
   onSkip,
 }: NotificationsPromptScreenProps) {
+  const { isEnglish } = useLanguage();
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ShrutiHeader
-
-        title="Notifications"
-        subtitle="Context → system prompt"
+        title={isEnglish ? 'Notifications' : 'নোটিফিকেশন'}
+        subtitle={isEnglish ? 'Alerts & updates' : 'আপডেট ও নোটিফিকেশন'}
         onBack={onBack}
         onOptionsPress={() => {}}
       />
@@ -39,9 +41,13 @@ export function NotificationsPromptScreen({
       <View style={styles.content}>
         {/* Context Explanation Card */}
         <View style={styles.contextCard}>
-          <Text style={styles.contextTitle}>কেন দরকার?</Text>
+          <Text style={styles.contextTitle}>
+            {isEnglish ? 'Why is this needed?' : 'কেন দরকার?'}
+          </Text>
           <Text style={styles.contextSub}>
-            New releases, downloads এবং generation update-এর জন্য।
+            {isEnglish
+              ? 'For new releases, offline downloads, and audio generation alerts.'
+              : 'New releases, downloads এবং generation update-এর জন্য।'}
           </Text>
         </View>
 
@@ -53,11 +59,15 @@ export function NotificationsPromptScreen({
           </View>
 
           <Text style={styles.dialogTitle}>
-            শ্রুতিকে notification পাঠাতে দেবেন?
+            {isEnglish
+              ? 'Allow Shruti to send you notifications?'
+              : 'শ্রুতিকে notification পাঠাতে দেবেন?'}
           </Text>
 
           <Text style={styles.dialogDescription}>
-            আপনি পরে Android settings থেকে বদলাতে পারবেন।
+            {isEnglish
+              ? 'You can always adjust this in your device settings later.'
+              : 'আপনি পরে Android settings থেকে বদলাতে পারবেন।'}
           </Text>
 
           {/* Action Buttons Row */}
@@ -68,7 +78,9 @@ export function NotificationsPromptScreen({
               accessibilityRole="button"
               accessibilityLabel="Not now"
             >
-              <Text style={styles.outlineButtonText}>এখন নয়</Text>
+              <Text style={styles.outlineButtonText}>
+                {isEnglish ? 'Not Now' : 'এখন নয়'}
+              </Text>
             </Pressable>
 
             <Pressable
@@ -77,7 +89,9 @@ export function NotificationsPromptScreen({
               accessibilityRole="button"
               accessibilityLabel="Allow notifications"
             >
-              <Text style={styles.primaryButtonText}>অনুমতি দিন</Text>
+              <Text style={styles.primaryButtonText}>
+                {isEnglish ? 'Allow' : 'অনুমতি দিন'}
+              </Text>
             </Pressable>
           </View>
         </View>

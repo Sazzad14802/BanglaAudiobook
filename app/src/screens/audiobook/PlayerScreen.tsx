@@ -25,6 +25,7 @@ import { ModalBottomSheet } from '../../components/ModalBottomSheet';
 import { ShrutiButton } from '../../components/ShrutiButton';
 import { FIGMA_AUDIOBOOKS } from '../../data/mockAudiobooks';
 import { usePlayer } from '../../contexts/PlayerContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
 
 type Nav = NativeStackNavigationProp<HomeStackParamList, 'Player'>;
@@ -33,6 +34,7 @@ type Route = RouteProp<HomeStackParamList, 'Player'>;
 export function PlayerScreen() {
   const nav = useNavigation<Nav>();
   const route = useRoute<Route>();
+  const { t, isEnglish } = useLanguage();
   const {
     audiobook: activeAudiobook,
     chapters,
@@ -64,7 +66,7 @@ export function PlayerScreen() {
 
   const currentChapter = chapters[currentChapterIndex] ?? {
     chapter_number: 4,
-    title: 'নিশ্চিন্দিপুর',
+    title: isEnglish ? 'Nischindipur' : 'নিশ্চিন্দিপুর',
   };
 
   const handleTogglePlay = async () => {
@@ -84,7 +86,6 @@ export function PlayerScreen() {
   };
 
   const handleProgressBarPress = (evt: any) => {
-    // Seek based on relative click
     const newSecs = Math.min(durationSeconds, Math.max(0, positionSeconds + 60));
     setPositionSeconds(newSecs);
   };
@@ -92,30 +93,44 @@ export function PlayerScreen() {
   const actionItems: ActionItem[] = [
     {
       id: 'chapters',
-      label: 'Chapters',
+      label: isEnglish ? 'Chapters' : 'অধ্যায়',
       onPress: () => nav.navigate('ChaptersQueue', { audiobookId: audiobook.id }),
     },
     {
       id: 'queue',
-      label: 'Queue',
+      label: isEnglish ? 'Queue' : 'কিউ',
       onPress: () => nav.navigate('ChaptersQueue', { audiobookId: audiobook.id }),
     },
     {
       id: 'bookmark',
-      label: isBookmarked ? 'Bookmarked' : 'Bookmark',
+      label: isBookmarked
+        ? isEnglish ? 'Bookmarked' : 'বুকমার্কড'
+        : isEnglish ? 'Bookmark' : 'বুকমার্ক',
       active: isBookmarked,
       onPress: () => {
         setIsBookmarked((prev) => !prev);
-        Alert.alert('বুকমার্ক', `${formatTime(positionSeconds)} সময়ে বুকমার্ক সংরক্ষণ করা হয়েছে।`);
+        Alert.alert(
+          isEnglish ? 'Bookmark' : 'বুকমার্ক',
+          isEnglish
+            ? `Bookmark saved at ${formatTime(positionSeconds)}.`
+            : `${formatTime(positionSeconds)} সময়ে বুকমার্ক সংরক্ষণ করা হয়েছে।`
+        );
       },
     },
     {
       id: 'offline',
-      label: isOfflineSaved ? 'Downloaded' : 'Offline',
+      label: isOfflineSaved
+        ? isEnglish ? 'Downloaded' : 'ডাউনলোডেড'
+        : isEnglish ? 'Offline' : 'অফলাইন',
       active: isOfflineSaved,
       onPress: () => {
         setIsOfflineSaved((prev) => !prev);
-        Alert.alert('অফলাইন', 'অডিওবুকটি অ্যাপের ভেতরে অফলাইনে সংরক্ষিত হয়েছে।');
+        Alert.alert(
+          isEnglish ? 'Offline Cache' : 'অফলাইন',
+          isEnglish
+            ? 'Audiobook saved for offline listening.'
+            : 'অডিওবুকটি অ্যাপের ভেতরে অফলাইনে সংরক্ষিত হয়েছে।'
+        );
       },
     },
   ];
@@ -123,8 +138,7 @@ export function PlayerScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ShrutiHeader
-
-        title="Now playing"
+        title={t('playerNowPlaying')}
         subtitle={audiobook.title}
         alignCenter
         onBack={() => nav.goBack()}
@@ -148,14 +162,13 @@ export function PlayerScreen() {
           />
         </View>
 
-
         {/* Book Title */}
         <Text style={styles.bookTitle}>{audiobook.title}</Text>
 
         {/* Chapter Info & Timestamps */}
         <View style={styles.infoRow}>
           <Text style={styles.chapterSubtitle}>
-            অধ্যায় {currentChapter.chapter_number} · {currentChapter.title}
+            {isEnglish ? 'Chapter' : 'অধ্যায়'} {currentChapter.chapter_number} · {currentChapter.title}
           </Text>
           <Text style={styles.timeCounter}>
             {formatTime(positionSeconds)} / {formatTime(durationSeconds)}

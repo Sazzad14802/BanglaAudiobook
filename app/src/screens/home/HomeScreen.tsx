@@ -29,6 +29,8 @@ import { FIGMA_AUDIOBOOKS } from '../../data/mockAudiobooks';
 import { audiobooksApi } from '../../api/audiobooks';
 import { Audiobook } from '../../types/audiobook';
 import { usePlayer } from '../../contexts/PlayerContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
 
 type Nav = NativeStackNavigationProp<HomeStackParamList, 'Home'>;
@@ -36,6 +38,8 @@ type Nav = NativeStackNavigationProp<HomeStackParamList, 'Home'>;
 export function HomeScreen() {
   const nav = useNavigation<Nav>();
   const { loadAudiobook } = usePlayer();
+  const { user } = useAuth();
+  const { t, isEnglish } = useLanguage();
 
   const [audiobooks, setAudiobooks] = useState<Audiobook[]>(FIGMA_AUDIOBOOKS);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -78,11 +82,14 @@ export function HomeScreen() {
     nav.navigate('Player', { audiobookId: book.id });
   };
 
+  const firstName = user?.full_name?.split(' ')[0] ?? user?.username ?? (isEnglish ? 'Nabila' : 'নাবিলা');
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ShrutiHeader
-        title="শুভ সন্ধ্যা, নাবিলা"
-        subtitle="আজ কী শুনবেন?"
+        showLogo
+        title={t('greetingEvening', { name: firstName })}
+        subtitle={t('greetingQuestion')}
         onOptionsPress={() => nav.navigate('DiscoveryStates')}
       />
 
@@ -102,7 +109,7 @@ export function HomeScreen() {
         <View style={styles.heroSection}>
           <EditorialHeroCard
             title={featuredBook.title}
-            meta="Editor's pick · 8h 42m"
+            meta={t('editorsPickMeta')}
             coverUrl={featuredBook.cover_image_url ?? undefined}
             onPress={() => handleBookPress(featuredBook.id)}
           />
@@ -110,7 +117,7 @@ export function HomeScreen() {
 
         {/* Section: শোনা চালিয়ে যান */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>শোনা চালিয়ে যান</Text>
+          <Text style={styles.sectionTitle}>{t('continueListeningSection')}</Text>
         </View>
 
         {/* Continue Listening List */}

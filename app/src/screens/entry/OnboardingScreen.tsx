@@ -16,50 +16,53 @@ import { ShrutiHeader } from '../../components/ShrutiHeader';
 import { ShrutiButton } from '../../components/ShrutiButton';
 import { TagBadge } from '../../components/TagBadge';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface OnboardingScreenProps {
   onFinish: () => void;
 }
 
-const STEPS = [
-  {
-    key: 'discover',
-    title: 'গল্পের কাছে ফিরুন',
-    stepLabel: 'Discover · 1/3',
-    cardTitle: 'গল্পের কাছে ফিরুন',
-    cardSub: 'বাংলা · English · Offline',
-    description: 'হাজারো বাংলা ও English audiobook খুঁজে নিন।',
-    ctaText: 'পরবর্তী',
-    image: require('../../../assets/illustrations/onboarding_discover.jpg'),
-  },
-  {
-    key: 'listen',
-    title: 'শোনার জগৎ, আপনার মতো',
-    stepLabel: 'Listen · 2/3',
-    cardTitle: 'শোনার জগৎ, আপনার মতো',
-    cardSub: 'বাংলা · English · Offline',
-    description: 'Save, offline listening এবং private playlist—নিজের মতো।',
-    ctaText: 'পরবর্তী',
-    image: require('../../../assets/illustrations/onboarding_listen.jpg'),
-  },
-  {
-    key: 'create',
-    title: 'লেখা থেকে কণ্ঠে',
-    stepLabel: 'Create · 3/3',
-    cardTitle: 'লেখা থেকে কণ্ঠে',
-    cardSub: 'বাংলা · English · Offline',
-    description: 'PDF upload করে নিজের audiobook তৈরি করুন।',
-    ctaText: 'শুরু করুন',
-    image: require('../../../assets/illustrations/onboarding_create.jpg'),
-  },
-];
-
 export function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
+  const { t, isEnglish } = useLanguage();
   const [currentIndex, setCurrentIndex] = useState(0);
-  const currentStep = STEPS[currentIndex];
+
+  const steps = [
+    {
+      key: 'discover',
+      title: t('onboardingStep1Title'),
+      stepLabel: isEnglish ? 'Discover · 1/3' : 'Discover · ১/৩',
+      cardTitle: t('onboardingStep1Title'),
+      cardSub: isEnglish ? 'Bangla · English · Offline' : 'বাংলা · English · Offline',
+      description: t('onboardingStep1Desc'),
+      ctaText: t('btnNext'),
+      image: require('../../../assets/illustrations/onboarding_discover.jpg'),
+    },
+    {
+      key: 'listen',
+      title: t('onboardingStep2Title'),
+      stepLabel: isEnglish ? 'Listen · 2/3' : 'Listen · ২/৩',
+      cardTitle: t('onboardingStep2Title'),
+      cardSub: isEnglish ? 'Bangla · English · Offline' : 'বাংলা · English · Offline',
+      description: t('onboardingStep2Desc'),
+      ctaText: t('btnNext'),
+      image: require('../../../assets/illustrations/onboarding_listen.jpg'),
+    },
+    {
+      key: 'create',
+      title: t('onboardingStep3Title'),
+      stepLabel: isEnglish ? 'Create · 3/3' : 'Create · ৩/৩',
+      cardTitle: t('onboardingStep3Title'),
+      cardSub: isEnglish ? 'Bangla · English · Offline' : 'বাংলা · English · Offline',
+      description: t('onboardingStep3Desc'),
+      ctaText: t('btnGetStarted'),
+      image: require('../../../assets/illustrations/onboarding_create.jpg'),
+    },
+  ];
+
+  const currentStep = steps[currentIndex];
 
   const handleNext = () => {
-    if (currentIndex < STEPS.length - 1) {
+    if (currentIndex < steps.length - 1) {
       setCurrentIndex((prev) => prev + 1);
     } else {
       onFinish();

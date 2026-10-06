@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Bangla AudioBook",
-    "slug": "bangla-audiobook",
+    "name": "BanglaBook",
+    "slug": "banglabook",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",

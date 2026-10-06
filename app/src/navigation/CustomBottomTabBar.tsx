@@ -9,16 +9,14 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { PersistentMiniPlayer } from '../components/PersistentMiniPlayer';
 import { Colors, FontSizes, Radius, Spacing } from '../theme';
+import { useLanguage } from '../contexts/LanguageContext';
 
-const TAB_CONFIG: Record<
-  string,
-  { label: string; icon: string; activeIcon: string }
-> = {
-  HomeTab: { label: 'হোম', icon: '○', activeIcon: '●' },
-  ExploreTab: { label: 'খুঁজুন', icon: '○', activeIcon: '●' },
-  LibraryTab: { label: 'লাইব্রেরি', icon: '○', activeIcon: '●' },
-  CreateTab: { label: 'তৈরি', icon: '◇', activeIcon: '◆' },
-  ProfileTab: { label: 'প্রোফাইল', icon: '○', activeIcon: '●' },
+const TAB_ICONS: Record<string, { icon: string; activeIcon: string }> = {
+  HomeTab: { icon: '○', activeIcon: '●' },
+  ExploreTab: { icon: '○', activeIcon: '●' },
+  LibraryTab: { icon: '○', activeIcon: '●' },
+  CreateTab: { icon: '◇', activeIcon: '◆' },
+  ProfileTab: { icon: '○', activeIcon: '●' },
 };
 
 export function CustomBottomTabBar({
@@ -26,6 +24,25 @@ export function CustomBottomTabBar({
   descriptors,
   navigation,
 }: BottomTabBarProps) {
+  const { t } = useLanguage();
+
+  const getTabLabel = (routeName: string) => {
+    switch (routeName) {
+      case 'HomeTab':
+        return t('tabHome');
+      case 'ExploreTab':
+        return t('tabExplore');
+      case 'LibraryTab':
+        return t('tabLibrary');
+      case 'CreateTab':
+        return t('tabCreate');
+      case 'ProfileTab':
+        return t('tabProfile');
+      default:
+        return routeName;
+    }
+  };
+
   // Check if current focused route disables mini-player (e.g. on full Player screen)
   const currentRoute = state.routes[state.index];
   const descriptor = descriptors[currentRoute.key];
@@ -40,11 +57,8 @@ export function CustomBottomTabBar({
       <View style={styles.tabBar}>
         {state.routes.map((route, index) => {
           const isFocused = state.index === index;
-          const config = TAB_CONFIG[route.name] ?? {
-            label: route.name,
-            icon: '○',
-            activeIcon: '●',
-          };
+          const icons = TAB_ICONS[route.name] ?? { icon: '○', activeIcon: '●' };
+          const label = getTabLabel(route.name);
 
           const onPress = () => {
             const event = navigation.emit({
@@ -68,7 +82,7 @@ export function CustomBottomTabBar({
               ]}
               accessibilityRole="tab"
               accessibilityState={{ selected: isFocused }}
-              accessibilityLabel={config.label}
+              accessibilityLabel={label}
             >
               <View style={styles.tabContent}>
                 <Text
@@ -77,7 +91,7 @@ export function CustomBottomTabBar({
                     isFocused ? styles.tabIndicatorActive : styles.tabIndicatorInactive,
                   ]}
                 >
-                  {isFocused ? config.activeIcon : config.icon}
+                  {isFocused ? icons.activeIcon : icons.icon}
                 </Text>
                 <Text
                   style={[
@@ -85,7 +99,7 @@ export function CustomBottomTabBar({
                     isFocused ? styles.tabLabelActive : styles.tabLabelInactive,
                   ]}
                 >
-                  {config.label}
+                  {label}
                 </Text>
               </View>
             </Pressable>

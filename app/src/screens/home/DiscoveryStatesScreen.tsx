@@ -17,9 +17,11 @@ import { useNavigation } from '@react-navigation/native';
 import { ShrutiHeader } from '../../components/ShrutiHeader';
 import { ShrutiButton } from '../../components/ShrutiButton';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 export function DiscoveryStatesScreen() {
   const nav = useNavigation();
+  const { t } = useLanguage();
   const [isRetrying, setIsRetrying] = useState(false);
 
   const handleRetry = () => {
@@ -33,9 +35,8 @@ export function DiscoveryStatesScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ShrutiHeader
-
-        title="Discovery states"
-        subtitle="Loading · no results · offline · error"
+        title={t('discoveryTitle')}
+        subtitle={t('discoverySub')}
         onBack={() => nav.goBack()}
         onOptionsPress={() => {}}
       />
@@ -51,26 +52,26 @@ export function DiscoveryStatesScreen() {
 
         {/* No Results Card */}
         <View style={styles.neutralCard}>
-          <Text style={styles.cardTitle}>No results</Text>
-          <Text style={styles.cardSub}>বানান দেখুন বা filters সরান</Text>
+          <Text style={styles.cardTitle}>{t('noResultsTitle')}</Text>
+          <Text style={styles.cardSub}>{t('noResultsHint')}</Text>
         </View>
 
         {/* Offline Card */}
         <View style={styles.amberCard}>
-          <Text style={styles.amberTitle}>Offline</Text>
-          <Text style={styles.amberSub}>শুধু downloaded audiobook available</Text>
+          <Text style={styles.amberTitle}>{t('offlineTitle')}</Text>
+          <Text style={styles.amberSub}>{t('offlineHint')}</Text>
         </View>
 
         {/* Error Card */}
         <View style={styles.errorCard}>
-          <Text style={styles.errorTitle}>Error</Text>
-          <Text style={styles.errorSub}>Query preserved · Retry</Text>
+          <Text style={styles.errorTitle}>{t('errorTitle')}</Text>
+          <Text style={styles.errorSub}>{t('errorHint')}</Text>
         </View>
 
         {/* Retry Button */}
         <View style={styles.buttonWrapper}>
           <ShrutiButton
-            label="Retry"
+            label={t('btnRetry')}
             onPress={handleRetry}
             variant="primary"
             isLoading={isRetrying}

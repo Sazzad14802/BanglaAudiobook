@@ -22,11 +22,13 @@ import { AuthStackParamList } from '../../navigation/types';
 import { ShrutiHeader } from '../../components/ShrutiHeader';
 import { ShrutiButton } from '../../components/ShrutiButton';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 type Nav = NativeStackNavigationProp<AuthStackParamList, 'ForgotPassword'>;
 
 export function ForgotPasswordScreen() {
   const nav = useNavigation<Nav>();
+  const { t } = useLanguage();
 
   const [email, setEmail] = useState('nabila@example.com');
   const [verificationCode, setVerificationCode] = useState('482169');
@@ -46,9 +48,8 @@ export function ForgotPasswordScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ShrutiHeader
-
-        title="Forgot, verify & reset"
-        subtitle="Complete recovery path"
+        title={t('forgotHeaderTitle')}
+        subtitle={t('forgotHeaderSub')}
         onBack={() => nav.goBack()}
         onOptionsPress={() => {}}
       />
@@ -65,22 +66,22 @@ export function ForgotPasswordScreen() {
           <View style={styles.stepIndicatorRow}>
             <View style={styles.stepColumn}>
               <View style={[styles.stepBar, styles.stepBarActive]} />
-              <Text style={[styles.stepText, styles.stepTextActive]}>Email</Text>
+              <Text style={[styles.stepText, styles.stepTextActive]}>{t('forgotStepEmail')}</Text>
             </View>
 
             <View style={styles.stepColumn}>
               <View style={[styles.stepBar, styles.stepBarActive]} />
-              <Text style={[styles.stepText, styles.stepTextActive]}>Verify</Text>
+              <Text style={[styles.stepText, styles.stepTextActive]}>{t('forgotStepVerify')}</Text>
             </View>
 
             <View style={styles.stepColumn}>
               <View style={[styles.stepBar, styles.stepBarActive]} />
-              <Text style={[styles.stepText, styles.stepTextActive]}>Reset</Text>
+              <Text style={[styles.stepText, styles.stepTextActive]}>{t('forgotStepReset')}</Text>
             </View>
 
             <View style={styles.stepColumn}>
               <View style={[styles.stepBar, isSuccess && styles.stepBarActive]} />
-              <Text style={[styles.stepText, isSuccess && styles.stepTextActive]}>Success</Text>
+              <Text style={[styles.stepText, isSuccess && styles.stepTextActive]}>{t('forgotStepSuccess')}</Text>
             </View>
           </View>
 
@@ -88,7 +89,7 @@ export function ForgotPasswordScreen() {
           <View style={styles.fieldsContainer}>
             {/* Email Field */}
             <View style={styles.fieldWrapper}>
-              <Text style={styles.fieldLabel}>Forgot password email</Text>
+              <Text style={styles.fieldLabel}>{t('forgotEmailLabel')}</Text>
               <TextInput
                 style={styles.textInput}
                 value={email}
@@ -100,7 +101,7 @@ export function ForgotPasswordScreen() {
 
             {/* 6-Digit Verification Code */}
             <View style={styles.fieldWrapper}>
-              <Text style={styles.fieldLabel}>6-digit verification</Text>
+              <Text style={styles.fieldLabel}>{t('forgotVerifyCodeLabel')}</Text>
               <TextInput
                 style={styles.textInput}
                 value={verificationCode}
@@ -112,7 +113,7 @@ export function ForgotPasswordScreen() {
 
             {/* New Password */}
             <View style={styles.fieldWrapper}>
-              <Text style={styles.fieldLabel}>New password</Text>
+              <Text style={styles.fieldLabel}>{t('forgotNewPasswordLabel')}</Text>
               <View style={styles.passwordRow}>
                 <TextInput
                   style={styles.passwordInput}
@@ -133,15 +134,15 @@ export function ForgotPasswordScreen() {
 
           {/* Verification Banner */}
           <View style={styles.verificationBanner}>
-            <Text style={styles.verificationTitle}>Email sent · code verified</Text>
+            <Text style={styles.verificationTitle}>{t('forgotBannerTitle')}</Text>
             <Text style={styles.verificationSub}>
-              Reset link 15 minutes valid · resend in 00:42
+              {t('forgotBannerSub')}
             </Text>
           </View>
 
           {/* CTA Button */}
           <ShrutiButton
-            label="পাসওয়ার্ড বদলান"
+            label={t('btnChangePassword')}
             onPress={handleResetPassword}
             variant="primary"
             isLoading={isSubmitting}
@@ -150,9 +151,9 @@ export function ForgotPasswordScreen() {
           {/* Success Banner */}
           {isSuccess && (
             <View style={styles.successBanner}>
-              <Text style={styles.successTitle}>Success</Text>
+              <Text style={styles.successTitle}>{t('forgotSuccessTitle')}</Text>
               <Text style={styles.successSub}>
-                Password updated · other sessions signed out
+                {t('forgotSuccessSub')}
               </Text>
             </View>
           )}
