@@ -70,18 +70,9 @@ class TTSService:
         return self._xtts_model
 
     def get_speakers(self) -> List[Dict[str, str]]:
-        """Return available XTTS speaker voices."""
-        return [
-            {"name": "Aaron Dreschner", "gender": "male", "tag": "Articulate & Clear (Default)", "language": "multilingual"},
-            {"name": "Damien Black", "gender": "male", "tag": "Deep & Narrative", "language": "multilingual"},
-            {"name": "Andrew Chipper", "gender": "male", "tag": "Warm & Friendly", "language": "multilingual"},
-            {"name": "Craig Gutsy", "gender": "male", "tag": "Energetic", "language": "multilingual"},
-            {"name": "Viktor Eka", "gender": "male", "tag": "Calm & Steady", "language": "multilingual"},
-            {"name": "Ana Florence", "gender": "female", "tag": "Clear & Warm", "language": "multilingual"},
-            {"name": "Daisy Studious", "gender": "female", "tag": "Expressive", "language": "multilingual"},
-            {"name": "Claribel Dervla", "gender": "female", "tag": "Gentle", "language": "multilingual"},
-            {"name": "Bangla Standard", "gender": "female", "tag": "Authentic Native Bengali", "language": "bn"},
-        ]
+        """Return available TTS speaker voices."""
+        from app.services.gemini_service import gemini_service
+        return gemini_service.get_speakers()
 
     def synthesize(
         self,
@@ -93,7 +84,21 @@ class TTSService:
     ) -> str:
         """
         Synthesize speech text to an audio file and return the filepath.
+        Prefers Gemini API / Neural Bengali generation, with local VITS fallback.
         """
+        if settings.TTS_PROVIDER == "gemini" or model_type in ("gemini", "edge", "neural") or not model_type:
+            try:
+                from app.services.gemini_service import gemini_service
+                return gemini_service.synthesize(
+                    text=text,
+                    language=language,
+                    speaker=speaker,
+                    model_type=model_type,
+                    output_filename=output_filename,
+                )
+            except Exception as exc:
+                logger.warning("Gemini synthesis pipeline failed: %s; trying local engine...", exc)
+
         if not output_filename:
             import uuid
             output_filename = f"tts_{uuid.uuid4().hex[:8]}.wav"

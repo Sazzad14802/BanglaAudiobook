@@ -1,9 +1,9 @@
 /**
  * CreateAudiobookScreen — Step 1: Metadata entry matching Figma aesthetics.
- * Bangla/English language choice, visibility, and generation monthly quota.
+ * Bangla/English language choice, visibility, publisher channel picker, and generation quota.
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -16,32 +16,60 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
+
 import { audiobooksApi } from '../../api/audiobooks';
 import { AudiobookVisibility } from '../../types/audiobook';
 import { CreateStackParamList } from '../../navigation/types';
-import { ShrutiHeader } from '../../components/ShrutiHeader';
-import { ShrutiButton } from '../../components/ShrutiButton';
+import { BanglaBookHeader } from '../../components/BanglaBookHeader';
+import { BanglaBookButton } from '../../components/BanglaBookButton';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
-import { ApiError } from '../../api/client';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { apiClient } from '../../api/client';
 
 type Nav = NativeStackNavigationProp<CreateStackParamList, 'CreateAudiobook'>;
 
 export function CreateAudiobookScreen() {
   const nav = useNavigation<Nav>();
   const { t, isEnglish } = useLanguage();
+  const { user } = useAuth();
+
+  const isPublisher = user?.account_type === 'publisher';
+
   const [title, setTitle] = useState('');
   const [author, setAuthor] = useState('');
   const [description, setDescription] = useState('');
+  const [genre, setGenre] = useState('Literature');
   const [narrationLanguage, setNarrationLanguage] = useState<'bn' | 'en'>('bn');
   const [visibility, setVisibility] = useState<AudiobookVisibility>('PRIVATE');
+  const [accessTier, setAccessTier] = useState<'free' | 'premium'>('free');
+
+  // Channels for publishers
+  const [channels, setChannels] = useState<{ id: string; name: string }[]>([]);
+  const [selectedChannelId, setSelectedChannelId] = useState<string>('');
+
+  // Generation quota
+  const [quota, setQuota] = useState({ used: 0, limit: 5, plan: 'Free' });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Quota status
-  const generationQuota = { used: 1, limit: 3, plan: 'Free' };
+  useEffect(() => {
+    apiClient
+      .get<any>('/generation/quota')
+      .then(setQuota)
+      .catch(() => {});
+
+    if (isPublisher) {
+      apiClient
+        .get<any[]>('/publisher/channels')
+        .then((chs) => {
+          setChannels(chs);
+          if (chs.length > 0) setSelectedChannelId(chs[0].id);
+        })
+        .catch(() => {});
+    }
+  }, [isPublisher]);
 
   async function handleProceed() {
     if (!title.trim()) {
@@ -52,12 +80,12 @@ export function CreateAudiobookScreen() {
       return;
     }
 
-    if (generationQuota.used >= generationQuota.limit) {
+    if (quota.used >= quota.limit) {
       Alert.alert(
         isEnglish ? 'Quota Exceeded' : 'কোটা সমাপ্ত',
         isEnglish
-          ? 'Monthly generation quota reached. Upgrade to Premium for unlimited creations.'
-          : 'আপনার মাসিক অডিওবুক রূপান্তর কোটা পূর্ণ হয়েছে। আনলিমিটেড রূপান্তরের জন্য Premium নিন।',
+          ? 'Monthly generation quota reached. Upgrade to Premium for higher limits.'
+          : 'আপনার মাসিক অডিওবুক রূপান্তর কোটা পূর্ণ হয়েছে। উচ্চতর কোটার জন্য Premium নিন।',
       );
       return;
     }
@@ -69,12 +97,15 @@ export function CreateAudiobookScreen() {
         author: author.trim() || undefined,
         description: description.trim() || undefined,
         language: narrationLanguage,
-        visibility,
+        genre: genre || undefined,
+        visibility: isPublisher ? visibility : 'PRIVATE',
       });
       nav.replace('UploadSource', { audiobookId: audiobook.id });
-    } catch {
-      // In demo / offline mode, proceed with mock ID
-      nav.replace('UploadSource', { audiobookId: `demo-gen-${Date.now()}` });
+    } catch (err: any) {
+      Alert.alert(
+        isEnglish ? 'Creation Error' : 'ত্রুটি',
+        err.detail || err.message || 'Could not create audiobook record.'
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -82,9 +113,9 @@ export function CreateAudiobookScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <ShrutiHeader
+      <BanglaBookHeader
         title={t('createTitle')}
-        subtitle={t('createSub')}
+        subtitle={isPublisher ? (isEnglish ? 'Publish new title' : 'নতুন অডিওবুক প্রকাশ') : t('createSub')}
         onOptionsPress={() => {}}
       />
 
@@ -101,27 +132,27 @@ export function CreateAudiobookScreen() {
             <View style={styles.quotaHeader}>
               <Text style={styles.quotaPlan}>
                 {isEnglish
-                  ? `${generationQuota.plan} Plan Quota`
-                  : `${generationQuota.plan} প্ল্যান কোটা`}
+                  ? `${quota.plan} Plan Quota`
+                  : `${quota.plan} প্ল্যান কোটা`}
               </Text>
               <Text style={styles.quotaCounter}>
                 {isEnglish
-                  ? `${generationQuota.used}/${generationQuota.limit} Used`
-                  : `${generationQuota.used}/${generationQuota.limit} ব্যবহৃত`}
+                  ? `${quota.used}/${quota.limit} Used`
+                  : `${quota.used}/${quota.limit} ব্যবহৃত`}
               </Text>
             </View>
             <View style={styles.quotaBarTrack}>
               <View
                 style={[
                   styles.quotaBarFill,
-                  { width: `${(generationQuota.used / generationQuota.limit) * 100}%` },
+                  { width: `${Math.min(100, quota.limit ? (quota.used / quota.limit) * 100 : 0)}%` },
                 ]}
               />
             </View>
             <Text style={styles.quotaSub}>
               {isEnglish
-                ? 'Upgrade to Premium for higher priority and unlimited conversions.'
-                : 'উচ্চতর অগ্রাধিকার এবং দ্রুততর জেনারেশনের জন্য Premium প্ল্যানে আপগ্রেড করুন।'}
+                ? 'Requests gain priority over wait time in our fair scheduling queue.'
+                : 'আমাদের অগ্রাধিকার ও এজ-শিডিউলিং সিস্টেমে প্রসেসিং সম্পন্ন হয়।'}
             </Text>
           </View>
 
@@ -141,163 +172,131 @@ export function CreateAudiobookScreen() {
 
             {/* Author */}
             <View style={styles.fieldWrapper}>
-              <Text style={styles.label}>{t('inputAuthorName')}</Text>
+              <Text style={styles.label}>{isEnglish ? 'Author' : 'লেখক'}</Text>
               <TextInput
                 style={styles.input}
                 value={author}
                 onChangeText={setAuthor}
-                placeholder={t('inputAuthorPlaceholder')}
+                placeholder={isEnglish ? 'Author name' : 'লেখকের নাম'}
                 placeholderTextColor={Colors.textMuted}
               />
             </View>
 
-            {/* Language Selection */}
-            <View style={styles.fieldWrapper}>
-              <Text style={styles.label}>{t('languageSelectChoice')}</Text>
-              <View style={styles.row}>
-                <Pressable
-                  onPress={() => setNarrationLanguage('bn')}
-                  style={[
-                    styles.choiceCard,
-                    narrationLanguage === 'bn' ? styles.choiceSelected : styles.choiceDefault,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.choiceTitle,
-                      narrationLanguage === 'bn' ? styles.textWhite : styles.textDark,
-                    ]}
-                  >
-                    বাংলা
-                  </Text>
-                  <Text
-                    style={[
-                      styles.choiceSub,
-                      narrationLanguage === 'bn' ? styles.textSubWhite : styles.textSubDark,
-                    ]}
-                  >
-                    Bangla VITS TTS
-                  </Text>
-                </Pressable>
-
-                <Pressable
-                  onPress={() => setNarrationLanguage('en')}
-                  style={[
-                    styles.choiceCard,
-                    narrationLanguage === 'en' ? styles.choiceSelected : styles.choiceDefault,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.choiceTitle,
-                      narrationLanguage === 'en' ? styles.textWhite : styles.textDark,
-                    ]}
-                  >
-                    English
-                  </Text>
-                  <Text
-                    style={[
-                      styles.choiceSub,
-                      narrationLanguage === 'en' ? styles.textSubWhite : styles.textSubDark,
-                    ]}
-                  >
-                    XTTS v2
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
-
-            {/* Visibility Selection */}
-            <View style={styles.fieldWrapper}>
-              <Text style={styles.label}>{t('visibilityChoice')}</Text>
-              <View style={styles.row}>
-                <Pressable
-                  onPress={() => setVisibility('PRIVATE')}
-                  style={[
-                    styles.choiceCard,
-                    visibility === 'PRIVATE' ? styles.choiceSelected : styles.choiceDefault,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.choiceTitle,
-                      visibility === 'PRIVATE' ? styles.textWhite : styles.textDark,
-                    ]}
-                  >
-                    {isEnglish ? '🔒 Private' : '🔒 ব্যক্তিগত'}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.choiceSub,
-                      visibility === 'PRIVATE' ? styles.textSubWhite : styles.textSubDark,
-                    ]}
-                  >
-                    {isEnglish ? 'Only for you' : 'শুধুমাত্র আপনার জন্য'}
-                  </Text>
-                </Pressable>
-
-                <Pressable
-                  onPress={() => setVisibility('PUBLIC')}
-                  style={[
-                    styles.choiceCard,
-                    visibility === 'PUBLIC' ? styles.choiceSelected : styles.choiceDefault,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.choiceTitle,
-                      visibility === 'PUBLIC' ? styles.textWhite : styles.textDark,
-                    ]}
-                  >
-                    {isEnglish ? '🌐 Public' : '🌐 সবার জন্য'}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.choiceSub,
-                      visibility === 'PUBLIC' ? styles.textSubWhite : styles.textSubDark,
-                    ]}
-                  >
-                    {isEnglish ? 'Added to catalog' : 'ক্যাটালগে যুক্ত হবে'}
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
-
             {/* Description */}
             <View style={styles.fieldWrapper}>
-              <Text style={styles.label}>
-                {isEnglish ? 'Description (Optional)' : 'সংক্ষিপ্ত বিবরণ'}
-              </Text>
+              <Text style={styles.label}>{isEnglish ? 'Description' : 'বিবরণ'}</Text>
               <TextInput
                 style={[styles.input, styles.textArea]}
                 value={description}
                 onChangeText={setDescription}
-                placeholder={
-                  isEnglish
-                    ? 'Write a short synopsis or chapter summary...'
-                    : 'বই সম্পর্কে কিছু লিখুন...'
-                }
+                placeholder={isEnglish ? 'Short description or summary...' : 'সংক্ষিপ্ত বিবরণ বা সারসংক্ষেপ...'}
                 placeholderTextColor={Colors.textMuted}
                 multiline
                 numberOfLines={3}
               />
             </View>
+
+            {/* Language Choice */}
+            <View style={styles.fieldWrapper}>
+              <Text style={styles.label}>{isEnglish ? 'Narration Language' : 'আবৃত্তির ভাষা'}</Text>
+              <View style={styles.pillRow}>
+                <Pressable
+                  style={[styles.pill, narrationLanguage === 'bn' && styles.pillActive]}
+                  onPress={() => setNarrationLanguage('bn')}
+                >
+                  <Text style={[styles.pillText, narrationLanguage === 'bn' && styles.pillTextActive]}>
+                    🇧🇩 বাংলা (Bangla)
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.pill, narrationLanguage === 'en' && styles.pillActive]}
+                  onPress={() => setNarrationLanguage('en')}
+                >
+                  <Text style={[styles.pillText, narrationLanguage === 'en' && styles.pillTextActive]}>
+                    🇬🇧 English
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+
+            {/* Publisher Channel & Tier Selection */}
+            {isPublisher && (
+              <>
+                <View style={styles.fieldWrapper}>
+                  <Text style={styles.label}>{isEnglish ? 'Access Tier' : 'অ্যাক্সেস টিয়ার'}</Text>
+                  <View style={styles.pillRow}>
+                    <Pressable
+                      style={[styles.pill, accessTier === 'free' && styles.pillActive]}
+                      onPress={() => setAccessTier('free')}
+                    >
+                      <Text style={[styles.pillText, accessTier === 'free' && styles.pillTextActive]}>
+                        Free Audiobook
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.pill, accessTier === 'premium' && styles.pillActive]}
+                      onPress={() => setAccessTier('premium')}
+                    >
+                      <Text style={[styles.pillText, accessTier === 'premium' && styles.pillTextActive]}>
+                        ⭐ Premium (Revenue Eligible)
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+
+                {channels.length > 0 && (
+                  <View style={styles.fieldWrapper}>
+                    <Text style={styles.label}>{isEnglish ? 'Select Channel' : 'চ্যানেল নির্বাচন করুন'}</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                      {channels.map((ch) => (
+                        <Pressable
+                          key={ch.id}
+                          style={[styles.pill, selectedChannelId === ch.id && styles.pillActive]}
+                          onPress={() => setSelectedChannelId(ch.id)}
+                        >
+                          <Text style={[styles.pillText, selectedChannelId === ch.id && styles.pillTextActive]}>
+                            📺 {ch.name}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+
+                <View style={styles.fieldWrapper}>
+                  <Text style={styles.label}>{isEnglish ? 'Visibility' : 'দৃশ্যমানতা'}</Text>
+                  <View style={styles.pillRow}>
+                    <Pressable
+                      style={[styles.pill, visibility === 'PUBLIC' && styles.pillActive]}
+                      onPress={() => setVisibility('PUBLIC')}
+                    >
+                      <Text style={[styles.pillText, visibility === 'PUBLIC' && styles.pillTextActive]}>
+                        🌐 {isEnglish ? 'Public' : 'পাবলিক'}
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.pill, visibility === 'PRIVATE' && styles.pillActive]}
+                      onPress={() => setVisibility('PRIVATE')}
+                    >
+                      <Text style={[styles.pillText, visibility === 'PRIVATE' && styles.pillTextActive]}>
+                        🔒 {isEnglish ? 'Private' : 'প্রাইভেট'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              </>
+            )}
           </View>
 
           {/* CTA Proceed Button */}
-          <ShrutiButton
-            label={t('btnUploadSource')}
+          <BanglaBookButton
+            label={isSubmitting ? t('btnCreatingAccount') : (isEnglish ? 'Proceed to Upload →' : 'পরবর্তী ধাপে যান →')}
             onPress={handleProceed}
             variant="primary"
             isLoading={isSubmitting}
           />
         </ScrollView>
       </KeyboardAvoidingView>
-
-      {/* Android edge-to-edge indicator bar */}
-      <View style={styles.bottomBarContainer}>
-        <View style={styles.homeIndicator} />
-      </View>
     </SafeAreaView>
   );
 }
@@ -314,47 +313,54 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   quotaCard: {
-    backgroundColor: Colors.tintBlue,
+    backgroundColor: Colors.surface,
     borderRadius: Radius.lg,
     padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.surfaceBorder,
+    gap: Spacing.xs,
   },
   quotaHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
   },
   quotaPlan: {
     fontSize: FontSizes.sm,
     fontWeight: '700',
-    color: Colors.tintBlueText,
+    color: Colors.textPrimary,
   },
   quotaCounter: {
-    fontSize: FontSizes.xs + 1,
+    fontSize: FontSizes.xs,
     fontWeight: '600',
-    color: Colors.tintBlueText,
+    color: Colors.primary,
   },
   quotaBarTrack: {
-    height: 4,
-    backgroundColor: '#C5DFED',
+    height: 6,
+    backgroundColor: '#E2DBD2',
     borderRadius: Radius.full,
     overflow: 'hidden',
-    marginBottom: 6,
   },
   quotaBarFill: {
     height: '100%',
-    backgroundColor: '#1B658A',
+    backgroundColor: Colors.primary,
+    borderRadius: Radius.full,
   },
   quotaSub: {
-    fontSize: FontSizes.xs,
-    color: Colors.tintBlueText,
+    fontSize: FontSizes.xs - 1,
+    color: Colors.textSecondary,
     lineHeight: 16,
   },
   formContainer: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    padding: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.surfaceBorder,
     gap: Spacing.md,
   },
   fieldWrapper: {
-    gap: 4,
+    gap: 6,
   },
   label: {
     fontSize: FontSizes.xs + 1,
@@ -362,8 +368,8 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
   },
   input: {
-    height: 50,
-    backgroundColor: Colors.surface,
+    height: 48,
+    backgroundColor: Colors.surfaceElevated,
     borderWidth: 1,
     borderColor: Colors.surfaceBorder,
     borderRadius: Radius.md,
@@ -374,53 +380,33 @@ const styles = StyleSheet.create({
   textArea: {
     height: 80,
     paddingTop: Spacing.sm,
-    textAlignVertical: 'top',
   },
-  row: {
+  pillRow: {
     flexDirection: 'row',
-    gap: Spacing.sm,
+    gap: Spacing.xs + 2,
   },
-  choiceCard: {
+  pill: {
     flex: 1,
-    padding: Spacing.md,
+    paddingVertical: 10,
+    paddingHorizontal: Spacing.sm,
     borderRadius: Radius.md,
-  },
-  choiceSelected: {
-    backgroundColor: Colors.surfaceDark,
-  },
-  choiceDefault: {
     backgroundColor: Colors.surfaceElevated,
     borderWidth: 1,
     borderColor: Colors.surfaceBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  choiceTitle: {
-    fontSize: FontSizes.sm,
-    fontWeight: '700',
+  pillActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
   },
-  choiceSub: {
-    fontSize: FontSizes.xs - 1,
-    marginTop: 2,
-  },
-  textWhite: {
-    color: '#FFFFFF',
-  },
-  textDark: {
-    color: Colors.textPrimary,
-  },
-  textSubWhite: {
-    color: '#B5B1A8',
-  },
-  textSubDark: {
+  pillText: {
+    fontSize: FontSizes.xs,
+    fontWeight: '600',
     color: Colors.textSecondary,
   },
-  bottomBarContainer: {
-    alignItems: 'center',
-    paddingBottom: Spacing.xs,
-  },
-  homeIndicator: {
-    width: 120,
-    height: 4,
-    borderRadius: Radius.full,
-    backgroundColor: '#000000',
+  pillTextActive: {
+    color: Colors.textOnPrimary,
+    fontWeight: '700',
   },
 });

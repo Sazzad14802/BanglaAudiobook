@@ -56,6 +56,11 @@ async def get_current_user(
     if not user:
         raise credentials_exception
 
+    if payload.get("purpose") != "access" or payload.get("ver") != user.token_version:
+        raise credentials_exception
+    if user.suspended:
+        raise HTTPException(403, "Account suspended")
+
     return user
 
 
@@ -71,20 +76,34 @@ async def get_current_user_optional(
     if not token:
         return None
 
-    payload = decode_access_token(token)
-    if not payload:
-        return None
-
-    user_id_str: Optional[str] = payload.get("sub")
-    if not user_id_str:
-        return None
-
-    try:
-        user_id = uuid.UUID(user_id_str)
-        return await get_user_by_id(db, user_id)
-    except (ValueError, Exception):
-        return None
+    return await get_current_user(db, token)
 
 
 CurrentUserDep = Annotated[User, Depends(get_current_user)]
 OptionalUserDep = Annotated[Optional[User], Depends(get_current_user_optional)]
+
+async def require_admin(user: CurrentUserDep) -> User:
+    if user.account_type != "admin":
+        raise HTTPException(403, "Administrator access required")
+    return user
+
+async def require_publisher(user: CurrentUserDep) -> User:
+    if user.account_type != "publisher":
+        raise HTTPException(403, "Publisher account required")
+    return user
+
+async def require_active_publisher(user: Annotated[User, Depends(require_publisher)]) -> User:
+    if user.publisher_status != "active":
+        raise HTTPException(403, "Publisher approval and registration payment required")
+    return user
+
+AdminDep = Annotated[User, Depends(require_admin)]
+PublisherDep = Annotated[User, Depends(require_publisher)]
+ActivePublisherDep = Annotated[User, Depends(require_active_publisher)]
+
+async def require_member(user: CurrentUserDep) -> User:
+    if user.account_type not in {"listener", "publisher"}:
+        raise HTTPException(403, "Use a listener or publisher account")
+    return user
+
+MemberDep = Annotated[User, Depends(require_member)]

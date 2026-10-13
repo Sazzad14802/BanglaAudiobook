@@ -41,28 +41,13 @@ function getDetectedLanHost(): string {
 }
 
 export function getApiBaseUrlCandidates(): string[] {
-  if (Platform.OS === 'web') {
-    return ['http://localhost:8000'];
-  }
-
+  const configured = process.env.EXPO_PUBLIC_API_URL;
+  if (configured) return [configured];
   const lanHost = getDetectedLanHost();
-  const lanUrl = `http://${lanHost}:8000`;
-  const emulatorUrl = 'http://10.0.2.2:8000';
-
-  // Check if we are running under an Expo tunnel (e.g. *.exp.direct or *.ngrok)
-  const hostUri = Constants.expoConfig?.hostUri || '';
-  const isTunnelMode =
-    hostUri.includes('exp.direct') ||
-    hostUri.includes('ngrok') ||
-    hostUri.includes('loca.lt');
-
-  if (isTunnelMode) {
-    // In tunnel mode, the phone is accessing via internet, so cloud tunnel is primary
-    return [CLOUD_TUNNEL_URL, lanUrl, emulatorUrl];
-  }
-
-  // Otherwise, cloud tunnel is still first for reliability, followed by LAN
-  return [CLOUD_TUNNEL_URL, lanUrl, emulatorUrl];
+  return [
+    `http://${lanHost}:8000`,
+    Platform.OS === 'android' ? 'http://10.0.2.2:8000' : 'http://localhost:8000',
+  ];
 }
 
 const candidates = getApiBaseUrlCandidates();

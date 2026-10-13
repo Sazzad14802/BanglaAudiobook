@@ -62,11 +62,15 @@ class LocalStorageService(BaseStorageService):
         target_dir.mkdir(parents=True, exist_ok=True)
 
         # Unique filename to avoid collisions
-        unique_filename = f"{uuid.uuid4()}_{Path(filename).name}"
+        unique_filename = f"{uuid.uuid4()}.pdf"
         destination_path = target_dir / unique_filename
 
         max_size_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
         total_size = 0
+        header = await file.read(5)
+        await file.seek(0)
+        if header != b"%PDF-":
+            raise HTTPException(400, "File is not a PDF document")
 
         # Stream file to disk while checking size limit
         try:
@@ -92,6 +96,15 @@ class LocalStorageService(BaseStorageService):
                 detail=f"Failed to save file: {str(e)}",
             )
 
+        try:
+            from pypdf import PdfReader
+            reader = PdfReader(destination_path)
+            if reader.is_encrypted or not 0 < len(reader.pages) <= 1000:
+                raise ValueError("Unsupported document")
+        except Exception:
+            destination_path.unlink(missing_ok=True)
+            raise HTTPException(400, "PDF must be readable, unencrypted, and contain 1–1000 pages")
+
         # Return standardized URL/path reference
         relative_path = f"/uploads/{subfolder}/{unique_filename}"
         return relative_path
@@ -100,7 +113,9 @@ class LocalStorageService(BaseStorageService):
         clean_key = file_url_or_key.lstrip("/")
         if clean_key.startswith("uploads/"):
             clean_key = clean_key[len("uploads/"):]
-        file_path = self.base_dir / clean_key
+        file_path = (self.base_dir / clean_key).resolve()
+        if not file_path.is_relative_to(self.base_dir.resolve()):
+            return None
         if file_path.exists():
             return str(file_path.resolve())
         return None

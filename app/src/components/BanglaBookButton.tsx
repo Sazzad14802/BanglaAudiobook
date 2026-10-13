@@ -1,5 +1,5 @@
 /**
- * ShrutiButton — Buttons matching Figma designs.
+ * BanglaBookButton — Buttons matching Figma designs.
  * Supports primary (terracotta), secondary outline, Google sign-in, and loading states.
  */
 
@@ -7,19 +7,19 @@ import React from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Colors, FontSizes, Radius, Spacing } from '../theme';
 
-export type ShrutiButtonVariant = 'primary' | 'secondary' | 'google' | 'outline' | 'compact';
+export type BanglaBookButtonVariant = 'primary' | 'secondary' | 'google' | 'outline' | 'compact';
 
-interface ShrutiButtonProps {
+interface BanglaBookButtonProps {
   label: string;
   onPress: () => void;
-  variant?: ShrutiButtonVariant;
+  variant?: BanglaBookButtonVariant;
   disabled?: boolean;
   isLoading?: boolean;
   fullWidth?: boolean;
   bulletPrefix?: boolean;
 }
 
-export function ShrutiButton({
+export function BanglaBookButton({
   label,
   onPress,
   variant = 'primary',
@@ -27,7 +27,7 @@ export function ShrutiButton({
   isLoading = false,
   fullWidth = true,
   bulletPrefix = false,
-}: ShrutiButtonProps) {
+}: BanglaBookButtonProps) {
   const isPrimary = variant === 'primary' || variant === 'compact';
   const isGoogle = variant === 'google';
   const isSecondary = variant === 'secondary' || variant === 'outline';

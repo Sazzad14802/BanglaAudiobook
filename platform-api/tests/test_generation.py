@@ -31,7 +31,13 @@ async def test_source_upload_and_generation_flow(
     assert early_gen.status_code == 400
 
     # 3. Non-owner cannot upload source PDF -> 403
-    fake_pdf = b"%PDF-1.4 test pdf content"
+    from pypdf import PdfWriter
+    from io import BytesIO
+    writer = PdfWriter()
+    writer.add_blank_page(width=100, height=100)
+    buffer = BytesIO()
+    writer.write(buffer)
+    fake_pdf = buffer.getvalue()
     bad_upload = await client.post(
         f"/api/v1/audiobooks/{book_id}/source",
         headers=other_headers,

@@ -29,6 +29,7 @@ async def request_audiobook_generation(
     - Creates a new GenerationJob in PENDING state.
     - Dispatches job asynchronously without blocking for OCR/TTS completion.
     """
+    await db.execute(select(User).where(User.id == user.id).with_for_update())
     audiobook = await get_audiobook_raw(db, audiobook_id)
     if not audiobook:
         raise HTTPException(
@@ -48,27 +49,46 @@ async def request_audiobook_generation(
             detail="A source PDF document must be uploaded before requesting generation",
         )
 
-    # Create new generation job (supports retries / multiple attempts)
-    job = GenerationJob(
-        audiobook_id=audiobook.id,
-        status=AudiobookStatus.PENDING,
-    )
+    from app.models.platform import Quota
+    from app.services.policy import configuration, month_now, premium, publishing
+    if user.account_type == "admin":
+        raise HTTPException(403, "Administrator accounts cannot generate audio")
+    if user.account_type == "publisher":
+        publishing(user)
+    # All submissions for an account serialize on its row in PostgreSQL.
+    await db.execute(select(User).where(User.id == user.id).with_for_update())
+    existing = await db.scalar(select(GenerationJob).where(
+        GenerationJob.audiobook_id == audiobook_id).order_by(GenerationJob.created_at.desc()).limit(1))
+    if existing and existing.status in (AudiobookStatus.PENDING, AudiobookStatus.PROCESSING) and not existing.cancelled:
+        return existing
+    if audiobook.status == AudiobookStatus.COMPLETED:
+        raise HTTPException(409, "Create a new audiobook to generate a different version")
+    policy = await configuration(db)
+    tier = "publisher" if user.account_type == "publisher" else "premium" if premium(user) else "free"
+    quota = await db.get(Quota, (user.id, month_now()))
+    if not quota:
+        quota = Quota(user_id=user.id, month=month_now(), used=0)
+        db.add(quota)
+    if quota.used >= policy[tier + "_quota"]:
+        raise HTTPException(429, "Monthly generation quota reached")
+    # Validate before consuming a quota slot.
+    from pypdf import PdfReader
+    from app.services.storage_service import get_storage_service
+    path = await get_storage_service().get_file_path(audiobook.source_file_url)
+    try:
+        reader = PdfReader(path)
+        if reader.is_encrypted or not 0 < len(reader.pages) <= 1000:
+            raise ValueError("Encrypted or excessive page count")
+    except Exception:
+        raise HTTPException(400, "PDF must be readable, unencrypted, and contain 1?1000 pages")
+    quota.used += 1
+    job = GenerationJob(audiobook_id=audiobook.id, owner_id=user.id,
+        status=AudiobookStatus.PENDING, priority={"free": 0, "premium": 1, "publisher": 2}[tier],
+        total_pages=len(reader.pages))
     db.add(job)
-
-    # Update audiobook status
     audiobook.status = AudiobookStatus.PENDING
     await db.commit()
     await db.refresh(job)
-
-    # Dispatch to Model Runner boundary (asynchronous queue/mock)
-    dispatcher = get_generation_dispatcher()
-    payload = {
-        "job_id": str(job.id),
-        "audiobook_id": str(audiobook.id),
-        "source_document_url": audiobook.source_file_url,
-        "language": audiobook.language,
-    }
-    await dispatcher.dispatch(payload)
 
     return job
 

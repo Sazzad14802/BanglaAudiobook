@@ -41,11 +41,15 @@ def create_app() -> FastAPI:
     # Creates uploads directory and mounts it for local static file delivery
     upload_path = Path(settings.UPLOAD_DIR)
     upload_path.mkdir(parents=True, exist_ok=True)
-    app.mount(
-        "/uploads",
-        StaticFiles(directory=str(upload_path)),
-        name="uploads",
-    )
+    # Uploads are private. Audio is served only through authorized media endpoints.
+    from app.core.rate_limit import install_rate_limits
+    install_rate_limits(app)
+    if settings.ENVIRONMENT == "production":
+        if (settings.MOCK_PAYMENTS_ENABLED or len(settings.JWT_SECRET_KEY) < 32
+                or any(marker in settings.JWT_SECRET_KEY.lower() for marker in ["insecure-development", "change-this", "replace-me"])):
+            raise RuntimeError("Production requires a strong JWT secret and disabled mock payments")
+        if settings.ALLOWED_ORIGINS == "*" or not settings.TTS_SERVICE_KEY:
+            raise RuntimeError("Production requires explicit CORS origins and a TTS service key")
 
     # ── Health check ───────────────────────────────────────────────────────
     @app.get("/health", tags=["health"], summary="Health check")

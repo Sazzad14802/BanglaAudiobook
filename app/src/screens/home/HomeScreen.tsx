@@ -19,10 +19,10 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { HomeStackParamList } from '../../navigation/types';
-import { ShrutiHeader } from '../../components/ShrutiHeader';
+import { BanglaBookHeader } from '../../components/BanglaBookHeader';
 import { EditorialHeroCard } from '../../components/EditorialHeroCard';
 import { AudiobookCard } from '../../components/AudiobookCard';
 import { FIGMA_AUDIOBOOKS } from '../../data/mockAudiobooks';
@@ -58,9 +58,11 @@ export function HomeScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
 
   const onRefresh = async () => {
     setIsRefreshing(true);
@@ -86,7 +88,7 @@ export function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <ShrutiHeader
+      <BanglaBookHeader
         showLogo
         title={t('greetingEvening', { name: firstName })}
         subtitle={t('greetingQuestion')}

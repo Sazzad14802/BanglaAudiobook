@@ -76,14 +76,13 @@ async def test_audiobook_crud_and_ownership(
     )
     assert bad_vis.status_code == 403
 
-    # 8. Owner can change visibility to PUBLIC -> 200
+    # 8. Publishing unfinished content is rejected
     good_vis = await client.patch(
         f"/api/v1/audiobooks/{book_id}/visibility",
         headers=owner_headers,
         json={"visibility": "PUBLIC"},
     )
-    assert good_vis.status_code == 200
-    assert good_vis.json()["visibility"] == "PUBLIC"
+    assert good_vis.status_code == 409
 
     # 9. Non-owner cannot delete audiobook -> 403
     bad_del = await client.delete(f"/api/v1/audiobooks/{book_id}", headers=other_headers)
@@ -147,6 +146,9 @@ async def test_visibility_and_public_discovery(
         .values(status=AudiobookStatus.COMPLETED)
     )
     await db_session.commit()
+
+    published = await client.patch(f"/api/v1/audiobooks/{book_id}/visibility", headers=owner_headers, json={"visibility": "PUBLIC"})
+    assert published.status_code == 200
 
     # In discovery: should NOW appear!
     disc_3 = await client.get("/api/v1/audiobooks")

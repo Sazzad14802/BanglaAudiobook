@@ -6,7 +6,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { authApi } from '../api/auth';
 import { authStorage } from '../storage/authStorage';
-import { LoginRequest, RegisterRequest, User } from '../types/auth';
+import { LoginRequest, RegisterRequest, User, TokenResponse } from '../types/auth';
 import { ApiError } from '../api/client';
 
 interface AuthState {
@@ -17,6 +17,7 @@ interface AuthState {
 }
 
 interface AuthContextValue extends AuthState {
+  acceptSession: (response: TokenResponse) => Promise<void>;
   login: (data: LoginRequest) => Promise<void>;
   register: (data: RegisterRequest) => Promise<void>;
   logout: () => Promise<void>;
@@ -52,6 +53,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               return;
             }
           } catch (apiErr) {
+            if (apiErr instanceof ApiError && apiErr.status === 0) {
+              const cached = await authStorage.getUser();
+              if (cached && isMounted) {
+                setState({user:cached,token,isLoading:false,isAuthenticated:true});
+                return;
+              }
+            }
             // Token is expired or invalid – clear it
             await authStorage.deleteToken().catch(() => {});
           }
@@ -73,6 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(async (data: LoginRequest) => {
     const response = await authApi.login(data);
     await authStorage.saveToken(response.access_token);
+    await authStorage.saveUser(response.user);
     setState({
       user: response.user,
       token: response.access_token,
@@ -81,35 +90,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const register = useCallback(async (data: RegisterRequest) => {
-    // 1. Create the user account in database
-    const registeredUser = await authApi.register(data);
-    // 2. Log in with the newly created credentials to receive JWT token & user profile
-    try {
-      const tokenResponse = await authApi.login({
-        username_or_email: data.email,
-        password: data.password,
-      });
+  const acceptSession = useCallback(async (response: TokenResponse) => {
+    await authStorage.saveToken(response.access_token);
+    await authStorage.saveUser(response.user);
+    setState({user:response.user,token:response.access_token,isLoading:false,isAuthenticated:true});
+  }, []);
 
-      await authStorage.saveToken(tokenResponse.access_token);
-      setState({
-        user: tokenResponse.user,
-        token: tokenResponse.access_token,
-        isLoading: false,
-        isAuthenticated: true,
-      });
-    } catch (loginErr) {
-      console.warn('Auto-login after registration had an issue, fallback to registered user:', loginErr);
-      setState({
-        user: registeredUser,
-        token: 'active-session-token',
-        isLoading: false,
-        isAuthenticated: true,
-      });
-    }
+  const register = useCallback(async (data: RegisterRequest) => {
+    await authApi.register(data);
+    const response = await authApi.login({username_or_email:data.email, password:data.password, account_type:data.account_type});
+    await authStorage.saveToken(response.access_token);
+    await authStorage.saveUser(response.user);
+    setState({user:response.user,token:response.access_token,isLoading:false,isAuthenticated:true});
   }, []);
 
   const logout = useCallback(async () => {
+    await authApi.logout().catch(() => {});
     await authStorage.deleteToken();
     setState({ user: null, token: null, isLoading: false, isAuthenticated: false });
   }, []);
@@ -117,16 +113,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshUser = useCallback(async () => {
     try {
       const user = await authApi.me();
+      await authStorage.saveUser(user);
       setState((s) => ({ ...s, user }));
     } catch (err) {
-      if (err instanceof ApiError && err.status === 401) {
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
         await logout();
       }
     }
   }, [logout]);
 
   return (
-    <AuthContext.Provider value={{ ...state, login, register, logout, refreshUser }}>
+    <AuthContext.Provider value={{ ...state, login, register, logout, refreshUser, acceptSession }}>
       {children}
     </AuthContext.Provider>
   );

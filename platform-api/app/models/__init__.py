@@ -10,6 +10,7 @@ from app.models.chapter import Chapter
 from app.models.generation_job import GenerationJob
 from app.models.library import LibraryItem
 from app.models.playback import PlaybackProgress
+from app.models.platform import *
 
 __all__ = [
     "Base",

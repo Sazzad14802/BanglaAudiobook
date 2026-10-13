@@ -5,6 +5,10 @@
 
 export interface User {
   id: string;
+  account_type: 'listener' | 'publisher' | 'admin';
+  publisher_status: string;
+  premium_until?: string;
+  suspended: boolean;
   username: string;
   email: string;
   full_name?: string;
@@ -19,6 +23,7 @@ export interface TokenResponse {
 }
 
 export interface RegisterRequest {
+  account_type?: 'listener' | 'publisher';
   username?: string;
   email: string;
   password: string;
@@ -27,6 +32,7 @@ export interface RegisterRequest {
 
 
 export interface LoginRequest {
+  account_type?: 'listener' | 'publisher';
   username_or_email: string;
   password: string;
 }

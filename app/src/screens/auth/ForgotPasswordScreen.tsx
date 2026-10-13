@@ -1,10 +1,12 @@
 /**
  * ForgotPasswordScreen — Password recovery matching Figma Plate 2 Screen 2.
  * 4-step path: Email, Verify, Reset, Success.
+ * Connected to live backend: /api/v1/auth/recovery & /api/v1/auth/reset-password.
  */
 
 import React, { useState } from 'react';
 import {
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -19,35 +21,81 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 import { AuthStackParamList } from '../../navigation/types';
-import { ShrutiHeader } from '../../components/ShrutiHeader';
-import { ShrutiButton } from '../../components/ShrutiButton';
+import { BanglaBookHeader } from '../../components/BanglaBookHeader';
+import { BanglaBookButton } from '../../components/BanglaBookButton';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { apiClient } from '../../api/client';
 
 type Nav = NativeStackNavigationProp<AuthStackParamList, 'ForgotPassword'>;
 
 export function ForgotPasswordScreen() {
   const nav = useNavigation<Nav>();
-  const { t } = useLanguage();
+  const { t, isEnglish } = useLanguage();
 
-  const [email, setEmail] = useState('nabila@example.com');
-  const [verificationCode, setVerificationCode] = useState('482169');
-  const [newPassword, setNewPassword] = useState('••••••••');
+  const [email, setEmail] = useState('');
+  const [accountType, setAccountType] = useState<'listener' | 'publisher'>('listener');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
+  
+  const [step, setStep] = useState<1 | 2 | 3>(1); // 1 = Enter Email, 2 = Verify & New Password, 3 = Success
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [infoMessage, setInfoMessage] = useState('');
 
-  const handleResetPassword = () => {
+  const handleSendCode = async () => {
+    if (!email.trim() || !email.includes('@')) {
+      setErrorMessage(isEnglish ? 'Please enter a valid email address.' : 'সঠিক ইমেইল ঠিকানা লিখুন।');
+      return;
+    }
+    setErrorMessage('');
     setIsSubmitting(true);
-    setTimeout(() => {
+    try {
+      await apiClient.post('/auth/recovery', {
+        email: email.trim().toLowerCase(),
+        account_type: accountType,
+      });
+      setInfoMessage(
+        isEnglish
+          ? 'If the account exists, a recovery code has been sent. Check your email.'
+          : 'অ্যাকাউন্টটি থাকলে একটি রিকভারি কোড ইমেইলে পাঠানো হয়েছে।'
+      );
+      setStep(2);
+    } catch (err: any) {
+      setErrorMessage(err.detail || err.message || 'Could not send recovery email.');
+    } finally {
       setIsSubmitting(false);
-      setIsSuccess(true);
-    }, 800);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!verificationCode.trim()) {
+      setErrorMessage(isEnglish ? 'Please enter the verification code.' : 'ভেরিফিকেশন কোডটি লিখুন।');
+      return;
+    }
+    if (newPassword.length < 6) {
+      setErrorMessage(isEnglish ? 'Password must be at least 6 characters.' : 'পাসওয়ার্ড অন্তত ৬ অক্ষরের হতে হবে।');
+      return;
+    }
+    setErrorMessage('');
+    setIsSubmitting(true);
+    try {
+      await apiClient.post('/auth/reset-password', {
+        token: verificationCode.trim(),
+        password: newPassword,
+      });
+      setStep(3);
+    } catch (err: any) {
+      setErrorMessage(err.detail || err.message || 'Invalid or expired recovery code.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <ShrutiHeader
+      <BanglaBookHeader
         title={t('forgotHeaderTitle')}
         subtitle={t('forgotHeaderSub')}
         onBack={() => nav.goBack()}
@@ -70,91 +118,147 @@ export function ForgotPasswordScreen() {
             </View>
 
             <View style={styles.stepColumn}>
-              <View style={[styles.stepBar, styles.stepBarActive]} />
-              <Text style={[styles.stepText, styles.stepTextActive]}>{t('forgotStepVerify')}</Text>
+              <View style={[styles.stepBar, step >= 2 && styles.stepBarActive]} />
+              <Text style={[styles.stepText, step >= 2 && styles.stepTextActive]}>{t('forgotStepVerify')}</Text>
             </View>
 
             <View style={styles.stepColumn}>
-              <View style={[styles.stepBar, styles.stepBarActive]} />
-              <Text style={[styles.stepText, styles.stepTextActive]}>{t('forgotStepReset')}</Text>
+              <View style={[styles.stepBar, step >= 2 && styles.stepBarActive]} />
+              <Text style={[styles.stepText, step >= 2 && styles.stepTextActive]}>{t('forgotStepReset')}</Text>
             </View>
 
             <View style={styles.stepColumn}>
-              <View style={[styles.stepBar, isSuccess && styles.stepBarActive]} />
-              <Text style={[styles.stepText, isSuccess && styles.stepTextActive]}>{t('forgotStepSuccess')}</Text>
+              <View style={[styles.stepBar, step === 3 && styles.stepBarActive]} />
+              <Text style={[styles.stepText, step === 3 && styles.stepTextActive]}>{t('forgotStepSuccess')}</Text>
             </View>
           </View>
+
+          {/* Account Namespace Selector */}
+          {step === 1 && (
+            <View style={styles.accountTypeRow}>
+              <Pressable
+                onPress={() => setAccountType('listener')}
+                style={[styles.accountTypeChip, accountType === 'listener' && styles.accountTypeChipActive]}
+              >
+                <Text style={[styles.accountTypeText, accountType === 'listener' && styles.accountTypeTextActive]}>
+                  🎧 {isEnglish ? 'Listener' : 'শ্রোতা'}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setAccountType('publisher')}
+                style={[styles.accountTypeChip, accountType === 'publisher' && styles.accountTypeChipActive]}
+              >
+                <Text style={[styles.accountTypeText, accountType === 'publisher' && styles.accountTypeTextActive]}>
+                  🎙️ {isEnglish ? 'Publisher' : 'প্রকাশক'}
+                </Text>
+              </Pressable>
+            </View>
+          )}
 
           {/* Form Fields */}
           <View style={styles.fieldsContainer}>
-            {/* Email Field */}
-            <View style={styles.fieldWrapper}>
-              <Text style={styles.fieldLabel}>{t('forgotEmailLabel')}</Text>
-              <TextInput
-                style={styles.textInput}
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-            </View>
-
-            {/* 6-Digit Verification Code */}
-            <View style={styles.fieldWrapper}>
-              <Text style={styles.fieldLabel}>{t('forgotVerifyCodeLabel')}</Text>
-              <TextInput
-                style={styles.textInput}
-                value={verificationCode}
-                onChangeText={setVerificationCode}
-                keyboardType="number-pad"
-                maxLength={6}
-              />
-            </View>
-
-            {/* New Password */}
-            <View style={styles.fieldWrapper}>
-              <Text style={styles.fieldLabel}>{t('forgotNewPasswordLabel')}</Text>
-              <View style={styles.passwordRow}>
+            {step === 1 && (
+              <View style={styles.fieldWrapper}>
+                <Text style={styles.fieldLabel}>{t('forgotEmailLabel')}</Text>
                 <TextInput
-                  style={styles.passwordInput}
-                  value={newPassword}
-                  onChangeText={setNewPassword}
-                  secureTextEntry={!showPassword}
+                  style={styles.textInput}
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="your-email@example.com"
+                  placeholderTextColor={Colors.textMuted}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
                 />
-                <Pressable
-                  onPress={() => setShowPassword((prev) => !prev)}
-                  style={styles.eyeButton}
-                  hitSlop={8}
-                >
-                  <Text style={styles.eyeIcon}>{showPassword ? '👁' : '👁‍🗨'}</Text>
-                </Pressable>
               </View>
+            )}
+
+            {step === 2 && (
+              <>
+                <View style={styles.fieldWrapper}>
+                  <Text style={styles.fieldLabel}>{t('forgotVerifyCodeLabel')}</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    value={verificationCode}
+                    onChangeText={setVerificationCode}
+                    placeholder="Enter recovery code from email"
+                    placeholderTextColor={Colors.textMuted}
+                    autoCapitalize="none"
+                  />
+                </View>
+
+                <View style={styles.fieldWrapper}>
+                  <Text style={styles.fieldLabel}>{t('forgotNewPasswordLabel')}</Text>
+                  <View style={styles.passwordRow}>
+                    <TextInput
+                      style={styles.passwordInput}
+                      value={newPassword}
+                      onChangeText={setNewPassword}
+                      placeholder="Minimum 6 characters"
+                      placeholderTextColor={Colors.textMuted}
+                      secureTextEntry={!showPassword}
+                    />
+                    <Pressable
+                      onPress={() => setShowPassword((prev) => !prev)}
+                      style={styles.eyeButton}
+                      hitSlop={8}
+                    >
+                      <Text style={styles.eyeIcon}>{showPassword ? '👁' : '👁‍🗨'}</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              </>
+            )}
+          </View>
+
+          {/* Messages */}
+          {errorMessage ? (
+            <View style={styles.errorBanner}>
+              <Text style={styles.errorText}>{errorMessage}</Text>
             </View>
-          </View>
+          ) : null}
 
-          {/* Verification Banner */}
-          <View style={styles.verificationBanner}>
-            <Text style={styles.verificationTitle}>{t('forgotBannerTitle')}</Text>
-            <Text style={styles.verificationSub}>
-              {t('forgotBannerSub')}
-            </Text>
-          </View>
+          {infoMessage ? (
+            <View style={styles.verificationBanner}>
+              <Text style={styles.verificationTitle}>{t('forgotBannerTitle')}</Text>
+              <Text style={styles.verificationSub}>{infoMessage}</Text>
+            </View>
+          ) : null}
 
-          {/* CTA Button */}
-          <ShrutiButton
-            label={t('btnChangePassword')}
-            onPress={handleResetPassword}
-            variant="primary"
-            isLoading={isSubmitting}
-          />
+          {/* CTA Buttons */}
+          {step === 1 && (
+            <BanglaBookButton
+              label={isEnglish ? 'Send Recovery Code' : 'রিকভারি কোড পাঠান'}
+              onPress={handleSendCode}
+              variant="primary"
+              isLoading={isSubmitting}
+            />
+          )}
 
-          {/* Success Banner */}
-          {isSuccess && (
+          {step === 2 && (
+            <BanglaBookButton
+              label={t('btnChangePassword')}
+              onPress={handleResetPassword}
+              variant="primary"
+              isLoading={isSubmitting}
+            />
+          )}
+
+          {/* Success State */}
+          {step === 3 && (
             <View style={styles.successBanner}>
               <Text style={styles.successTitle}>{t('forgotSuccessTitle')}</Text>
               <Text style={styles.successSub}>
-                {t('forgotSuccessSub')}
+                {isEnglish
+                  ? 'Your password has been reset successfully. Please sign in with your new password.'
+                  : 'পাসওয়ার্ড সফলভাবে পরিবর্তিত হয়েছে। নতুন পাসওয়ার্ড দিয়ে সাইন ইন করুন।'}
               </Text>
+              <View style={{ marginTop: Spacing.md }}>
+                <BanglaBookButton
+                  label={t('tabSignIn')}
+                  onPress={() => nav.navigate('Login')}
+                  variant="primary"
+                />
+              </View>
             </View>
           )}
         </ScrollView>
@@ -204,6 +308,33 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     fontWeight: '700',
   },
+  accountTypeRow: {
+    flexDirection: 'row',
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.full,
+    padding: 4,
+    borderWidth: 1,
+    borderColor: Colors.surfaceBorder,
+  },
+  accountTypeChip: {
+    flex: 1,
+    paddingVertical: Spacing.xs + 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: Radius.full,
+  },
+  accountTypeChipActive: {
+    backgroundColor: Colors.primary,
+  },
+  accountTypeText: {
+    fontSize: FontSizes.xs + 1,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  accountTypeTextActive: {
+    color: Colors.textOnPrimary,
+    fontWeight: '700',
+  },
   fieldsContainer: {
     gap: Spacing.sm + 4,
   },
@@ -248,6 +379,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: Colors.textSecondary,
   },
+  errorBanner: {
+    backgroundColor: Colors.tintError,
+    borderRadius: Radius.md,
+    padding: Spacing.md,
+  },
+  errorText: {
+    fontSize: FontSizes.xs,
+    color: Colors.tintErrorText,
+    fontWeight: '600',
+  },
   verificationBanner: {
     backgroundColor: Colors.tintGreen,
     borderRadius: Radius.md,
@@ -264,19 +405,19 @@ const styles = StyleSheet.create({
     color: Colors.tintGreenText,
   },
   successBanner: {
-    backgroundColor: Colors.tintBlue,
+    backgroundColor: Colors.tintGreen,
     borderRadius: Radius.md,
     padding: Spacing.md,
   },
   successTitle: {
     fontSize: FontSizes.xs + 1,
     fontWeight: '700',
-    color: Colors.tintBlueText,
+    color: Colors.tintGreenText,
     marginBottom: 2,
   },
   successSub: {
     fontSize: FontSizes.xs,
-    color: Colors.tintBlueText,
+    color: Colors.tintGreenText,
   },
   bottomBarContainer: {
     alignItems: 'center',

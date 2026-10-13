@@ -89,6 +89,7 @@ async def test_chapter_access_and_visibility(
         .where(Audiobook.id == uuid.UUID(book_id))
         .values(
             visibility=AudiobookVisibility.PUBLIC,
+            publication_status="published",
             status=AudiobookStatus.COMPLETED,
         )
     )

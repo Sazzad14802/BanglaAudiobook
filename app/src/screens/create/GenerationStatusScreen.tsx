@@ -1,10 +1,10 @@
 /**
  * GenerationStatusScreen — Live generation pipeline tracker.
  * Communicates: Uploading → Processing → Queued → Generating → Completed/Failed.
- * Shows queue priority (Premium > Free, FCFS).
+ * Shows queue priority (Publisher > Premium > Free) and aging progress.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -14,76 +14,109 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+
 import { CreateStackParamList } from '../../navigation/types';
-import { ShrutiHeader } from '../../components/ShrutiHeader';
-import { ShrutiButton } from '../../components/ShrutiButton';
+import { BanglaBookHeader } from '../../components/BanglaBookHeader';
+import { BanglaBookButton } from '../../components/BanglaBookButton';
 import { TagBadge } from '../../components/TagBadge';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { apiClient } from '../../api/client';
+import { usePlayer } from '../../contexts/PlayerContext';
 
 type Nav = NativeStackNavigationProp<CreateStackParamList, 'GenerationStatus'>;
 type Route = RouteProp<CreateStackParamList, 'GenerationStatus'>;
-
-type PipelineStep = 'uploading' | 'processing' | 'queued' | 'generating' | 'completed' | 'failed';
 
 export function GenerationStatusScreen() {
   const nav = useNavigation<Nav>();
   const route = useRoute<Route>();
   const audiobookId = route.params?.audiobookId ?? 'new-book';
-  const { t } = useLanguage();
+  const { t, isEnglish } = useLanguage();
+  const { loadAudiobook } = usePlayer();
 
-  const [currentStep, setCurrentStep] = useState<PipelineStep>('queued');
-  const [queuePosition, setQueuePosition] = useState(2);
-  const [progressPercent, setProgressPercent] = useState(45);
+  const [book, setBook] = useState<any>(null);
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [status, setStatus] = useState<string>('PROCESSING');
+  const [completedPages, setCompletedPages] = useState<number>(0);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  const poll = useCallback(async () => {
+    try {
+      const data = await apiClient.get<any>(`/audiobooks/${audiobookId}`);
+      if (data) {
+        setBook(data);
+        setStatus(data.status);
+      }
+    } catch (e) {
+      console.warn('Poll error:', e);
+    }
+  }, [audiobookId]);
 
   useEffect(() => {
-    // Simulate real pipeline progression
-    const timer1 = setTimeout(() => {
-      setCurrentStep('generating');
-      setQueuePosition(1);
-    }, 2500);
+    poll();
+    const interval = setInterval(poll, 3000);
+    return () => clearInterval(interval);
+  }, [poll]);
 
-    const timer2 = setTimeout(() => {
-      setProgressPercent(85);
-    }, 4500);
+  const isCompleted = status === 'COMPLETED';
+  const isFailed = status === 'FAILED';
 
-    const timer3 = setTimeout(() => {
-      setCurrentStep('completed');
-      setProgressPercent(100);
-    }, 6500);
+  const handleListen = async () => {
+    if (book) {
+      await loadAudiobook(book);
+      nav.navigate('Player', { audiobookId: book.id });
+    } else {
+      nav.navigate('AudiobookDetails', { audiobookId });
+    }
+  };
 
-    return () => {
-      clearTimeout(timer1);
-      clearTimeout(timer2);
-      clearTimeout(timer3);
-    };
-  }, []);
+  const handleCancel = async () => {
+    if (!jobId) {
+      nav.navigate('CreateAudiobook');
+      return;
+    }
+    setIsCancelling(true);
+    try {
+      await apiClient.post(`/generation/${jobId}/cancel`);
+      Alert.alert(isEnglish ? 'Cancelled' : 'বাতিল হয়েছে', isEnglish ? 'Generation request cancelled.' : 'অডিও রূপান্তর অনুরোধটি বাতিল করা হয়েছে।');
+      await poll();
+    } catch (err: any) {
+      Alert.alert(isEnglish ? 'Error' : 'ত্রুটি', err.detail || 'Could not cancel job.');
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  const handleRetry = async () => {
+    if (!jobId) return;
+    setIsRetrying(true);
+    try {
+      await apiClient.post(`/generation/${jobId}/retry`);
+      Alert.alert(isEnglish ? 'Retried' : 'পুনরায় শুরু', isEnglish ? 'Job re-enqueued for synthesis.' : 'জবটি পুনরায় কিউতে পাঠানো হয়েছে।');
+      await poll();
+    } catch (err: any) {
+      Alert.alert(isEnglish ? 'Error' : 'ত্রুটি', err.detail || 'Could not retry.');
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   const stepsList = [
-    { key: 'uploading', label: t('stepPdfUploaded') },
-    { key: 'processing', label: t('stepTextOcr') },
-    {
-      key: 'queued',
-      label: t('stepQueued', { pos: queuePosition }),
-    },
-    { key: 'generating', label: t('stepSpeechSynthesis') },
-    { key: 'completed', label: t('stepGenDone') },
+    { key: 'uploading', label: t('stepPdfUploaded'), done: true },
+    { key: 'processing', label: t('stepTextOcr'), done: status !== 'PENDING' },
+    { key: 'queued', label: isEnglish ? 'Fair Queued & Priority Aging' : 'অগ্রাধিকার কিউ ও এজিং শিডিউলিং', done: status === 'PROCESSING' || isCompleted },
+    { key: 'generating', label: t('stepSpeechSynthesis'), done: isCompleted },
+    { key: 'completed', label: t('stepGenDone'), done: isCompleted },
   ];
-
-  const isCompleted = currentStep === 'completed';
-
-  const handleListen = () => {
-    nav.navigate('AudiobookDetails', { audiobookId: 'pather-panchali' });
-  };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <ShrutiHeader
+      <BanglaBookHeader
         title={t('genProgressTitle')}
-        subtitle={t('genProgressSub')}
+        subtitle={book?.title || t('genProgressSub')}
         onBack={() => nav.goBack()}
         onOptionsPress={() => {}}
       />
@@ -96,86 +129,94 @@ export function GenerationStatusScreen() {
         <View style={styles.statusHeroCard}>
           <View style={styles.statusBadgeRow}>
             <TagBadge
-              label={isCompleted ? 'COMPLETED' : 'IN PROGRESS'}
-              variant={isCompleted ? 'free' : 'premium'}
+              label={status}
+              variant={isCompleted ? 'free' : isFailed ? 'premium' : 'genre'}
             />
-            <Text style={styles.priorityText}>Priority: High (FCFS)</Text>
+            <Text style={styles.priorityText}>
+              {isEnglish ? 'Aging Priority Scheduler' : 'ফেয়ার শিডিউলার সক্রিয়'}
+            </Text>
           </View>
 
           <Text style={styles.statusTitle}>
-            {isCompleted ? t('statusCompleted') : t('statusInProgress')}
+            {isCompleted
+              ? (isEnglish ? 'Audiobook Synthesis Complete!' : 'অডিওবুক সফলভাবে তৈরি হয়েছে!')
+              : isFailed
+              ? (isEnglish ? 'Generation Failed' : 'জেনারেশন ব্যর্থ হয়েছে')
+              : (isEnglish ? 'Synthesizing Audio Chunks...' : 'অডিও চ্যাংক তৈরি হচ্ছে...')}
           </Text>
 
-          {/* Progress bar */}
+          {/* Progress Indicator */}
           <View style={styles.progressContainer}>
             <View style={styles.progressBarTrack}>
               <View
-                style={[styles.progressBarFill, { width: `${progressPercent}%` }]}
+                style={[
+                  styles.progressBarFill,
+                  { width: isCompleted ? '100%' : isFailed ? '0%' : '65%' },
+                ]}
               />
             </View>
-            <Text style={styles.progressPercentText}>{progressPercent}%</Text>
+            <Text style={styles.progressPercentText}>
+              {isCompleted ? '100%' : isFailed ? 'Error' : 'Processing...'}
+            </Text>
           </View>
         </View>
 
         {/* Pipeline Step List */}
-        <View style={styles.pipelineContainer}>
-          <Text style={styles.pipelineHeading}>{t('pipelineStepsHeading')}</Text>
+        <View style={styles.stepsCard}>
+          <Text style={styles.stepsTitle}>
+            {isEnglish ? 'Generation Pipeline' : 'রূপান্তর পাইপলাইন'}
+          </Text>
 
-          {stepsList.map((step, idx) => {
-            const isDone =
-              currentStep === 'completed' ||
-              (currentStep === 'generating' && idx <= 2) ||
-              (currentStep === 'queued' && idx <= 1);
-            const isCurrent =
-              (currentStep === 'queued' && idx === 2) ||
-              (currentStep === 'generating' && idx === 3) ||
-              (currentStep === 'completed' && idx === 4);
-
-            return (
-              <View key={step.key} style={styles.stepRow}>
-                <View
-                  style={[
-                    styles.stepBullet,
-                    isDone && styles.bulletDone,
-                    isCurrent && styles.bulletCurrent,
-                  ]}
-                >
-                  {isDone ? (
-                    <Text style={styles.checkmark}>✓</Text>
-                  ) : isCurrent ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <Text style={styles.bulletNumber}>{idx + 1}</Text>
-                  )}
-                </View>
-                <Text
-                  style={[
-                    styles.stepLabel,
-                    isCurrent && styles.stepLabelActive,
-                    isDone && styles.stepLabelDone,
-                  ]}
-                >
-                  {step.label}
-                </Text>
+          {stepsList.map((step, idx) => (
+            <View key={step.key} style={styles.stepItem}>
+              <View
+                style={[
+                  styles.stepDot,
+                  step.done ? styles.stepDotDone : styles.stepDotPending,
+                ]}
+              >
+                <Text style={styles.stepDotIcon}>{step.done ? '✓' : idx + 1}</Text>
               </View>
-            );
-          })}
+
+              <Text
+                style={[
+                  styles.stepText,
+                  step.done ? styles.stepTextDone : styles.stepTextPending,
+                ]}
+              >
+                {step.label}
+              </Text>
+            </View>
+          ))}
         </View>
 
-        {/* Action Button */}
-        {isCompleted && (
-          <ShrutiButton
-            label={t('btnListenAudiobook')}
+        {/* CTA Buttons */}
+        <View style={{ gap: Spacing.sm }}>
+          <BanglaBookButton
+            label={isCompleted ? (isEnglish ? '▶ Start Listening Now' : '▶ এখনই শোনা শুরু করুন') : (isEnglish ? '🎧 Listen Progressively' : '🎧 প্রগ্রেসিভ শুনুন')}
             onPress={handleListen}
             variant="primary"
           />
-        )}
-      </ScrollView>
 
-      {/* Android edge-to-edge indicator bar */}
-      <View style={styles.bottomBarContainer}>
-        <View style={styles.homeIndicator} />
-      </View>
+          {!isCompleted && !isFailed && (
+            <BanglaBookButton
+              label={isCancelling ? (isEnglish ? 'Cancelling...' : 'বাতিল হচ্ছে...') : (isEnglish ? 'Cancel Generation' : 'অনুরোধ বাতিল করুন')}
+              onPress={handleCancel}
+              variant="secondary"
+              isLoading={isCancelling}
+            />
+          )}
+
+          {isFailed && (
+            <BanglaBookButton
+              label={isRetrying ? (isEnglish ? 'Retrying...' : 'পুনরায় চেষ্টা...') : (isEnglish ? 'Retry Generation' : 'পুনরায় চেষ্টা করুন')}
+              onPress={handleRetry}
+              variant="primary"
+              isLoading={isRetrying}
+            />
+          )}
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -189,7 +230,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingTop: Spacing.xs,
     paddingBottom: Spacing.xl,
-    gap: Spacing.lg,
+    gap: Spacing.md,
   },
   statusHeroCard: {
     backgroundColor: Colors.surface,
@@ -197,11 +238,6 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     borderWidth: 1,
     borderColor: Colors.surfaceBorder,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
     gap: Spacing.sm,
   },
   statusBadgeRow: {
@@ -218,93 +254,74 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.lg,
     fontWeight: '700',
     color: Colors.textPrimary,
-    lineHeight: 26,
-    marginTop: 4,
   },
   progressContainer: {
-    marginTop: Spacing.xs,
-    gap: 4,
+    gap: 6,
+    marginTop: 4,
   },
   progressBarTrack: {
-    height: 6,
-    backgroundColor: '#EAE4DA',
+    height: 8,
+    backgroundColor: '#E2DBD2',
     borderRadius: Radius.full,
     overflow: 'hidden',
   },
   progressBarFill: {
     height: '100%',
     backgroundColor: Colors.primary,
+    borderRadius: Radius.full,
   },
   progressPercentText: {
     fontSize: FontSizes.xs,
     color: Colors.textSecondary,
-    alignSelf: 'flex-end',
+    textAlign: 'right',
     fontWeight: '600',
   },
-  pipelineContainer: {
-    backgroundColor: Colors.surfaceElevated,
+  stepsCard: {
+    backgroundColor: Colors.surface,
     borderRadius: Radius.lg,
     padding: Spacing.lg,
-    gap: Spacing.md,
     borderWidth: 1,
     borderColor: Colors.surfaceBorder,
+    gap: Spacing.md,
   },
-  pipelineHeading: {
+  stepsTitle: {
     fontSize: FontSizes.base,
     fontWeight: '700',
     color: Colors.textPrimary,
-    marginBottom: Spacing.xs,
   },
-  stepRow: {
+  stepItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.md,
+    gap: Spacing.sm,
   },
-  stepBullet: {
+  stepDot: {
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#DCD4C9',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  bulletDone: {
-    backgroundColor: Colors.tintGreenText,
+  stepDotDone: {
+    backgroundColor: Colors.tintGreen,
   },
-  bulletCurrent: {
-    backgroundColor: Colors.primary,
+  stepDotPending: {
+    backgroundColor: Colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: Colors.surfaceBorder,
   },
-  checkmark: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  bulletNumber: {
-    color: Colors.textSecondary,
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  stepLabel: {
-    fontSize: FontSizes.sm,
-    color: Colors.textSecondary,
-    flex: 1,
-  },
-  stepLabelActive: {
-    color: Colors.textPrimary,
+  stepDotIcon: {
+    fontSize: FontSizes.xs,
     fontWeight: '700',
+    color: Colors.textPrimary,
   },
-  stepLabelDone: {
-    color: Colors.tintGreenText,
+  stepText: {
+    fontSize: FontSizes.sm,
     fontWeight: '600',
   },
-  bottomBarContainer: {
-    alignItems: 'center',
-    paddingBottom: Spacing.xs,
+  stepTextDone: {
+    color: Colors.textPrimary,
   },
-  homeIndicator: {
-    width: 120,
-    height: 4,
-    borderRadius: Radius.full,
-    backgroundColor: '#000000',
+  stepTextPending: {
+    color: Colors.textMuted,
   },
 });

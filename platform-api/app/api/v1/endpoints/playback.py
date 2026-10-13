@@ -6,7 +6,7 @@ from typing import Optional
 import uuid
 from fastapi import APIRouter, HTTPException, status
 
-from app.api.deps import CurrentUserDep, DatabaseDep
+from app.api.deps import MemberDep, DatabaseDep
 from app.schemas.playback import PlaybackProgressRead, PlaybackProgressUpdate
 from app.services import playback_service
 
@@ -21,7 +21,7 @@ router = APIRouter()
 async def get_playback_progress(
     audiobook_id: uuid.UUID,
     db: DatabaseDep,
-    current_user: CurrentUserDep,
+    current_user: MemberDep,
 ) -> PlaybackProgressRead:
     """
     Retrieve the current user's saved playback position for an audiobook.
@@ -50,7 +50,7 @@ async def save_playback_progress(
     audiobook_id: uuid.UUID,
     data: PlaybackProgressUpdate,
     db: DatabaseDep,
-    current_user: CurrentUserDep,
+    current_user: MemberDep,
 ) -> PlaybackProgressRead:
     """
     Update or create playback progress for an audiobook.

@@ -18,5 +18,8 @@ export const authStorage = {
 
   async deleteToken(): Promise<void> {
     await SecureStore.deleteItemAsync(TOKEN_KEY);
+    await SecureStore.deleteItemAsync('session_user');
   },
+  async saveUser(user: unknown) { await SecureStore.setItemAsync('session_user', JSON.stringify(user)); },
+  async getUser() { const value=await SecureStore.getItemAsync('session_user');return value?JSON.parse(value):null; },
 };

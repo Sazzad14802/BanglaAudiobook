@@ -25,6 +25,11 @@ class GenerationJobRead(BaseModel):
     created_at: datetime
     started_at: Optional[datetime]
     completed_at: Optional[datetime]
+    total_pages: int = 0
+    completed_pages: int = 0
+    attempts: int = 0
+    cancelled: bool = False
+    priority: int = 0
 
 
 class AudiobookGenerationStatusResponse(BaseModel):

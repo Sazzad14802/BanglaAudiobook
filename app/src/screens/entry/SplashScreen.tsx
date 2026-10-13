@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ShrutiHeader } from '../../components/ShrutiHeader';
+import { BanglaBookHeader } from '../../components/BanglaBookHeader';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
 import { useLanguage } from '../../contexts/LanguageContext';
 
@@ -22,7 +22,7 @@ export function SplashScreen({ onContinue }: SplashScreenProps) {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <ShrutiHeader
+      <BanglaBookHeader
         title={t('appName')}
         subtitle={t('appTagline')}
         onOptionsPress={() => {}}

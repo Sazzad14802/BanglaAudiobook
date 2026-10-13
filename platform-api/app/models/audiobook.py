@@ -5,7 +5,7 @@ Audiobook database model and status/visibility enums.
 import enum
 from typing import TYPE_CHECKING, Optional
 import uuid
-from sqlalchemy import Enum, Float, ForeignKey, String, Text, Uuid
+from sqlalchemy import Enum, Float, ForeignKey, String, Text, Uuid, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -32,6 +32,11 @@ class AudiobookStatus(str, enum.Enum):
 
 class Audiobook(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "audiobooks"
+    genre: Mapped[Optional[str]] = mapped_column(String(100))
+    channel_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("channels.id"))
+    access_tier: Mapped[str] = mapped_column(String(20), default="free", nullable=False)
+    publication_status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False)
+    moderated: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     owner_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),

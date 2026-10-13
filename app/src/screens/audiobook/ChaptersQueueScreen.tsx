@@ -15,9 +15,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useNavigation } from '@react-navigation/native';
-import { ShrutiHeader } from '../../components/ShrutiHeader';
+import { BanglaBookHeader } from '../../components/BanglaBookHeader';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
 import { useLanguage } from '../../contexts/LanguageContext';
+
+import { usePlayer } from '../../contexts/PlayerContext';
 
 interface ChapterItemData {
   id: string;
@@ -31,6 +33,7 @@ interface ChapterItemData {
 export function ChaptersQueueScreen() {
   const nav = useNavigation();
   const { t, isEnglish } = useLanguage();
+  const { chapters: liveChapters, currentChapterIndex, selectChapter } = usePlayer();
 
   const [chapters, setChapters] = useState<ChapterItemData[]>([
     {
@@ -64,6 +67,18 @@ export function ChaptersQueueScreen() {
     },
   ]);
 
+  const displayList = liveChapters.length > 0
+    ? liveChapters.map((c, i) => ({
+        id: c.id,
+        number: String(c.chapter_number),
+        title: c.title,
+        duration: c.duration_seconds ? `${Math.floor(c.duration_seconds / 60)} min` : 'Audio',
+        status: i === currentChapterIndex ? t('playerNowPlaying') : t('tabDownloaded'),
+        isPlaying: i === currentChapterIndex,
+        index: i,
+      }))
+    : chapters.map((c, i) => ({ ...c, index: i }));
+
   const [queueCleared, setQueueCleared] = useState(false);
 
   const handleReorderOrClear = () => {
@@ -93,7 +108,7 @@ export function ChaptersQueueScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <ShrutiHeader
+      <BanglaBookHeader
         title={t('chaptersQueueTitle')}
         subtitle={t('chaptersQueueSub', { count: 12, next: 4 })}
         onBack={() => nav.goBack()}
@@ -106,12 +121,15 @@ export function ChaptersQueueScreen() {
       >
         {/* Chapters List */}
         <View style={styles.chaptersList}>
-          {chapters.map((chapter) => {
+          {displayList.map((chapter) => {
             const isPlaying = chapter.isPlaying;
             return (
               <Pressable
                 key={chapter.id}
-                onPress={() => handleSelectChapter(chapter)}
+                onPress={() => {
+                  selectChapter(chapter.index);
+                  nav.goBack();
+                }}
                 style={({ pressed }) => [
                   styles.chapterCard,
                   isPlaying ? styles.chapterCardPlaying : styles.chapterCardDefault,

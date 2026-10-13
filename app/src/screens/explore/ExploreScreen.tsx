@@ -17,12 +17,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ExploreStackParamList } from '../../navigation/types';
-import { ShrutiHeader } from '../../components/ShrutiHeader';
+import { BanglaBookHeader } from '../../components/BanglaBookHeader';
 import { AudiobookCard } from '../../components/AudiobookCard';
 import { FIGMA_AUDIOBOOKS } from '../../data/mockAudiobooks';
 import { usePlayer } from '../../contexts/PlayerContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
+import { apiClient } from '../../api/client';
 
 type Nav = NativeStackNavigationProp<ExploreStackParamList, 'Explore'>;
 
@@ -36,8 +37,31 @@ export function ExploreScreen() {
     : ['সাহিত্য', 'রহস্য', 'কবিতা', 'ইতিহাস'];
 
   const [activeCategory, setActiveCategory] = useState(categories[0]);
+  const [liveBooks, setLiveBooks] = useState<any[]>([]);
 
-  const exploreBooks = FIGMA_AUDIOBOOKS.filter(
+  React.useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        const res = await apiClient.get<any>(`/audiobooks?genre=${encodeURIComponent(activeCategory)}&size=10`).catch(() => null);
+        if (isMounted && res?.items && res.items.length > 0) {
+          setLiveBooks(res.items);
+          return;
+        }
+      } catch {}
+      if (isMounted) {
+        const filtered = FIGMA_AUDIOBOOKS.filter(
+          (b) => b.genre?.toLowerCase() === activeCategory.toLowerCase()
+        );
+        setLiveBooks(filtered.length > 0 ? filtered : FIGMA_AUDIOBOOKS.filter(
+          (b) => b.id === 'neelkantha-pakhir-khoje' || b.id === 'chander-pahar'
+        ));
+      }
+    })();
+    return () => { isMounted = false; };
+  }, [activeCategory]);
+
+  const exploreBooks = liveBooks.length > 0 ? liveBooks : FIGMA_AUDIOBOOKS.filter(
     (b) => b.id === 'neelkantha-pakhir-khoje' || b.id === 'chander-pahar'
   );
 
@@ -56,7 +80,7 @@ export function ExploreScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <ShrutiHeader
+      <BanglaBookHeader
         title={t('exploreTitle')}
         subtitle={t('exploreSub')}
         onOptionsPress={() => {}}

@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ShrutiHeader } from '../../components/ShrutiHeader';
+import { BanglaBookHeader } from '../../components/BanglaBookHeader';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
 import { useLanguage } from '../../contexts/LanguageContext';
 
@@ -31,7 +31,7 @@ export function NotificationsPromptScreen({
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <ShrutiHeader
+      <BanglaBookHeader
         title={isEnglish ? 'Notifications' : 'নোটিফিকেশন'}
         subtitle={isEnglish ? 'Alerts & updates' : 'আপডেট ও নোটিফিকেশন'}
         onBack={onBack}
@@ -60,8 +60,8 @@ export function NotificationsPromptScreen({
 
           <Text style={styles.dialogTitle}>
             {isEnglish
-              ? 'Allow Shruti to send you notifications?'
-              : 'শ্রুতিকে notification পাঠাতে দেবেন?'}
+              ? 'Allow Bangla Book to send you notifications?'
+              : 'বাংলা বুককে notification পাঠাতে দেবেন?'}
           </Text>
 
           <Text style={styles.dialogDescription}>

@@ -11,6 +11,10 @@ from app.models.audiobook import AudiobookStatus, AudiobookVisibility
 
 
 class AudiobookCreate(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+    genre: str | None = Field(default=None, max_length=100)
+    channel_id: uuid.UUID | None = None
+    access_tier: str = Field(default="free", pattern="^(free|premium)$")
     title: str = Field(min_length=1, max_length=255, description="Audiobook title")
     author: Optional[str] = Field(default=None, max_length=255, description="Book author name")
     description: Optional[str] = Field(default=None, description="Audiobook description")
@@ -22,6 +26,10 @@ class AudiobookCreate(BaseModel):
 
 
 class AudiobookUpdate(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+    genre: str | None = Field(default=None, max_length=100)
+    channel_id: uuid.UUID | None = None
+    access_tier: str | None = Field(default=None, pattern="^(free|premium)$")
     title: Optional[str] = Field(default=None, min_length=1, max_length=255)
     author: Optional[str] = Field(default=None, max_length=255)
     description: Optional[str] = None
@@ -52,6 +60,11 @@ class AudiobookRead(BaseModel):
     status: AudiobookStatus
     created_at: datetime
     updated_at: datetime
+    genre: str | None = None
+    channel_id: uuid.UUID | None = None
+    access_tier: str = "free"
+    publication_status: str = "draft"
+    moderated: bool = False
 
 
 class AudiobookListResponse(BaseModel):

@@ -14,6 +14,13 @@ from app.api.v1.endpoints import (
 )
 
 api_router = APIRouter()
+from app.api.v1.endpoints import management, accounts
+from app.api.v1.endpoints import media
+from app.api.v1.endpoints import identity
+api_router.include_router(identity.router, prefix="/auth", tags=["identity"])
+api_router.include_router(media.router, tags=["media"])
+api_router.include_router(management.router, prefix="/admin", tags=["admin"])
+api_router.include_router(accounts.router, tags=["accounts"])
 
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])

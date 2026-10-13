@@ -20,15 +20,15 @@ async def get_user_by_id(db: AsyncSession, user_id: uuid.UUID) -> Optional[User]
     return result.scalar_one_or_none()
 
 
-async def get_user_by_email(db: AsyncSession, email: str) -> Optional[User]:
+async def get_user_by_email(db: AsyncSession, email: str, account_type: str = "listener") -> Optional[User]:
     """Retrieve a user by their email address."""
-    result = await db.execute(select(User).where(User.email == email.lower()))
+    result = await db.execute(select(User).where(User.email == email.lower(), User.account_type == account_type))
     return result.scalar_one_or_none()
 
 
-async def get_user_by_username(db: AsyncSession, username: str) -> Optional[User]:
+async def get_user_by_username(db: AsyncSession, username: str, account_type: str = "listener") -> Optional[User]:
     """Retrieve a user by their username."""
-    result = await db.execute(select(User).where(User.username == username))
+    result = await db.execute(select(User).where(User.username == username, User.account_type == account_type))
     return result.scalar_one_or_none()
 
 
@@ -39,7 +39,7 @@ async def register_user(db: AsyncSession, data: RegisterRequest) -> User:
     Hashes the password securely with bcrypt.
     """
     # Check for existing email
-    existing_email = await get_user_by_email(db, data.email)
+    existing_email = await get_user_by_email(db, data.email, data.account_type)
     if existing_email:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -47,7 +47,7 @@ async def register_user(db: AsyncSession, data: RegisterRequest) -> User:
         )
 
     # Check for existing username
-    existing_username = await get_user_by_username(db, data.username)
+    existing_username = await get_user_by_username(db, data.username, data.account_type)
     if existing_username:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -59,9 +59,16 @@ async def register_user(db: AsyncSession, data: RegisterRequest) -> User:
         username=data.username.strip(),
         email=data.email.strip().lower(),
         password_hash=hash_password(data.password),
+        account_type=data.account_type,
+        full_name=data.full_name,
     )
     db.add(user)
-    await db.commit()
+    from sqlalchemy.exc import IntegrityError
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(409, "Account already exists in this namespace")
     await db.refresh(user)
     return user
 
@@ -70,6 +77,7 @@ async def authenticate_user(
     db: AsyncSession,
     username_or_email: str,
     password: str,
+    account_type: str = "listener",
 ) -> User:
     """
     Authenticate a user by username or email and password.
@@ -78,7 +86,8 @@ async def authenticate_user(
     lookup = username_or_email.strip()
     result = await db.execute(
         select(User).where(
-            or_(User.email == lookup.lower(), User.username == lookup)
+            or_(User.email == lookup.lower(), User.username == lookup),
+            User.account_type == account_type,
         )
     )
     user = result.scalar_one_or_none()
@@ -90,6 +99,8 @@ async def authenticate_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    if user.suspended:
+        raise HTTPException(403, "Account suspended")
     return user
 
 
@@ -97,7 +108,7 @@ def create_user_token(user: User) -> TokenResponse:
     """Generate a JWT access token for the authenticated user."""
     access_token = create_access_token(
         subject=str(user.id),
-        extra_claims={"username": user.username, "email": user.email},
+        extra_claims={"ver": user.token_version, "purpose": "access"},
     )
     return TokenResponse(
         access_token=access_token,

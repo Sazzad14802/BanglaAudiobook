@@ -159,7 +159,7 @@ class PDFService:
             return self.clean_text(full_ocr_text)
         except Exception as e:
             logger.error("EasyOCR fallback failed: %s", e)
-            return ""
+            raise RuntimeError("OCR failed; retry after the OCR service is restored") from e
 
     def extract_text(self, pdf_bytes: bytes, language: str = "bn") -> str:
         """
@@ -185,9 +185,14 @@ class PDFService:
         # Check if extracted text is valid or corrupted
         if self.is_text_corrupted(raw_text, language=language):
             logger.info("Extracted text is empty or corrupted. Engaging EasyOCR visual pipeline...")
-            ocr_text = self.extract_text_via_ocr(pdf_bytes)
-            if ocr_text:
-                return ocr_text
+            try:
+                ocr_text = self.extract_text_via_ocr(pdf_bytes)
+                if ocr_text:
+                    return ocr_text
+            except Exception as ocr_err:
+                logger.warning("Local visual OCR failed: %s; using pypdf raw text", ocr_err)
+                if raw_text.strip():
+                    return self.clean_text(raw_text)
 
         return self.clean_text(raw_text)
 

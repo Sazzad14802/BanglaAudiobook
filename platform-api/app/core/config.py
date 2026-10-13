@@ -19,6 +19,19 @@ class Settings(BaseSettings):
     APP_NAME: str = "Audiobook Platform API"
     APP_VERSION: str = "0.1.0"
     DEBUG: bool = False
+    ENVIRONMENT: str = "development"
+    MOCK_PAYMENTS_ENABLED: bool = False
+    TTS_SERVICE_KEY: str = ""
+    TTS_GENERATE_URL: str = "http://localhost:8001/generate"
+    TTS_EXTRACT_URL: str = "http://localhost:8001/extract-page"
+    GEMINI_API_KEY: str = ""
+    GOOGLE_CLIENT_IDS: str = ""
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    MAIL_FROM: str = ""
+    RECOVERY_URL: str = "banglabook://reset-password"
 
     # ── Server ─────────────────────────────────────────────────────────────
     HOST: str = "0.0.0.0"

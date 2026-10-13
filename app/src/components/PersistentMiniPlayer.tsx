@@ -17,6 +17,7 @@ interface PersistentMiniPlayerProps {
 export function PersistentMiniPlayer({ onPress }: PersistentMiniPlayerProps) {
   const { audiobook, chapters, currentChapterIndex, isPlaying, play, pause, nextChapter, positionSeconds, durationSeconds } = usePlayer();
   const navigation = useNavigation<any>();
+  if (!audiobook) return null;
 
   // If no audiobook is active, show the default featured one from Figma (পথের পাঁচালী)
   const displayTitle = audiobook?.title ?? 'পথের পাঁচালী';

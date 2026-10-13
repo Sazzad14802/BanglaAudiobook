@@ -1,5 +1,5 @@
 /**
- * ShrutiHeader — Standardized app header matching Figma design.
+ * BanglaBookHeader — Standardized app header matching Figma design.
  * Features back button, title, contextual subtitle, and 3-dot options menu.
  */
 
@@ -7,23 +7,27 @@ import React from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Colors, FontSizes, Radius, Spacing } from '../theme';
 
-interface ShrutiHeaderProps {
+interface BanglaBookHeaderProps {
   title: string;
   subtitle?: string;
   onBack?: () => void;
   onOptionsPress?: () => void;
   alignCenter?: boolean;
   showLogo?: boolean;
+  rightActionText?: string;
+  onRightAction?: () => void;
 }
 
-export function ShrutiHeader({
+export function BanglaBookHeader({
   title,
   subtitle,
   onBack,
   onOptionsPress,
   alignCenter = false,
   showLogo = false,
-}: ShrutiHeaderProps) {
+  rightActionText,
+  onRightAction,
+}: BanglaBookHeaderProps) {
   return (
     <View style={styles.header}>
       <View style={styles.leftContainer}>
@@ -73,7 +77,16 @@ export function ShrutiHeader({
       )}
 
       <View style={styles.rightContainer}>
-        {onOptionsPress ? (
+        {rightActionText && onRightAction ? (
+          <Pressable
+            onPress={onRightAction}
+            style={({ pressed }) => [styles.headerTextBtn, pressed && styles.iconButtonPressed]}
+            hitSlop={8}
+            accessibilityRole="button"
+          >
+            <Text style={styles.headerTextBtnLabel}>{rightActionText}</Text>
+          </Pressable>
+        ) : onOptionsPress ? (
           <Pressable
             onPress={onOptionsPress}
             style={({ pressed }) => [styles.iconButton, pressed && styles.iconButtonPressed]}
@@ -157,5 +170,19 @@ const styles = StyleSheet.create({
     height: 38,
     borderRadius: Radius.sm + 2,
     marginRight: Spacing.xs,
+  },
+  headerTextBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: Radius.full,
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTextBtnLabel: {
+    fontSize: FontSizes.xs + 1,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    letterSpacing: 0.2,
   },
 });

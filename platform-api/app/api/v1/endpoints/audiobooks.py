@@ -43,6 +43,11 @@ async def discover_audiobooks(
     language: Optional[str] = Query(default=None, description="Filter by language code"),
     author: Optional[str] = Query(default=None, description="Search by author name"),
     status: Optional[AudiobookStatus] = Query(default=None, description="Filter status (COMPLETED only in public)"),
+    q: str | None = None,
+    genre: str | None = None,
+    publisher: uuid.UUID | None = None,
+    channel: uuid.UUID | None = None,
+    access_tier: str | None = None,
 ) -> AudiobookListResponse:
     """
     Public audiobook discovery endpoint.
@@ -56,6 +61,7 @@ async def discover_audiobooks(
         language=language,
         author=author,
         status_filter=status,
+        q=q, genre=genre, publisher=publisher, channel=channel, access_tier=access_tier,
     )
     return AudiobookListResponse(
         items=[AudiobookRead.model_validate(item) for item in items],
@@ -232,6 +238,13 @@ async def upload_source_pdf(
     Stores the document using the storage abstraction and records its URL.
     """
     # Verify ownership before storing file
+    from sqlalchemy import select
+    from app.models import User, GenerationJob
+    from fastapi import HTTPException
+    from app.services.policy import publishing
+    await db.execute(select(User).where(User.id == current_user.id).with_for_update())
+    if current_user.account_type == "publisher":
+        publishing(current_user)
     audiobook = await audiobook_service.get_audiobook_raw(db, id)
     if not audiobook:
         from fastapi import HTTPException
@@ -246,6 +259,10 @@ async def upload_source_pdf(
             detail="Only the audiobook owner can upload the source document",
         )
 
+    active_job = await db.scalar(select(GenerationJob.id).where(GenerationJob.audiobook_id == id,
+        GenerationJob.status.in_([AudiobookStatus.PENDING, AudiobookStatus.PROCESSING]), GenerationJob.cancelled.is_(False)))
+    if active_job or audiobook.status == AudiobookStatus.COMPLETED:
+        raise HTTPException(409, "Create a new version instead of replacing an active or completed source")
     # Save file via storage abstraction
     storage = get_storage_service()
     source_url = await storage.save_upload_file(file=file, subfolder="sources")
@@ -375,67 +392,5 @@ async def generation_callback(
     Webhook endpoint invoked by the AI TTS Service when a generation job finishes.
     Updates Audiobook and GenerationJob statuses, and creates the single main audio chapter.
     """
-    from datetime import datetime, timezone
     from fastapi import HTTPException
-    from sqlalchemy import select
-    from app.models.chapter import Chapter
-    from app.models.generation_job import GenerationJob
-
-    # Fetch audiobook
-    audiobook = await audiobook_service.get_audiobook_raw(db, data.audiobook_id)
-    if not audiobook:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Audiobook {data.audiobook_id} not found",
-        )
-
-    # Fetch job
-    job_result = await db.execute(
-        select(GenerationJob).where(GenerationJob.id == data.job_id)
-    )
-    job = job_result.scalar_one_or_none()
-
-    if data.status == AudiobookStatus.COMPLETED:
-        audiobook.status = AudiobookStatus.COMPLETED
-        audiobook.audio_url = data.audio_url
-        audiobook.duration_seconds = data.duration_seconds or 0.0
-        if job:
-            job.status = AudiobookStatus.COMPLETED
-            job.completed_at = datetime.now(timezone.utc)
-
-        # Create or update single full audiobook chapter
-        chap_result = await db.execute(
-            select(Chapter).where(
-                Chapter.audiobook_id == audiobook.id,
-                Chapter.chapter_number == 1,
-            )
-        )
-        chapter = chap_result.scalar_one_or_none()
-
-        if chapter:
-            chapter.audio_url = data.audio_url
-            chapter.duration_seconds = data.duration_seconds or 0.0
-        else:
-            chapter = Chapter(
-                audiobook_id=audiobook.id,
-                title=audiobook.title,
-                chapter_number=1,
-                duration_seconds=data.duration_seconds or 0.0,
-                audio_url=data.audio_url,
-            )
-            db.add(chapter)
-
-    elif data.status == AudiobookStatus.FAILED:
-        audiobook.status = AudiobookStatus.FAILED
-        if job:
-            job.status = AudiobookStatus.FAILED
-            job.error_message = data.error or "Generation failed in TTS service"
-            job.completed_at = datetime.now(timezone.utc)
-
-    await db.commit()
-    await db.refresh(audiobook)
-    return {
-        "status": "ok",
-        "audiobook_id": str(audiobook.id),
-        "audiobook_status": audiobook.status,
-    }
+    raise HTTPException(410, "Legacy callbacks are disabled; use the durable generation worker")

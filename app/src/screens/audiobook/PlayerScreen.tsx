@@ -19,14 +19,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { HomeStackParamList } from '../../navigation/types';
-import { ShrutiHeader } from '../../components/ShrutiHeader';
+import { BanglaBookHeader } from '../../components/BanglaBookHeader';
 import { ActionItem, ActionPillBar } from '../../components/ActionPillBar';
 import { ModalBottomSheet } from '../../components/ModalBottomSheet';
-import { ShrutiButton } from '../../components/ShrutiButton';
+import { BanglaBookButton } from '../../components/BanglaBookButton';
 import { FIGMA_AUDIOBOOKS } from '../../data/mockAudiobooks';
 import { usePlayer } from '../../contexts/PlayerContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
+import { offline } from '../../storage/offline';
 
 type Nav = NativeStackNavigationProp<HomeStackParamList, 'Player'>;
 type Route = RouteProp<HomeStackParamList, 'Player'>;
@@ -43,20 +45,21 @@ export function PlayerScreen() {
     play,
     pause,
     seek,
+    positionSeconds,
+    durationSeconds,
+    setSpeed,
+    setSleep,
   } = usePlayer();
+  const { user } = useAuth();
 
   const audiobookId = route.params?.audiobookId ?? 'pather-panchali';
   const audiobook = activeAudiobook ?? (FIGMA_AUDIOBOOKS.find((b) => b.id === audiobookId) ?? FIGMA_AUDIOBOOKS[0]);
 
   const [playbackSpeed, setPlaybackSpeed] = useState('1.0x');
-  const [sleepTimer, setSleepTimer] = useState('30m');
+  const [sleepTimer, setSleepTimer] = useState('Off');
   const [settingsModalVisible, setSettingsModalVisible] = useState(false);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [isOfflineSaved, setIsOfflineSaved] = useState(false);
-
-  // Playback position state
-  const [positionSeconds, setPositionSeconds] = useState(1458); // 24:18
-  const durationSeconds = 2530; // 42:10
 
   const formatTime = (secs: number) => {
     const m = Math.floor(secs / 60);
@@ -65,8 +68,8 @@ export function PlayerScreen() {
   };
 
   const currentChapter = chapters[currentChapterIndex] ?? {
-    chapter_number: 4,
-    title: isEnglish ? 'Nischindipur' : 'নিশ্চিন্দিপুর',
+    chapter_number: 1,
+    title: isEnglish ? 'Chapter 1' : 'অধ্যায় ১',
   };
 
   const handleTogglePlay = async () => {
@@ -78,16 +81,44 @@ export function PlayerScreen() {
   };
 
   const handleRewind = () => {
-    setPositionSeconds((prev) => Math.max(0, prev - 15));
+    seek(Math.max(0, positionSeconds - 15));
   };
 
   const handleForward = () => {
-    setPositionSeconds((prev) => Math.min(durationSeconds, prev + 15));
+    seek(Math.min(durationSeconds, positionSeconds + 15));
   };
 
   const handleProgressBarPress = (evt: any) => {
-    const newSecs = Math.min(durationSeconds, Math.max(0, positionSeconds + 60));
-    setPositionSeconds(newSecs);
+    seek(Math.min(durationSeconds, Math.max(0, positionSeconds + 30)));
+  };
+
+  const handleSpeedSelect = (s: string) => {
+    setPlaybackSpeed(s);
+    const num = parseFloat(s);
+    if (!isNaN(num)) setSpeed(num);
+  };
+
+  const handleSleepSelect = (tStr: string) => {
+    setSleepTimer(tStr);
+    const mins = parseInt(tStr, 10);
+    setSleep(isNaN(mins) ? 0 : mins);
+  };
+
+  const handleToggleOffline = async () => {
+    if (!user?.id) return;
+    try {
+      if (isOfflineSaved) {
+        await offline.remove(audiobook.id, user.id);
+        setIsOfflineSaved(false);
+        Alert.alert(isEnglish ? 'Offline' : 'অফলাইন', isEnglish ? 'Removed from offline storage.' : 'অফলাইন থেকে মুছে ফেলা হয়েছে।');
+      } else {
+        await offline.download(audiobook, user.id);
+        setIsOfflineSaved(true);
+        Alert.alert(isEnglish ? 'Downloaded' : 'ডাউনলোডেড', isEnglish ? 'Audiobook downloaded for offline listening.' : 'অডিওবুকটি অফলাইনে সংরক্ষিত হয়েছে।');
+      }
+    } catch (e: any) {
+      Alert.alert(isEnglish ? 'Error' : 'ত্রুটি', e.message || 'Offline operation failed');
+    }
   };
 
   const actionItems: ActionItem[] = [
@@ -123,21 +154,13 @@ export function PlayerScreen() {
         ? isEnglish ? 'Downloaded' : 'ডাউনলোডেড'
         : isEnglish ? 'Offline' : 'অফলাইন',
       active: isOfflineSaved,
-      onPress: () => {
-        setIsOfflineSaved((prev) => !prev);
-        Alert.alert(
-          isEnglish ? 'Offline Cache' : 'অফলাইন',
-          isEnglish
-            ? 'Audiobook saved for offline listening.'
-            : 'অডিওবুকটি অ্যাপের ভেতরে অফলাইনে সংরক্ষিত হয়েছে।'
-        );
-      },
+      onPress: handleToggleOffline,
     },
   ];
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <ShrutiHeader
+      <BanglaBookHeader
         title={t('playerNowPlaying')}
         subtitle={audiobook.title}
         alignCenter
@@ -254,7 +277,7 @@ export function PlayerScreen() {
               return (
                 <Pressable
                   key={s}
-                  onPress={() => setPlaybackSpeed(s)}
+                  onPress={() => handleSpeedSelect(s)}
                   style={[
                     styles.settingChip,
                     isSelected ? styles.chipSelected : styles.chipUnselected,
@@ -276,12 +299,12 @@ export function PlayerScreen() {
           {/* Sleep Timer Section */}
           <Text style={styles.settingsLabel}>Sleep timer</Text>
           <View style={styles.chipsRow}>
-            {['15m', '30m', '45m', 'Chapter end'].map((t) => {
+            {['Off', '15m', '30m', '60m'].map((t) => {
               const isSelected = sleepTimer === t;
               return (
                 <Pressable
                   key={t}
-                  onPress={() => setSleepTimer(t)}
+                  onPress={() => handleSleepSelect(t)}
                   style={[
                     styles.settingChip,
                     isSelected ? styles.chipSelected : styles.chipUnselected,
@@ -301,7 +324,7 @@ export function PlayerScreen() {
           </View>
 
           {/* Save Button */}
-          <ShrutiButton
+          <BanglaBookButton
             label="সংরক্ষণ"
             onPress={() => setSettingsModalVisible(false)}
             variant="primary"

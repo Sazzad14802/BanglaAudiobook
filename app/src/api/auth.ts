@@ -7,9 +7,12 @@ import { LoginRequest, RegisterRequest, TokenResponse } from '../types/auth';
 import { User } from '../types/auth';
 
 export const authApi = {
+  logout() { return apiClient.post('/auth/logout'); },
   register(data: RegisterRequest): Promise<User> {
     const payload = {
       username: data.username?.trim(),
+      account_type: data.account_type || 'listener',
+      full_name: data.full_name || '',
       email: data.email.trim().toLowerCase(),
       password: data.password,
     };

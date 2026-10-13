@@ -17,14 +17,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { ExploreStackParamList } from '../../navigation/types';
-import { ShrutiHeader } from '../../components/ShrutiHeader';
+import { BanglaBookHeader } from '../../components/BanglaBookHeader';
 import { AudiobookCard } from '../../components/AudiobookCard';
 import { ModalBottomSheet } from '../../components/ModalBottomSheet';
-import { ShrutiButton } from '../../components/ShrutiButton';
+import { BanglaBookButton } from '../../components/BanglaBookButton';
 import { FIGMA_AUDIOBOOKS } from '../../data/mockAudiobooks';
 import { usePlayer } from '../../contexts/PlayerContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
+import { apiClient } from '../../api/client';
 
 type Nav = NativeStackNavigationProp<ExploreStackParamList, 'SearchResults'>;
 
@@ -53,6 +54,37 @@ export function SearchResultsScreen() {
     (b) => b.id === 'shesher-kobita' || b.id === 'gitanjali'
   );
 
+  const [liveResults, setLiveResults] = useState<any[]>([]);
+
+  React.useEffect(() => {
+    let active = true;
+    const fetchResults = async () => {
+      try {
+        const lang = selectedFilters.bn && !selectedFilters.en ? 'bn' : (!selectedFilters.bn && selectedFilters.en ? 'en' : '');
+        const tier = selectedFilters.free && !selectedFilters.premium ? 'FREE' : (!selectedFilters.free && selectedFilters.premium ? 'PREMIUM' : '');
+        let url = `/audiobooks?q=${encodeURIComponent(query)}`;
+        if (lang) url += `&language=${lang}`;
+        if (tier) url += `&access_tier=${tier}`;
+        const res = await apiClient.get<any>(url).catch(() => null);
+        if (active && res?.items && res.items.length > 0) {
+          setLiveResults(res.items);
+          return;
+        }
+      } catch {}
+      if (active) {
+        const qLower = query.toLowerCase();
+        const matched = FIGMA_AUDIOBOOKS.filter(
+          (b) => b.title.toLowerCase().includes(qLower) || (b.author || '').toLowerCase().includes(qLower)
+        );
+        setLiveResults(matched.length > 0 ? matched : rabindranathBooks);
+      }
+    };
+    fetchResults();
+    return () => { active = false; };
+  }, [query, selectedFilters]);
+
+  const displayedBooks = liveResults.length > 0 ? liveResults : rabindranathBooks;
+
   const toggleFilter = (key: string) => {
     setSelectedFilters((prev) => ({ ...prev, [key]: !prev[key] }));
   };
@@ -68,7 +100,7 @@ export function SearchResultsScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <ShrutiHeader
+      <BanglaBookHeader
         title={t('searchResultsTitle')}
         subtitle={t('searchResultsSub')}
         onBack={() => nav.goBack()}
@@ -114,7 +146,7 @@ export function SearchResultsScreen() {
 
         {/* Search Results List */}
         <View style={styles.resultsList}>
-          {rabindranathBooks.map((book) => (
+          {displayedBooks.map((book) => (
             <AudiobookCard
               key={book.id}
               audiobook={book}
@@ -249,7 +281,7 @@ export function SearchResultsScreen() {
           </View>
 
           {/* Apply CTA Button */}
-          <ShrutiButton
+          <BanglaBookButton
             label={t('btnViewResults')}
             onPress={() => setFilterModalVisible(false)}
             variant="primary"

@@ -14,6 +14,9 @@ export interface Audiobook {
   description: string | null;
   genre?: string | null;
   access_type?: 'FREE' | 'PREMIUM';
+  access_tier?: 'free' | 'premium';
+  channel_id?: string;
+  publication_status?: string;
   cover_image_url: string | null;
   source_file_url?: string | null;
   audio_url?: string | null;
@@ -34,6 +37,9 @@ export interface AudiobookCreate {
   description?: string;
   language: string;
   visibility: AudiobookVisibility;
+  genre?: string;
+  access_tier?: string;
+  channel_id?: string;
 }
 
 export interface AudiobookUpdate {
@@ -42,6 +48,9 @@ export interface AudiobookUpdate {
   description?: string;
   language?: string;
   cover_image_url?: string;
+  genre?: string;
+  access_tier?: string;
+  channel_id?: string;
 }
 
 export interface AudiobookVisibilityUpdate {

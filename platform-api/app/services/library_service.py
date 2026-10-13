@@ -12,7 +12,8 @@ from sqlalchemy.orm import selectinload
 from app.models.audiobook import Audiobook, AudiobookStatus, AudiobookVisibility
 from app.models.library import LibraryItem
 from app.models.user import User
-from app.services.audiobook_service import get_audiobook_raw
+from app.services.audiobook_service import get_audiobook_raw, get_audiobook_for_user
+from app.services.policy import public_conditions
 
 
 async def add_to_library(
@@ -28,7 +29,7 @@ async def add_to_library(
       (Private audiobooks cannot be added to other users' libraries).
     - Prevents duplicate entries (raises 409 Conflict).
     """
-    audiobook = await get_audiobook_raw(db, audiobook_id)
+    audiobook = await get_audiobook_for_user(db, audiobook_id, user)
     if not audiobook:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -115,13 +116,7 @@ async def get_user_library(
     # Join with Audiobook to apply visibility check
     # Owner can see their private books in their library;
     # Non-owners can only see books that are still PUBLIC and COMPLETED
-    visible_filter = (
-        (Audiobook.owner_id == user.id)
-        | (
-            (Audiobook.visibility == AudiobookVisibility.PUBLIC)
-            & (Audiobook.status == AudiobookStatus.COMPLETED)
-        )
-    )
+    visible_filter = ((Audiobook.owner_id == user.id) & (Audiobook.publication_status != "deleted")) | public_conditions()
 
     count_query = (
         select(func.count())

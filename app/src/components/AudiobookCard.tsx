@@ -21,7 +21,7 @@ interface AudiobookCardProps {
 }
 
 export function AudiobookCard({ audiobook, onPress, onPlayPress }: AudiobookCardProps) {
-  const isPremium = audiobook.access_type === 'PREMIUM';
+  const isPremium = audiobook.access_tier === 'premium' || audiobook.access_type === 'PREMIUM';
   const progressText = audiobook.progress_percent ? ` · ${audiobook.progress_percent}%` : '';
   const statusLabel = isPremium ? 'Premium' : `Free${progressText}`;
 

@@ -1,6 +1,6 @@
 /**
  * EditorialHeroCard — Featured audiobook card matching Figma Plates 3 & 4.
- * Features background artwork, SHRUTI EDITOR'S PICK pill, and dark overlay.
+ * Features background artwork, BANGLA BOOK EDITOR'S PICK pill, and dark overlay.
  */
 
 import React from 'react';
@@ -45,7 +45,7 @@ export function EditorialHeroCard({
       >
         {/* Top Tag */}
         <View style={styles.topBadgeContainer}>
-          <TagBadge label="SHRUTI EDITOR'S PICK" variant="editorial" />
+          <TagBadge label="BANGLA BOOK EDITOR'S PICK" variant="editorial" />
         </View>
 
         {/* Bottom Dark Card Overlay */}

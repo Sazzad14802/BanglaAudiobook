@@ -3,6 +3,8 @@ Test configuration, fixtures, and database isolation.
 Uses an in-memory async SQLite engine with foreign keys enabled.
 """
 
+import os
+os.environ["DEBUG"] = "false"
 from collections.abc import AsyncGenerator
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -77,11 +79,12 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
 
 
 @pytest.fixture
-async def owner_tokens(client: AsyncClient) -> dict:
+async def owner_tokens(client: AsyncClient, db_session: AsyncSession) -> dict:
     """Register and log in an owner user."""
     reg = await client.post(
         "/api/v1/auth/register",
         json={
+            "account_type": "publisher",
             "username": "owneruser",
             "email": "owner@example.com",
             "password": "Password123!",
@@ -89,9 +92,14 @@ async def owner_tokens(client: AsyncClient) -> dict:
     )
     assert reg.status_code == 201
 
+    from app.models import User
+    import uuid
+    owner = await db_session.get(User, uuid.UUID(reg.json()["id"]))
+    owner.publisher_status = "active"
+    await db_session.commit()
     login = await client.post(
         "/api/v1/auth/login",
-        json={"username_or_email": "owner@example.com", "password": "Password123!"},
+        json={"account_type": "publisher", "username_or_email": "owner@example.com", "password": "Password123!"},
     )
     assert login.status_code == 200
     token = login.json()["access_token"]

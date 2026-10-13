@@ -5,7 +5,7 @@ Library router: personal audiobook collections and bookmarks.
 import uuid
 from fastapi import APIRouter, Query, status
 
-from app.api.deps import CurrentUserDep, DatabaseDep
+from app.api.deps import MemberDep, DatabaseDep
 from app.schemas.library import LibraryItemRead, LibraryListResponse
 from app.services import library_service
 
@@ -19,7 +19,7 @@ router = APIRouter()
 )
 async def get_my_library(
     db: DatabaseDep,
-    current_user: CurrentUserDep,
+    current_user: MemberDep,
     page: int = Query(default=1, ge=1, description="Page number"),
     size: int = Query(default=20, ge=1, le=100, description="Items per page"),
 ) -> LibraryListResponse:
@@ -48,7 +48,7 @@ async def get_my_library(
 async def add_to_library(
     audiobook_id: uuid.UUID,
     db: DatabaseDep,
-    current_user: CurrentUserDep,
+    current_user: MemberDep,
 ) -> LibraryItemRead:
     """
     Add a public, completed audiobook to the user's personal library.
@@ -71,7 +71,7 @@ async def add_to_library(
 async def remove_from_library(
     audiobook_id: uuid.UUID,
     db: DatabaseDep,
-    current_user: CurrentUserDep,
+    current_user: MemberDep,
 ):
     """Remove an audiobook from the authenticated user's personal library."""
     await library_service.remove_from_library(

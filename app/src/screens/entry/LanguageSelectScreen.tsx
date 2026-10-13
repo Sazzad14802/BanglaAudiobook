@@ -12,8 +12,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ShrutiHeader } from '../../components/ShrutiHeader';
-import { ShrutiButton } from '../../components/ShrutiButton';
+import { BanglaBookHeader } from '../../components/BanglaBookHeader';
+import { BanglaBookButton } from '../../components/BanglaBookButton';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { AppLanguage } from '../../storage/languageStorage';
@@ -78,7 +78,7 @@ export function LanguageSelectScreen({ onBack, onContinue }: LanguageSelectScree
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <ShrutiHeader
+      <BanglaBookHeader
         title={t('langSelectTitle')}
         subtitle={t('langSelectSub')}
         onBack={onBack}
@@ -127,7 +127,7 @@ export function LanguageSelectScreen({ onBack, onContinue }: LanguageSelectScree
 
         {/* CTA Button */}
         <View style={styles.buttonWrapper}>
-          <ShrutiButton
+          <BanglaBookButton
             label={t('btnContinue')}
             onPress={handleContinue}
             variant="primary"

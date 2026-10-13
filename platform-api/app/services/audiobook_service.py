@@ -13,6 +13,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.audiobook import Audiobook, AudiobookStatus, AudiobookVisibility
 from app.models.user import User
 from app.schemas.audiobook import AudiobookCreate, AudiobookUpdate
+from app.services.policy import public_conditions, publishing
+from app.models.platform import Channel
+
+async def validate_channel(db, user, channel_id):
+    if channel_id:
+        channel = await db.get(Channel, channel_id)
+        if not channel or channel.owner_id != user.id:
+            raise HTTPException(403, "Channel must belong to the publisher")
 
 
 async def create_audiobook(
@@ -21,6 +29,13 @@ async def create_audiobook(
     data: AudiobookCreate,
 ) -> Audiobook:
     """Create a new audiobook record owned by the current user."""
+    if user.account_type == "admin":
+        raise HTTPException(403, "Administrators cannot create audiobooks")
+    if user.account_type == "publisher":
+        publishing(user)
+    if data.visibility == AudiobookVisibility.PUBLIC or data.channel_id or data.access_tier == "premium":
+        publishing(user)
+    await validate_channel(db, user, data.channel_id)
     audiobook = Audiobook(
         owner_id=user.id,
         title=data.title.strip(),
@@ -29,6 +44,8 @@ async def create_audiobook(
         language=data.language.strip().lower(),
         visibility=data.visibility,
         status=AudiobookStatus.PENDING,
+        genre=data.genre, channel_id=data.channel_id, access_tier=data.access_tier,
+        publication_status="published" if data.visibility == AudiobookVisibility.PUBLIC else "draft",
     )
     db.add(audiobook)
     await db.commit()
@@ -52,20 +69,19 @@ async def get_audiobook_for_user(
     )
     audiobook = result.scalar_one_or_none()
 
-    if not audiobook:
+    if not audiobook or (audiobook.publication_status == "deleted" and not (user and user.account_type == "admin")):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Audiobook not found",
         )
 
     # If requester is the owner, allow access
-    if user and audiobook.owner_id == user.id:
+    if user and (audiobook.owner_id == user.id or user.account_type == "admin"):
         return audiobook
 
     # For non-owners: must be strictly PUBLIC and COMPLETED
     if (
-        audiobook.visibility == AudiobookVisibility.PUBLIC
-        and audiobook.status == AudiobookStatus.COMPLETED
+        await db.scalar(select(Audiobook.id).where(Audiobook.id == audiobook.id, public_conditions()))
     ):
         return audiobook
 
@@ -82,7 +98,7 @@ async def get_audiobook_raw(
 ) -> Optional[Audiobook]:
     """Internal helper to retrieve audiobook without authorization filtering."""
     result = await db.execute(
-        select(Audiobook).where(Audiobook.id == audiobook_id)
+        select(Audiobook).where(Audiobook.id == audiobook_id, Audiobook.publication_status != "deleted")
     )
     return result.scalar_one_or_none()
 
@@ -94,6 +110,11 @@ async def get_public_audiobooks(
     language: Optional[str] = None,
     author: Optional[str] = None,
     status_filter: Optional[AudiobookStatus] = None,
+    q: Optional[str] = None,
+    genre: Optional[str] = None,
+    publisher: Optional[uuid.UUID] = None,
+    channel: Optional[uuid.UUID] = None,
+    access_tier: Optional[str] = None,
 ) -> tuple[list[Audiobook], int, int]:
     """
     Public audiobook discovery endpoint.
@@ -104,10 +125,17 @@ async def get_public_audiobooks(
     size = min(max(1, size), 100)
 
     # Base query: strictly PUBLIC and COMPLETED
-    conditions = [
-        Audiobook.visibility == AudiobookVisibility.PUBLIC,
-        Audiobook.status == AudiobookStatus.COMPLETED,
-    ]
+    conditions = [public_conditions()]
+    if q:
+        conditions.append(Audiobook.title.ilike(f"%{q}%"))
+    if genre:
+        conditions.append(Audiobook.genre == genre)
+    if publisher:
+        conditions.append(Audiobook.owner_id == publisher)
+    if channel:
+        conditions.append(Audiobook.channel_id == channel)
+    if access_tier:
+        conditions.append(Audiobook.access_tier == access_tier)
 
     if language:
         conditions.append(Audiobook.language == language.strip().lower())
@@ -147,7 +175,7 @@ async def get_user_audiobooks(
     page = max(1, page)
     size = min(max(1, size), 100)
 
-    conditions = [Audiobook.owner_id == user.id]
+    conditions = [Audiobook.owner_id == user.id, Audiobook.publication_status != "deleted"]
 
     count_query = select(func.count()).select_from(Audiobook).where(*conditions)
     total_result = await db.execute(count_query)
@@ -197,6 +225,14 @@ async def update_audiobook(
         audiobook.language = data.language.strip().lower()
     if data.cover_image_url is not None:
         audiobook.cover_image_url = data.cover_image_url.strip()
+    if user.account_type == "publisher":
+        publishing(user)
+    if data.channel_id or data.access_tier == "premium":
+        publishing(user)
+    await validate_channel(db, user, data.channel_id)
+    for key in ("genre", "channel_id", "access_tier"):
+        if key in data.model_fields_set:
+            setattr(audiobook, key, getattr(data, key))
 
     await db.commit()
     await db.refresh(audiobook)
@@ -226,7 +262,12 @@ async def update_visibility(
             detail="Only the audiobook owner can change its visibility",
         )
 
+    if new_visibility == AudiobookVisibility.PUBLIC:
+        publishing(user)
+        if audiobook.moderated or audiobook.status != AudiobookStatus.COMPLETED:
+            raise HTTPException(409, "Only completed, unrestricted audiobooks can be published")
     audiobook.visibility = new_visibility
+    audiobook.publication_status = "published" if new_visibility == AudiobookVisibility.PUBLIC else "draft"
     await db.commit()
     await db.refresh(audiobook)
     return audiobook
@@ -251,6 +292,13 @@ async def delete_audiobook(
             detail="Only the audiobook owner can delete it",
         )
 
-    await db.delete(audiobook)
+    # Preserve accounting, report and playback references; hide the content immediately.
+    from app.models import GenerationJob
+    from sqlalchemy import update
+    audiobook.visibility = AudiobookVisibility.PRIVATE
+    audiobook.publication_status = "deleted"
+    await db.execute(update(GenerationJob).where(GenerationJob.audiobook_id == audiobook_id,
+        GenerationJob.status.in_([AudiobookStatus.PENDING, AudiobookStatus.PROCESSING])).values(
+        cancelled=True, lease_token=None, status=AudiobookStatus.FAILED))
     await db.commit()
     return True

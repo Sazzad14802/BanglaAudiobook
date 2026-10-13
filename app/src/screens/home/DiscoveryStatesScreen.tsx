@@ -14,8 +14,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useNavigation } from '@react-navigation/native';
-import { ShrutiHeader } from '../../components/ShrutiHeader';
-import { ShrutiButton } from '../../components/ShrutiButton';
+import { BanglaBookHeader } from '../../components/BanglaBookHeader';
+import { BanglaBookButton } from '../../components/BanglaBookButton';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
 import { useLanguage } from '../../contexts/LanguageContext';
 
@@ -34,7 +34,7 @@ export function DiscoveryStatesScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <ShrutiHeader
+      <BanglaBookHeader
         title={t('discoveryTitle')}
         subtitle={t('discoverySub')}
         onBack={() => nav.goBack()}
@@ -70,7 +70,7 @@ export function DiscoveryStatesScreen() {
 
         {/* Retry Button */}
         <View style={styles.buttonWrapper}>
-          <ShrutiButton
+          <BanglaBookButton
             label={t('btnRetry')}
             onPress={handleRetry}
             variant="primary"

@@ -18,3 +18,9 @@ class UserRead(UserBase):
     id: uuid.UUID
     created_at: datetime
     updated_at: datetime
+    account_type: str
+    publisher_status: str
+    suspended: bool
+    full_name: str | None = None
+    premium_until: datetime | None = None
+    subscription_cancelled: bool = False
