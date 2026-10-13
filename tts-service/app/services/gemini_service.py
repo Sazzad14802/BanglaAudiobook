@@ -118,18 +118,34 @@ class GeminiService:
                 elif pdf_bytes.startswith(b"\xff\xd8"):
                     mime_type = "image/jpeg"
 
-                response = client.models.generate_content(
-                    model=settings.GEMINI_OCR_MODEL,
-                    contents=[
-                        types.Part.from_bytes(
-                            data=pdf_bytes,
-                            mime_type=mime_type,
-                        ),
-                        prompt,
-                    ],
-                )
+                candidate_ocr_models = [
+                    settings.GEMINI_OCR_MODEL,
+                    "gemini-3-flash-preview",
+                    "gemini-3.1-flash-lite",
+                    "gemini-3.8-flash",
+                ]
+                extracted_text = ""
+                for ocr_model in candidate_ocr_models:
+                    try:
+                        logger.info("Executing Gemini OCR with model '%s' (size: %d bytes)...", ocr_model, len(pdf_bytes))
+                        response = client.models.generate_content(
+                            model=ocr_model,
+                            contents=[
+                                types.Part.from_bytes(
+                                    data=pdf_bytes,
+                                    mime_type=mime_type,
+                                ),
+                                prompt,
+                            ],
+                        )
+                        text_val = (response.text or "").strip()
+                        if text_val:
+                            extracted_text = text_val
+                            break
+                    except Exception as model_err:
+                        logger.warning("Gemini OCR failed for model '%s': %s", ocr_model, model_err)
+                        continue
 
-                extracted_text = (response.text or "").strip()
                 if extracted_text:
                     logger.info("Gemini OCR succeeded: extracted %d characters.", len(extracted_text))
                     from app.services.pdf_service import pdf_service
@@ -200,8 +216,9 @@ class GeminiService:
         # Models that support audio output modalities
         candidate_models = [
             settings.GEMINI_TTS_MODEL,
-            "gemini-2.0-flash",
-            "gemini-2.5-flash-preview-tts",
+            "gemini-3.8-flash-tts",
+            "gemini-3.8-flash-lite-tts",
+            "gemini-3.1-flash-tts-preview",
         ]
 
         prompt = (

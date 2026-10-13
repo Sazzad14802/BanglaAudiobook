@@ -12,8 +12,8 @@ class Settings(BaseSettings):
     
     # Gemini Configurations
     GEMINI_API_KEY: str = ""
-    GEMINI_OCR_MODEL: str = "gemini-2.5-flash"
-    GEMINI_TTS_MODEL: str = "gemini-2.0-flash"
+    GEMINI_OCR_MODEL: str = "gemini-3-flash-preview"
+    GEMINI_TTS_MODEL: str = "gemini-3.8-flash-tts"
     GEMINI_VOICE: str = "Puck"
     TTS_PROVIDER: str = "gemini"  # "gemini", "edge", "vits", "xtts"
 
