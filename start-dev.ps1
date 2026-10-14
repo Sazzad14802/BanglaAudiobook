@@ -43,15 +43,19 @@ if (-not $BackendOnly) {
 
         # 5. Start Expo Mobile App
         Write-Host "[5/5] Starting React Native Expo App..." -ForegroundColor Green
-        $wifiIp = (Get-NetIPAddress -AddressFamily IPv4 -InterfaceAlias 'Wi-Fi*' -ErrorAction SilentlyContinue).IPAddress
-        if (-not $wifiIp) {
-            $wifiIp = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notmatch '^(169\.254|127\.)' } | Select-Object -First 1).IPAddress
+        if ($NoTunnel) {
+            $wifiIp = (Get-NetIPAddress -AddressFamily IPv4 -InterfaceAlias 'Wi-Fi*' -ErrorAction SilentlyContinue).IPAddress
+            if (-not $wifiIp) {
+                $wifiIp = (Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { $_.IPAddress -notmatch '^(169\.254|127\.)' } | Select-Object -First 1).IPAddress
+            }
+            if ($wifiIp) {
+                Write-Host "Bound Expo packager to LAN IP: $wifiIp" -ForegroundColor Cyan
+            }
+            $mobileCmd = "Set-Location '$RootDir\app'; if ('$wifiIp') { `$env:REACT_NATIVE_PACKAGER_HOSTNAME = '$wifiIp' }; `$host.UI.RawUI.WindowTitle = 'BanglaBook Mobile'; Write-Host 'Running Expo Mobile App on LAN ($wifiIp)...' -ForegroundColor Green; npx.cmd expo start --go"
+        } else {
+            Write-Host "Using Cloud Tunnel for global mobile connectivity..." -ForegroundColor Cyan
+            $mobileCmd = "Set-Location '$RootDir\app'; Remove-Item env:REACT_NATIVE_PACKAGER_HOSTNAME -ErrorAction SilentlyContinue; `$host.UI.RawUI.WindowTitle = 'BanglaBook Mobile'; Write-Host 'Running Expo Mobile App with Tunnel...' -ForegroundColor Green; npx.cmd expo start --go --tunnel"
         }
-        if ($wifiIp) {
-            Write-Host "Bound Expo packager to LAN IP: $wifiIp" -ForegroundColor Cyan
-        }
-        $tunnelArg = if ($NoTunnel) { "" } else { "--tunnel" }
-        $mobileCmd = "Set-Location '$RootDir\app'; if ('$wifiIp') { `$env:REACT_NATIVE_PACKAGER_HOSTNAME = '$wifiIp' }; `$host.UI.RawUI.WindowTitle = 'BanglaBook Mobile'; Write-Host 'Running Expo Mobile App with Tunnel...' -ForegroundColor Green; npx.cmd expo start -c $tunnelArg"
         Start-Process powershell -ArgumentList "-NoExit", "-Command", $mobileCmd
     }
 }

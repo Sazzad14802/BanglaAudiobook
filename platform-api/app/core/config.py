@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     ENVIRONMENT: str = "development"
     MOCK_PAYMENTS_ENABLED: bool = False
-    TTS_SERVICE_KEY: str = ""
+    TTS_SERVICE_KEY: str = "banglabook-secure-tts-internal-key-2026"
     TTS_GENERATE_URL: str = "http://localhost:8001/generate"
     TTS_EXTRACT_URL: str = "http://localhost:8001/extract-page"
     GEMINI_API_KEY: str = ""

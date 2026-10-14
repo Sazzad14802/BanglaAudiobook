@@ -198,23 +198,87 @@ export const apiClient = {
   },
 
   /**
-   * Upload a file using multipart/form-data.
-   * The Content-Type header must NOT be set manually (boundary is computed).
+   * Upload a file using multipart/form-data via XMLHttpRequest.
+   * Modern Expo fetch throws "Unsupported FormDataPart implementation" when encountering
+   * native React Native file descriptors ({ uri, name, type }).
+   * XMLHttpRequest delegates directly to native Android/iOS networking and avoids this bug.
    */
   async uploadFile<T>(path: string, formData: FormData, authenticated = true): Promise<T> {
     const token = authenticated ? await authStorage.getToken() : null;
-    const headers: Record<string, string> = {
-      Accept: 'application/json',
-      'bypass-tunnel-reminder': 'true',
-    };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+    const candidates = getApiBaseUrlCandidates();
+    const currentActive = getActiveApiBaseUrl();
+    const orderedCandidates = [
+      currentActive,
+      ...candidates.filter((c) => c !== currentActive),
+    ];
+
+    let lastError: any = null;
+
+    for (let i = 0; i < orderedCandidates.length; i++) {
+      const baseUrl = orderedCandidates[i];
+      const fullUrl = `${baseUrl}/api/v1${path}`;
+
+      try {
+        console.log(`[Upload Request] POST ${fullUrl}`);
+        const result = await new Promise<T>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', fullUrl, true);
+          xhr.timeout = 120000;
+          xhr.setRequestHeader('Accept', 'application/json');
+          xhr.setRequestHeader('bypass-tunnel-reminder', 'true');
+          if (token) {
+            xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+          }
+
+          xhr.onload = () => {
+            try {
+              const text = xhr.responseText;
+              const data = text ? JSON.parse(text) : {};
+              if (xhr.status >= 200 && xhr.status < 300) {
+                resolve(data as T);
+              } else {
+                reject(new ApiError(xhr.status, data?.detail || `Upload failed (${xhr.status})`, data));
+              }
+            } catch {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                resolve({} as T);
+              } else {
+                reject(new ApiError(xhr.status, `Upload failed with status ${xhr.status}`));
+              }
+            }
+          };
+
+          xhr.onerror = () => {
+            reject(new ApiError(0, 'Network request failed'));
+          };
+
+          xhr.ontimeout = () => {
+            reject(new ApiError(0, `Upload timed out. Server at ${baseUrl} did not respond.`));
+          };
+
+          xhr.send(formData);
+        });
+
+        if (baseUrl !== currentActive) {
+          setActiveApiBaseUrl(baseUrl);
+        }
+        return result;
+      } catch (err: any) {
+        lastError = err;
+        if (err instanceof ApiError && err.status > 0) {
+          throw err;
+        }
+        console.warn(`[Failover] Upload base URL ${baseUrl} unreachable. Trying next candidate...`);
+      }
     }
 
-    return executeWithFailover<T>(path, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
+    if (lastError instanceof ApiError) {
+      throw lastError;
+    }
+    const message = lastError?.message || 'Network request failed';
+    throw new ApiError(
+      0,
+      `সার্ভারের সাথে সংযোগ করা যায়নি (${message})। Wi-Fi বা ইন্টারনেট কানেকশন নিশ্চিত করুন।`,
+    );
   },
 };
