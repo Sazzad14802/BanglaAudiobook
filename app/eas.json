@@ -9,6 +9,10 @@
     },
     "preview": {
       "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "http://192.168.0.118:8000",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://wfuqaoleflgfjbvabuqv.supabase.co"
+      },
       "android": {
         "buildType": "apk"
       }

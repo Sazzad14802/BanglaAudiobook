@@ -1,29 +1,31 @@
 {
   "expo": {
-    "name": "BanglaBook",
-    "slug": "banglabook",
+    "name": "BornoVerse",
+    "slug": "bornoverse",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.audiobookplatform.app"
+      "bundleIdentifier": "com.bornoverse.app"
     },
     "android": {
-      "package": "com.audiobookplatform.app",
+      "package": "com.bornoverse.app",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
-        "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+      ],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -31,15 +33,57 @@
     },
     "plugins": [
       "expo-secure-store",
-      "expo-audio",
+      [
+        "expo-audio",
+        {
+          "recordAudioAndroid": false,
+          "enableBackgroundPlayback": true
+        }
+      ],
       "expo-asset",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#13AD81",
+          "defaultChannel": "default"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "BornoVerse needs access to your photos to choose an audiobook cover.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 220,
+          "resizeMode": "contain",
+          "backgroundColor": "#FFFFFF"
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
     ],
+    "owner": "aristonix",
+    "scheme": "bornoverse",
+    "primaryColor": "#0C7F5F",
+    "backgroundColor": "#F5FAF7",
     "extra": {
       "eas": {
-        "projectId": "a19ff242-7b6c-47f3-aa85-35e81d7eccfc"
+        "projectId": "d0dd81fc-1b43-4291-b7c9-88eb10cd1b52"
       }
-    },
-    "owner": "aristonix"
+    }
   }
 }
