@@ -3,10 +3,10 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    APP_NAME: str = "Bangla AudioBook - TTS Service"
+    APP_NAME: str = "BornoVerse TTS Service"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
-    TTS_SERVICE_KEY: str = "banglabook-secure-tts-internal-key-2026"
+    TTS_SERVICE_KEY: str = "bornoverse-secure-tts-internal-key-2026"
     HOST: str = "0.0.0.0"
     PORT: int = 8001
     

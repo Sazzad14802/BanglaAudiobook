@@ -1,1 +1,1 @@
-"""Bangla AudioBook - AI TTS Service."""
+"""BornoVerse - AI TTS Service."""

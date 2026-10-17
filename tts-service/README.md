@@ -1,6 +1,6 @@
-# Bangla AudioBook — TTS Service
+# BornoVerse — TTS Service
 
-The **TTS Service** is the dedicated AI speech synthesis service for the Bangla AudioBook platform. It handles text processing and speech synthesis (TTS) for transforming documents into multi-speaker audiobooks.
+The **TTS Service** is the dedicated AI speech synthesis service for the BornoVerse platform. It handles text processing and speech synthesis (TTS) for transforming documents into multi-speaker audiobooks.
 
 ---
 
@@ -99,7 +99,7 @@ Check status and output path of an ongoing generation job.
 
 ## 🔗 Integrating with Platform API
 
-In `audiobook-platform/platform-api/.env`, configure:
+In `bornoverse/platform-api/.env`, configure:
 ```env
 MODEL_RUNNER_DISPATCHER="http"
 ```

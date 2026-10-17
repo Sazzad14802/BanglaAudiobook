@@ -277,7 +277,7 @@ class GeminiService:
         1. Attempts Gemini API audio generation if configured.
         2. Falls back to high-fidelity Neural Bengali TTS (Edge TTS).
         3. Falls back to Google Text-to-Speech (gTTS).
-        4. Produces a 100% compliant WAV file readable by wave.open().
+        4. Raises if every engine fails; otherwise writes a WAV readable by wave.open().
         """
         if not output_filename:
             output_filename = f"tts_{uuid.uuid4().hex[:8]}.wav"
@@ -340,10 +340,10 @@ class GeminiService:
             except Exception as exc:
                 logger.warning("gTTS fallback failed: %s; generating emergency audio...", exc)
 
-        # 4. Emergency synthetic WAV fallback to prevent worker crash
+        # 4. Every engine failed: surface the error so the platform worker retries
+        #    instead of storing silence as if it were narrated audio.
         if not wav_bytes:
-            logger.warning("Generating clean placeholder audio...")
-            wav_bytes = self._generate_silent_wav(duration_sec=3.0)
+            raise RuntimeError("All speech synthesis engines failed for this text")
 
         # Write WAV to disk
         output_path.write_bytes(wav_bytes)
