@@ -1,5 +1,5 @@
 @echo off
-title BanglaBook Launcher
+title BornoVerse Launcher
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0start-dev.ps1" %*
 if errorlevel 1 (
     echo.

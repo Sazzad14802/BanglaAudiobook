@@ -1,10 +1,10 @@
 <#
 .SYNOPSIS
-  Stops all running BanglaBook development servers and frees occupied ports.
+  Stops all running BornoVerse development servers and frees occupied ports.
 #>
 
 Write-Host "=========================================" -ForegroundColor Cyan
-Write-Host "  🛑 Stopping all BanglaBook services..." -ForegroundColor Yellow
+Write-Host "  🛑 Stopping all BornoVerse services..." -ForegroundColor Yellow
 Write-Host "=========================================" -ForegroundColor Cyan
 
 # Ports to clear: 8000 (API), 8001 (TTS/OCR), 5173 (Admin Vite), 8081 (Expo Metro)
@@ -32,4 +32,4 @@ if ($workers) {
     }
 }
 
-Write-Host "`n✅ All BanglaBook services have been stopped and ports freed.`n" -ForegroundColor Green
+Write-Host "`n✅ All BornoVerse services have been stopped and ports freed.`n" -ForegroundColor Green

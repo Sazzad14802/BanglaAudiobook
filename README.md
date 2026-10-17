@@ -1,12 +1,13 @@
-# Bangla AudioBook Platform
+# BornoVerse Platform
 
-A mono-repo containing the core services of the **Bangla AudioBook** community-driven audiobook platform.
+A mono-repo containing the core services of the **BornoVerse** community-driven audiobook platform.
 
 ```
-audiobook-platform/
-├── app/              # Expo (React Native + TypeScript) mobile app — runs via Expo Go
-├── platform-api/     # FastAPI Platform API backend
-└── tts-service/      # FastAPI AI TTS Service (Bangla VITS & XTTS v2 TTS synthesis)
+BornoVerse/
+├── app/              # Expo (React Native + TypeScript) mobile app
+├── admin/            # React + Vite administration portal
+├── platform-api/     # FastAPI Platform API + durable generation worker
+└── tts-service/      # FastAPI OCR & TTS service (Gemini today; replaceable)
 ```
 
 ---
@@ -14,22 +15,21 @@ audiobook-platform/
 ## Architecture
 
 ```
-React Native App (Expo Go)
-       │
-       ▼
-Platform API (FastAPI) [Port: 8000]
-       │
-       ▼ (HTTP / Webhook Dispatch)
-TTS Service (FastAPI) [Port: 8001]
-   ├── Bangla VITS (EMTIAZZ/bangladeshi-bangla-tts-vits)
-   └── Coqui XTTS v2 (multilingual voice cloning & expressive speech)
-       │
-       ▼ (output audio)
-Object Storage / CDN
-       │
-       ▼ (audio_url)
-React Native Player (expo-audio)
+Mobile app (Expo) ── REST ──► Platform API (FastAPI, :8000) ──► PostgreSQL
+      ▲   ▲                        │  ▲
+      │   └── Expo Push ◄──────────┤  └── SSLCommerz (checkout + validation)
+      │                            │  └── Supabase Auth (Google identity)
+      │                     Generation worker (python -m app.worker)
+      │                            │  page by page
+      │                            ▼
+      │                  TTS/OCR service (FastAPI, :8001)
+      │                    Gemini OCR → Gemini TTS (Edge / gTTS fallback)
+      └── signed, expiring media URLs for chapter audio (local disk storage)
 ```
+
+PDF → audiobook: the owner uploads a PDF and starts generation; the worker claims
+jobs from a fair database queue, sends each page to `/extract-page` (OCR) and
+`/generate` (TTS), stores one chapter per page, and notifies the owner when done.
 
 ---
 
@@ -182,7 +182,7 @@ pytest
 
 ## 3. `tts-service/` — AI TTS Service (FastAPI + TTS)
 
-Dedicated AI speech synthesis service for Bangla audiobooks.
+Dedicated AI speech synthesis service for BornoVerses.
 
 ### Tech Stack & Models
 

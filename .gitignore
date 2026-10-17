@@ -95,3 +95,9 @@ uploads/
 *.db
 *.sqlite*
 
+
+# ── Local guideline documents (kept out of the repository) ───────────────────
+*_GUIDELINES.md
+
+# Firebase config (per-developer)
+google-services.json

@@ -1,4 +1,4 @@
-# 🚀 BanglaBook Complete Cloud Deployment Guideline
+# 🚀 BornoVerse Complete Cloud Deployment Guideline
 > **সম্পূর্ণ বিনামূল্যে (100% Free Tier) ক্লাউড হোস্টিং ও প্রোডাকশন ডিপ্লয়মেন্ট নির্দেশিকা**  
 > এই নির্দেশিকা অনুসরণ করে আপনি কোনো লোকাল সার্ভার চালানো ছাড়াই ২৪/৭ লাইভ ব্যাকএন্ড, অ্যাডমিন প্যানেল, ক্লাউড ডাটাবেস এবং মোবাইল অ্যাপ চালাতে পারবেন।
 
@@ -82,19 +82,19 @@ flowchart TD
 আমাদের প্রোডাকশন ব্যাকএন্ডের জন্য একটি ক্লাউড ডাটাবেস প্রয়োজন যাতে সার্ভার রিস্টার্ট হলেও ডেটা ডিলিট না হয়।
 
 1. [https://neon.tech](https://neon.tech)-এ গিয়ে একটি ফ্রি অ্যাকাউন্ট খুলুন (GitHub বা Google দিয়ে)।
-2. **"Create Project"**-এ ক্লিক করে প্রজেক্টের নাম দিন (যেমন: `banglabook-db`)।
+2. **"Create Project"**-এ ক্লিক করে প্রজেক্টের নাম দিন (যেমন: `bornoverse-db`)।
 3. প্রজেক্ট তৈরি হলে ড্যাশবোর্ডে **"Connection Details"** দেখতে পাবেন।
 4. ড্রপডাউন থেকে **`AsyncPG`** বা **`Parameters only`** সিলেক্ট করে কানেকশন স্ট্রিংটি কপি করুন:
    ```text
-   postgresql+asyncpg://username:password@ep-cool-sample.ap-southeast-1.aws.neon.tech/banglabook?sslmode=require
+   postgresql+asyncpg://username:password@ep-cool-sample.ap-southeast-1.aws.neon.tech/bornoverse?sslmode=require
    ```
 5. **লোকাল কম্পিউটার থেকে ডাটাবেস মাইগ্রেশন রান করা (One-time):**  
    আপনার কম্পিউটারের `platform-api` ফোল্ডারে গিয়ে টার্মিনালে নিচের কমান্ডটি চালান (নতুন ক্লাউড ডিবিতে টেবিল ও ডামি ডেটা তৈরি করার জন্য):
    ```powershell
-   cd "d:\Academic Projects\3-2\CSE3200SystemProject\BanglaAudiobook\platform-api"
+   cd "d:\Academic Projects\3-2\CSE3200SystemProject\BornoVerse\platform-api"
    
    # ১. ক্লাউড ডিবি এনভায়রনমেন্ট সেট করুন
-   $env:DATABASE_URL = "postgresql+asyncpg://username:password@ep-cool-sample.ap-southeast-1.aws.neon.tech/banglabook?sslmode=require"
+   $env:DATABASE_URL = "postgresql+asyncpg://username:password@ep-cool-sample.ap-southeast-1.aws.neon.tech/bornoverse?sslmode=require"
    
    # ২. টেবিলগুলো তৈরি করুন
    .\.venv\Scripts\python.exe -m alembic upgrade head
@@ -119,9 +119,9 @@ git push origin main
 
 ### ২.২ Render-এ Web Service তৈরি করা
 1. [https://render.com](https://render.com)-এ লগইন করে **"New +"** বাটনে ক্লিক করে **"Web Service"** সিলেক্ট করুন।
-2. আপনার GitHub রিপোজিটরিটি (`BanglaAudiobook`) কানেক্ট করুন।
+2. আপনার GitHub রিপোজিটরিটি (`BornoVerse`) কানেক্ট করুন।
 3. ফর্মটিতে নিচের তথ্যগুলো দিন:
-   * **Name:** `banglabook-api`
+   * **Name:** `bornoverse-api`
    * **Region:** `Singapore (Southeast Asia)` *(বাংলাদেশ থেকে সবচেয়ে কম ল্যাটেন্সি পাওয়ার জন্য)*
    * **Root Directory:** `platform-api`
    * **Runtime:** `Python 3`
@@ -140,20 +140,20 @@ git push origin main
 
 | Variable Key | Value (মান) | বিবরণ |
 | :--- | :--- | :--- |
-| `DATABASE_URL` | `postgresql+asyncpg://user:pass@ep-xyz.neon.tech/banglabook?sslmode=require` | ধাপ ১ এ Neon থেকে পাওয়া কানেকশন URL |
+| `DATABASE_URL` | `postgresql+asyncpg://user:pass@ep-xyz.neon.tech/bornoverse?sslmode=require` | ধাপ ১ এ Neon থেকে পাওয়া কানেকশন URL |
 | `ENVIRONMENT` | `staging` | প্রোডাকশন চেক বাইপাস রাখার জন্য |
-| `JWT_SECRET_KEY` | `banglabook-super-secure-production-jwt-token-key-2026` | টোকেন সিকিউরিটি কি (কমপক্ষে ৩২ ক্যারেক্টার) |
+| `JWT_SECRET_KEY` | `bornoverse-super-secure-production-jwt-token-key-2026` | টোকেন সিকিউরিটি কি (কমপক্ষে ৩২ ক্যারেক্টার) |
 | `GEMINI_API_KEY` | `<your-gemini-api-key>` | আপনার জেমিনি এআই এপিআই কি |
-| `TTS_SERVICE_KEY` | `banglabook-secure-tts-internal-key-2026` | ওয়ার্কার ও টিটিএস ইন্টারনাল অথ কি |
+| `TTS_SERVICE_KEY` | `bornoverse-secure-tts-internal-key-2026` | ওয়ার্কার ও টিটিএস ইন্টারনাল অথ কি |
 | `ALLOWED_ORIGINS` | `*` | সব ক্লায়েন্ট থেকে রিকোয়েস্ট অনুমোদনের জন্য |
 | `MOCK_PAYMENTS_ENABLED`| `false` | বিকাশ গেটওয়ে ট্রানজেকশন সিমুলেশন |
 
 4. সবশেষে নিচে **"Create Web Service"** বাটনে ক্লিক করুন!
 5. Render ৩–৫ মিনিটের মধ্যে ডিপ্লয় সম্পন্ন করবে এবং আপনাকে লাইভ URL দিবে:
    ```text
-   https://banglabook-api.onrender.com
+   https://bornoverse-api.onrender.com
    ```
-   *(ব্রাউজারে `https://banglabook-api.onrender.com/docs` ওপেন করে Swagger API ড্যাশবোর্ড সরাসরি লাইভ দেখতে পাবেন!)*
+   *(ব্রাউজারে `https://bornoverse-api.onrender.com/docs` ওপেন করে Swagger API ড্যাশবোর্ড সরাসরি লাইভ দেখতে পাবেন!)*
 
 ---
 
@@ -169,13 +169,13 @@ git push origin main
    * **Root Directory:** `admin` *(Edit বাটনে ক্লিক করে `admin` ফোল্ডার সিলেক্ট করুন)*
    * **Build Command:** `npm run build`
    * **Output Directory:** `dist`
-5. **[admin/vercel.json](file:///d:/Academic%20Projects/3-2/CSE3200SystemProject/BanglaAudiobook/admin/vercel.json)** ফাইলে আপনার রেন্ডার ব্যাকএন্ডের URL আপডেট করে দিন:
+5. **[admin/vercel.json](file:///d:/Academic%20Projects/3-2/CSE3200SystemProject/BornoVerse/admin/vercel.json)** ফাইলে আপনার রেন্ডার ব্যাকএন্ডের URL আপডেট করে দিন:
    ```json
    {
      "rewrites": [
        {
          "source": "/api/(.*)",
-         "destination": "https://banglabook-api.onrender.com/api/$1"
+         "destination": "https://bornoverse-api.onrender.com/api/$1"
        },
        {
          "source": "/(.*)",
@@ -186,7 +186,7 @@ git push origin main
    ```
 6. **"Deploy"** বাটনে ক্লিক করুন। ১ মিনিটের মধ্যে অ্যাডমিন লাইভ হয়ে যাবে:
    ```text
-   https://banglabook-admin.vercel.app
+   https://bornoverse-admin.vercel.app
    ```
 
 ---
@@ -195,10 +195,10 @@ git push origin main
 
 এখন আপনার মোবাইল অ্যাপটিকে ক্লাউড সার্ভারের সাথে কানেক্ট করতে হবে:
 
-1. **মোবাইল কনফিগারেশন আপডেট ([app/.env](file:///d:/Academic%20Projects/3-2/CSE3200SystemProject/BanglaAudiobook/app/.env)):**  
+1. **মোবাইল কনফিগারেশন আপডেট ([app/.env](file:///d:/Academic%20Projects/3-2/CSE3200SystemProject/BornoVerse/app/.env)):**  
    `app` ফোল্ডারে `.env` ফাইল খুলুন (না থাকলে তৈরি করুন) এবং লাইভ ক্লাউড ব্যাকএন্ড বসিয়ে দিন:
    ```env
-   EXPO_PUBLIC_API_URL=https://banglabook-api.onrender.com
+   EXPO_PUBLIC_API_URL=https://bornoverse-api.onrender.com
    ```
 2. **স্ট্যান্ডঅ্যালোন APK বিল্ড করা:**  
    প্রজেক্টের রুট ফোল্ডার থেকে আমাদের তৈরি করা স্ক্রিপ্টটি চালান:
@@ -210,7 +210,7 @@ git push origin main
    cd app
    npx eas-cli build -p android --profile preview
    ```
-3. বিল্ড শেষ হলে টার্মিনালে আসা ডাউনলোড লিংক বা QR কোড থেকে **BanglaBook.apk** আপনার ফোনে ইনস্টল করে নিন। 
+3. বিল্ড শেষ হলে টার্মিনালে আসা ডাউনলোড লিংক বা QR কোড থেকে **BornoVerse.apk** আপনার ফোনে ইনস্টল করে নিন। 
 4. **ম্যাজিক:** আপনার পিসি বন্ধ থাকলেও ফোন থেকে যেকোনো ওয়াইফাই বা মোবাইল ইন্টারনেট দিয়ে অ্যাপটি সবসময় কাজ করবে!
 
 ---
@@ -225,8 +225,8 @@ Render-এর ফ্রি টায়ারে একটানা ১৫ মি�
 
 1. [https://cron-job.org](https://cron-job.org)-এ গিয়ে একটি ফ্রি অ্যাকাউন্ট খুলুন।
 2. **"Create Cronjob"** বাটনে ক্লিক করুন:
-   * **Title:** `BanglaBook Health Ping`
-   * **URL:** `https://banglabook-api.onrender.com/health`
+   * **Title:** `BornoVerse Health Ping`
+   * **URL:** `https://bornoverse-api.onrender.com/health`
    * **Schedule:** প্রতি `10 minutes` সিলেক্ট করুন।
 3. **"Create"** বাটনে ক্লিক করুন।
 4. **ফলাফল:** এখন প্রতি ১০ মিনিট পর পর Render-এর হেলথ এণ্ডপয়েন্টে পিং যাবে এবং আপনার ক্লাউড সার্ভার দিন-রাত ২৪ ঘণ্টা সম্পূর্ণ জাগ্রত ও ইনস্ট্যান্ট ফাস্ট থাকবে!
@@ -237,15 +237,15 @@ Render-এর ফ্রি টায়ারে একটানা ১৫ মি�
 
 ```dotenv
 # ==============================================================================
-# BanglaBook Cloud Environment Configuration
+# BornoVerse Cloud Environment Configuration
 # ==============================================================================
 
 # Backend (FastAPI / Render)
 ENVIRONMENT=staging
 HOST=0.0.0.0
 PORT=8000
-DATABASE_URL=postgresql+asyncpg://<username>:<password>@<neon-host>/banglabook?sslmode=require
-JWT_SECRET_KEY=banglabook-super-secure-production-jwt-token-key-2026
+DATABASE_URL=postgresql+asyncpg://<username>:<password>@<neon-host>/bornoverse?sslmode=require
+JWT_SECRET_KEY=bornoverse-super-secure-production-jwt-token-key-2026
 JWT_ALGORITHM=HS256
 JWT_ACCESS_TOKEN_EXPIRE_MINUTES=1440
 ALLOWED_ORIGINS=*
@@ -253,12 +253,12 @@ MOCK_PAYMENTS_ENABLED=false
 
 # Gemini AI Service
 GEMINI_API_KEY=<your-gemini-api-key>
-TTS_SERVICE_KEY=banglabook-secure-tts-internal-key-2026
+TTS_SERVICE_KEY=bornoverse-secure-tts-internal-key-2026
 TTS_EXTRACT_URL=http://localhost:8001/extract-page
 TTS_GENERATE_URL=http://localhost:8001/generate
 
 # Mobile Client (Expo / EAS)
-EXPO_PUBLIC_API_URL=https://banglabook-api.onrender.com
+EXPO_PUBLIC_API_URL=https://bornoverse-api.onrender.com
 ```
 
 ---
@@ -277,7 +277,7 @@ EXPO_PUBLIC_API_URL=https://banglabook-api.onrender.com
 * **সমাধান:** প্রথমবার কোনো নতুন PDF আপলোড করলে ব্যাকগ্রাউন্ডে Gemini AI টেক্সট এক্সট্র্যাক্ট করে অডিও সিন্থেসিস করতে ৩০–৬০ সেকেন্ড সময় নেয়। প্রসেস শেষ হলে চ্যাপ্টারের স্ট্যাটাস স্বয়ংক্রিয়ভাবে `READY` হয়ে যাবে এবং প্লেয়ারে অডিও বাজবে।
 
 ### ৪. অ্যাডমিন প্যানেলে লগইন করার পর CORS Error দিচ্ছে?
-* **সমাধান:** Render-এর Environment Variables-এ `ALLOWED_ORIGINS` ফিল্ডে `*` দিন অথবা আপনার ভেরসেল ফ্রন্টএন্ড URL যোগ করুন (যেমন: `https://banglabook-admin.vercel.app`)।
+* **সমাধান:** Render-এর Environment Variables-এ `ALLOWED_ORIGINS` ফিল্ডে `*` দিন অথবা আপনার ভেরসেল ফ্রন্টএন্ড URL যোগ করুন (যেমন: `https://bornoverse-admin.vercel.app`)।
 
 ---
 

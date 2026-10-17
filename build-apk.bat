@@ -1,10 +1,10 @@
 @echo off
-title BanglaBook - Build Android APK
+title BornoVerse - Build Android APK
 echo ====================================================
-echo   BanglaBook: Building Standalone Android APK (EAS)
+echo   BornoVerse: Building Standalone Android APK (EAS)
 echo ====================================================
 echo.
-echo Project: @aristonix/banglabook
+echo Project: @aristonix/bornoverse
 echo Target : Android APK (Direct installable file)
 echo Profile: preview
 echo.

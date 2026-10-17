@@ -1,3 +1,3 @@
 @echo off
-title BanglaBook Cleanup
+title BornoVerse Cleanup
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0stop-dev.ps1"
