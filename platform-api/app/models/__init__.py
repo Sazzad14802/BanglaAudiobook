@@ -11,6 +11,7 @@ from app.models.generation_job import GenerationJob
 from app.models.library import LibraryItem
 from app.models.playback import PlaybackProgress
 from app.models.platform import *
+from app.models.notification import Notification, PushToken
 
 __all__ = [
     "Base",
@@ -22,4 +23,6 @@ __all__ = [
     "GenerationJob",
     "LibraryItem",
     "PlaybackProgress",
+    "Notification",
+    "PushToken",
 ]

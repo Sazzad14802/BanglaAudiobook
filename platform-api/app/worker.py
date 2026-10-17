@@ -12,6 +12,7 @@ from app.core.config import settings
 from app.core.database import async_session_maker
 from app.models import GenerationJob, Audiobook, AudiobookStatus, Chapter, User
 from app.services.scheduler import claim
+from app.services.notification_service import deliver, notify
 from app.services.policy import configuration
 from app.services.storage_service import get_storage_service
 
@@ -94,7 +95,11 @@ async def process(id, token):
                 book.status = job.status = AudiobookStatus.COMPLETED
                 job.completed_at = datetime.now(timezone.utc)
                 job.lease_token = None
+                notice = notify(db, job.owner_id, "generation.completed",
+                                "অডিওবুক প্রস্তুত 🎧", f"«{book.title}» শোনার জন্য প্রস্তুত।",
+                                audiobook_id=book.id, job_id=job.id)
                 await db.commit()
+                await deliver(db, [notice])
     except asyncio.CancelledError:
         log.info("Generation cancelled or lease lost: %s", id)
     except Exception:
@@ -109,7 +114,13 @@ async def process(id, token):
                 job.lease_token = None
                 book = await db.get(Audiobook, job.audiobook_id)
                 book.status = job.status
+                notice = None
+                if job.status == AudiobookStatus.FAILED:
+                    notice = notify(db, job.owner_id, "generation.failed",
+                                    "অডিওবুক তৈরি ব্যর্থ", f"«{book.title}» তৈরি করা যায়নি। আবার চেষ্টা করুন।",
+                                    audiobook_id=book.id, job_id=job.id)
                 await db.commit()
+                await deliver(db, [notice])
     finally:
         heartbeat.cancel()
         if pending:

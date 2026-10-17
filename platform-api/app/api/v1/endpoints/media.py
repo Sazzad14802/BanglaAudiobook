@@ -2,6 +2,7 @@
 from datetime import datetime, timezone, timedelta
 from uuid import UUID
 from pathlib import Path
+import re
 import uuid
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
@@ -25,17 +26,24 @@ async def offline_license(id: UUID, db: DatabaseDep, user: CurrentUserDep):
     if not premium(user) or book.status != AudiobookStatus.COMPLETED:
         raise HTTPException(403, "Offline listening requires a premium listener and completed content")
     expires = min(utc(user.premium_until), datetime.now(timezone.utc) + timedelta(hours=24))
-    result = await play(id, db, user)
+    result = await play(id, db, user, None)
     return result | {"expires_at": expires.isoformat(), "user_id": str(user.id)}
 
 @router.post("/audiobooks/{id}/play")
-async def play(id: UUID, db: DatabaseDep, user: CurrentUserDep):
+async def play(id: UUID, db: DatabaseDep, user: CurrentUserDep, session_id: UUID | None = None):
+    """Issue signed chapter URLs. Passing the current session_id renews grants
+    (e.g. on chapter change) without restarting the listening-time counter."""
     book = await get_audiobook_for_user(db, id, user)
     await authorize_audio(db, book, user)
     chapters = (await db.scalars(select(Chapter).where(Chapter.audiobook_id == id).order_by(Chapter.chapter_number))).all()
-    session = PlaySession(user_id=user.id, audiobook_id=id,
-        eligible=premium(user) and book.access_tier == "premium" and book.owner_id != user.id)
-    db.add(session)
+    session = None
+    if session_id:
+        session = await db.scalar(select(PlaySession).where(PlaySession.id == session_id,
+            PlaySession.user_id == user.id, PlaySession.audiobook_id == id))
+    if not session:
+        session = PlaySession(user_id=user.id, audiobook_id=id,
+            eligible=premium(user) and book.access_tier == "premium" and book.owner_id != user.id)
+        db.add(session)
     if user.account_type == "admin":
         from app.services.policy import audit
         audit(db, user, "audiobook.investigate", id)
@@ -66,6 +74,16 @@ async def stream(book_id: UUID, chapter_id: UUID, grant: str, db: DatabaseDep):
     if not path:
         raise HTTPException(404, "Audio file unavailable")
     return FileResponse(path, headers={"Cache-Control": "private, no-store"})
+
+@router.get("/covers/{name}")
+async def cover(name: str):
+    # Strict file-name whitelist prevents path traversal; covers are public artwork.
+    if not re.fullmatch(r"[0-9a-f\-]{36}\.(jpg|png|webp)", name):
+        raise HTTPException(404, "Cover not found")
+    path = await get_storage_service().get_file_path(f"/uploads/covers/{name}")
+    if not path:
+        raise HTTPException(404, "Cover not found")
+    return FileResponse(path, headers={"Cache-Control": "public, max-age=86400"})
 
 @router.post("/plays/{id}/heartbeat")
 async def heartbeat(id: UUID, data: HeartbeatInput, db: DatabaseDep, user: CurrentUserDep):

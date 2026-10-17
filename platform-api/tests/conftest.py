@@ -5,6 +5,12 @@ Uses an in-memory async SQLite engine with foreign keys enabled.
 
 import os
 os.environ["DEBUG"] = "false"
+# Tests never reach external services, whatever the developer's local .env says.
+os.environ["PUSH_NOTIFICATIONS_ENABLED"] = "false"
+os.environ["SSLCOMMERZ_STORE_ID"] = ""
+os.environ["SSLCOMMERZ_STORE_PASSWORD"] = ""
+os.environ["SUPABASE_URL"] = ""
+os.environ["SUPABASE_ANON_KEY"] = ""
 from collections.abc import AsyncGenerator
 import pytest
 from httpx import ASGITransport, AsyncClient

@@ -1,0 +1,133 @@
+{
+  "publisher": {
+    "email": "publisher@bornoverse.com",
+    "username": "bengal_heritage",
+    "full_name": "Bengal Heritage Press",
+    "channel": {
+      "name": "চিরায়ত বাংলা",
+      "description": "বাংলা সাহিত্যের কালজয়ী লেখা, কণ্ঠে শুনুন।"
+    }
+  },
+  "books": [
+    {
+      "title": "সোনার তরী ও অন্যান্য কবিতা",
+      "author": "রবীন্দ্রনাথ ঠাকুর",
+      "language": "bn",
+      "genre": "poetry",
+      "access_tier": "free",
+      "description": "রবীন্দ্রনাথ ঠাকুরের দুটি প্রিয় কবিতা — বর্ষার নদীতীরে একাকী কৃষকের ‘সোনার তরী’ আর শিশুদের প্রিয় ‘আমাদের ছোটো নদী’।",
+      "chapters": [
+        {
+          "title": "সোনার তরী",
+          "text": "সোনার তরী। রবীন্দ্রনাথ ঠাকুর।\n\nগগনে গরজে মেঘ, ঘন বরষা।\nকূলে একা বসে আছি, নাহি ভরসা।\nরাশি রাশি ভারা ভারা\nধান কাটা হল সারা,\nভরা নদী ক্ষুরধারা\nখরপরশা।\nকাটিতে কাটিতে ধান এল বরষা।\n\nএকখানি ছোটো খেত, আমি একেলা,\nচারি দিকে বাঁকা জল করিছে খেলা।\nপরপারে দেখি আঁকা\nতরুছায়ামসীমাখা\nগ্রামখানি মেঘে ঢাকা\nপ্রভাতবেলা—\nএ পারেতে ছোটো খেত, আমি একেলা।\n\nগান গেয়ে তরী বেয়ে কে আসে পারে,\nদেখে যেন মনে হয় চিনি উহারে।\nভরা পালে চলে যায়,\nকোনো দিকে নাহি চায়,\nঢেউগুলি নিরুপায়\nভাঙে দু-ধারে—\nদেখে যেন মনে হয় চিনি উহারে।\n\nওগো, তুমি কোথা যাও কোন্ বিদেশে,\nবারেক ভিড়াও তরী কূলেতে এসে।\nযেয়ো যেথা যেতে চাও,\nযারে খুশি তারে দাও,\nশুধু তুমি নিয়ে যাও\nক্ষণিক হেসে\nআমার সোনার ধান কূলেতে এসে।\n\nযত চাও তত লও তরণী-’পরে।\nআর আছে?— আর নাই, দিয়েছি ভরে।\nএতকাল নদীকূলে\nযাহা লয়ে ছিনু ভুলে\nসকলি দিলাম তুলে\nথরে বিথরে—\nএখন আমারে লহো করুণা করে।\n\nঠাঁই নাই, ঠাঁই নাই— ছোটো সে তরী\nআমারি সোনার ধানে গিয়েছে ভরি।\nশ্রাবণগগন ঘিরে\nঘন মেঘ ঘুরে ফিরে,\nশূন্য নদীর তীরে\nরহিনু পড়ি—\nযাহা ছিল নিয়ে গেল সোনার তরী।"
+        },
+        {
+          "title": "আমাদের ছোটো নদী",
+          "text": "আমাদের ছোটো নদী। রবীন্দ্রনাথ ঠাকুর।\n\nআমাদের ছোটো নদী চলে বাঁকে বাঁকে\nবৈশাখ মাসে তার হাঁটু জল থাকে।\nপার হয়ে যায় গোরু, পার হয় গাড়ি,\nদুই ধার উঁচু তার, ঢালু তার পাড়ি।\nচিক্ চিক্ করে বালি, কোথা নাই কাদা,\nএক ধারে কাশবন ফুলে ফুলে সাদা।\nকিচিমিচি করে সেথা শালিকের ঝাঁক,\nরাতে ওঠে থেকে থেকে শেয়ালের হাঁক।\n\nআর-পারে আমবন তালবন চলে,\nগাঁয়ের বামুন পাড়া তারি ছায়াতলে।\nতীরে তীরে ছেলে মেয়ে নাইবার কালে\nগামছায় জল ভরি গায়ে তারা ঢালে।\nসকালে বিকালে কভু নাওয়া হলে পরে\nআঁচল ছাঁকিয়া তারা ছোটো মাছ ধরে।\nবালি দিয়ে মাজে থালা, ঘটিগুলি মাজে,\nবধূরা কাপড় কেচে যায় গৃহকাজে।\n\nআষাঢ়ে বাদল নামে, নদী ভর ভর\nমাতিয়া ছুটিয়া চলে ধারা খরতর।\nমহাবেগে কলকল কোলাহল ওঠে,\nঘোলা জলে পাকগুলি ঘুরে ঘুরে ছোটে।\nদুই কূলে বনে বনে পড়ে যায় সাড়া,\nবরষার উৎসবে জেগে ওঠে পাড়া।"
+        }
+      ]
+    },
+    {
+      "title": "রূপসী বাংলার কবিতা",
+      "author": "জীবনানন্দ দাশ",
+      "language": "bn",
+      "genre": "poetry",
+      "access_tier": "premium",
+      "description": "নির্জনতম কবি জীবনানন্দ দাশের দুটি অমর কবিতা — ‘বনলতা সেন’ এবং বাংলার প্রকৃতিতে ফিরে আসার আকুতি ‘আবার আসিব ফিরে’।",
+      "chapters": [
+        {
+          "title": "বনলতা সেন",
+          "text": "বনলতা সেন। জীবনানন্দ দাশ।\n\nহাজার বছর ধরে আমি পথ হাঁটিতেছি পৃথিবীর পথে,\nসিংহল সমুদ্র থেকে নিশীথের অন্ধকারে মালয় সাগরে\nঅনেক ঘুরেছি আমি; বিম্বিসার অশোকের ধূসর জগতে\nসেখানে ছিলাম আমি; আরো দূর অন্ধকারে বিদর্ভ নগরে;\nআমি ক্লান্ত প্রাণ এক, চারিদিকে জীবনের সমুদ্র সফেন,\nআমারে দু-দণ্ড শান্তি দিয়েছিলো নাটোরের বনলতা সেন।\n\nচুল তার কবেকার অন্ধকার বিদিশার নিশা,\nমুখ তার শ্রাবস্তীর কারুকার্য; অতিদূর সমুদ্রের ’পর\nহাল ভেঙে যে নাবিক হারায়েছে দিশা\nসবুজ ঘাসের দেশ যখন সে চোখে দেখে দারুচিনি-দ্বীপের ভিতর,\nতেমনি দেখেছি তারে অন্ধকারে; বলেছে সে, ‘এতোদিন কোথায় ছিলেন?’\nপাখির নীড়ের মতো চোখ তুলে নাটোরের বনলতা সেন।\n\nসমস্ত দিনের শেষে শিশিরের শব্দের মতন\nসন্ধ্যা আসে; ডানার রৌদ্রের গন্ধ মুছে ফেলে চিল;\nপৃথিবীর সব রং নিভে গেলে পাণ্ডুলিপি করে আয়োজন\nতখন গল্পের তরে জোনাকির রঙে ঝিলমিল;\nসব পাখি ঘরে আসে— সব নদী— ফুরায় এ-জীবনের সব লেনদেন;\nথাকে শুধু অন্ধকার, মুখোমুখি বসিবার বনলতা সেন।"
+        },
+        {
+          "title": "আবার আসিব ফিরে",
+          "text": "আবার আসিব ফিরে। জীবনানন্দ দাশ।\n\nআবার আসিব ফিরে ধানসিঁড়িটির তীরে— এই বাংলায়\nহয়তো মানুষ নয়— হয়তো বা শঙ্খচিল শালিখের বেশে;\nহয়তো ভোরের কাক হয়ে এই কার্তিকের নবান্নের দেশে\nকুয়াশার বুকে ভেসে একদিন আসিব এ কাঁঠাল-ছায়ায়;\nহয়তো বা হাঁস হব— কিশোরীর— ঘুঙুর রহিবে লাল পায়,\nসারা দিন কেটে যাবে কলমীর গন্ধ ভরা জলে ভেসে ভেসে;\nআবার আসিব আমি বাংলার নদী মাঠ খেত ভালোবেসে\nজলাঙ্গীর ঢেউয়ে ভেজা বাংলার এ সবুজ করুণ ডাঙায়;\n\nহয়তো দেখিবে চেয়ে সুদর্শন উড়িতেছে সন্ধ্যার বাতাসে;\nহয়তো শুনিবে এক লক্ষ্মীপেঁচা ডাকিতেছে শিমুলের ডালে;\nহয়তো খইয়ের ধান ছড়াতেছে শিশু এক উঠানের ঘাসে;\nরূপসার ঘোলা জলে হয়তো কিশোর এক সাদা ছেঁড়া পালে\nডিঙা বায়;— রাঙা মেঘ সাঁতরায়ে অন্ধকারে আসিতেছে নীড়ে\nদেখিবে ধবল বক: আমারেই পাবে তুমি ইহাদের ভিড়ে।"
+        }
+      ]
+    },
+    {
+      "title": "আবোল তাবোল (নির্বাচিত)",
+      "author": "সুকুমার রায়",
+      "language": "bn",
+      "genre": "children",
+      "access_tier": "free",
+      "description": "সুকুমার রায়ের ননসেন্স ছড়ার সংকলন ‘আবোল তাবোল’ থেকে দুটি মজার ছড়া — ‘বাবুরাম সাপুড়ে’ ও ‘খিচুড়ি’।",
+      "chapters": [
+        {
+          "title": "বাবুরাম সাপুড়ে",
+          "text": "বাবুরাম সাপুড়ে। সুকুমার রায়।\n\nবাবুরাম সাপুড়ে,\nকোথা যাস্ বাপুরে?\nআয় বাবা দেখে যা,\nদুটো সাপ রেখে যা—\nযে সাপের চোখ নেই,\nশিং নেই নোখ নেই,\nছোটে না কি হাঁটে না,\nকাউকে যে কাটে না,\nকরে নাকো ফোঁস্ ফাঁস্,\nমারে নাকো ঢুঁশ্ ঢাঁশ্,\nনেই কোনো উৎপাত,\nখায় শুধু দুধ ভাত—\nসেই সাপ জ্যান্ত\nগোটা দুই আন্ তো!\nতেড়ে মেরে ডাণ্ডা\nকরে দিই ঠাণ্ডা।"
+        },
+        {
+          "title": "খিচুড়ি",
+          "text": "খিচুড়ি। সুকুমার রায়।\n\nহাঁস ছিল, সজারু, ব্যাকরণ মানি না,\nহয়ে গেল ‘হাঁসজারু’ কেমনে তা জানি না।\nবক কহে কচ্ছপে— ‘বাহবা কি ফুর্তি!\nঅতি খাসা আমাদের বকচ্ছপ মূর্তি।’\nটিয়ামুখো গিরগিটি মনে ভারি শঙ্কা—\nপোকা ছেড়ে শেষে কিগো খাবে কাঁচা লঙ্কা?\nছাগলের পেটে ছিল না জানি কি ফন্দি,\nচাপিল বিছার ঘাড়ে, ধড়ে মুড়ো সন্ধি!\nজিরাফের সাধ নাই মাঠে-ঘাটে ঘুরিতে,\nফড়িঙের ঢং ধরি সেও চায় উড়িতে।\nগরু বলে, ‘আমারেও ধরিল কি ও রোগে?\nমোর পিছে লাগে কেন হতভাগা মোরগে?’\nহাতিমির দশা দেখ— তিমি ভাবে জলে যাই,\nহাতি বলে, ‘এই বেলা জঙ্গলে চল ভাই।’\nসিংহের শিং নেই, এই তার কষ্ট—\nহরিণের সাথে মিলে শিং হল পষ্ট।"
+        }
+      ]
+    },
+    {
+      "title": "ঈশপের গল্প",
+      "author": "ঈশপ (বাংলা পুনর্কথন)",
+      "language": "bn",
+      "genre": "story",
+      "access_tier": "free",
+      "description": "আড়াই হাজার বছরের পুরোনো ঈশপের নীতিগল্প, শিশু-কিশোরদের জন্য সহজ বাংলায়। প্রতিটি গল্পের শেষে রয়েছে একটি শিক্ষা।",
+      "chapters": [
+        {
+          "title": "খরগোশ আর কচ্ছপ",
+          "text": "খরগোশ আর কচ্ছপ।\n\nএক বনে থাকত এক খরগোশ। নিজের দৌড়ের গতি নিয়ে তার ভারি অহংকার। একদিন সে ধীরগতির কচ্ছপকে দেখে হেসে বলল, ‘তুমি এত আস্তে হাঁটো যে সারা দিনেও কোথাও পৌঁছাতে পারো না।’\n\nকচ্ছপ শান্ত গলায় বলল, ‘বেশ, চলো তাহলে একটা দৌড় প্রতিযোগিতা হোক। দেখা যাক কে আগে পৌঁছায়।’\n\nবনের সব পশুপাখি জড়ো হলো। দৌড় শুরু হতেই খরগোশ চোখের পলকে অনেক দূর চলে গেল। পেছনে তাকিয়ে দেখল, কচ্ছপকে দেখাই যায় না। সে ভাবল, ‘এখনো অনেক সময় আছে, একটু জিরিয়ে নিই।’ গাছের ছায়ায় শুয়ে পড়তেই তার চোখে ঘুম নেমে এল।\n\nএদিকে কচ্ছপ থামল না। ধীরে ধীরে, এক পা এক পা করে সে এগিয়ে চলল। ঘুমন্ত খরগোশকে পেরিয়ে সে পৌঁছে গেল শেষ সীমানায়।\n\nঘুম ভেঙে খরগোশ ছুটে গিয়ে দেখে, কচ্ছপ আগেই জিতে বসে আছে। সবাই হাততালি দিচ্ছে।\n\nশিক্ষা: ধীর কিন্তু অবিরাম চেষ্টাই শেষ পর্যন্ত জয় এনে দেয়। অহংকার পতনের মূল।"
+        },
+        {
+          "title": "সিংহ আর ইঁদুর",
+          "text": "সিংহ আর ইঁদুর।\n\nএক দুপুরে বনের রাজা সিংহ গাছের নিচে ঘুমাচ্ছিল। একটা ছোট্ট ইঁদুর খেলতে খেলতে ভুল করে তার গায়ের ওপর দিয়ে দৌড়ে গেল। সিংহের ঘুম ভেঙে গেল। রেগে গিয়ে সে থাবা দিয়ে ইঁদুরটাকে চেপে ধরল।\n\nইঁদুর কাঁপতে কাঁপতে বলল, ‘মহারাজ, আমাকে মারবেন না। আমি ছোট্ট প্রাণী, আমাকে খেয়ে আপনার পেট ভরবে না। আজ আমাকে ছেড়ে দিলে একদিন হয়তো আমিও আপনার উপকার করতে পারব।’\n\nসিংহ হো হো করে হেসে উঠল। ‘তুই এতটুকু ইঁদুর, আমার কী উপকার করবি!’ তবু দয়া করে সে ইঁদুরটাকে ছেড়ে দিল।\n\nকিছুদিন পরে শিকারিদের পাতা জালে সিংহ আটকা পড়ল। যত ছটফট করে, জাল তত শক্ত হয়ে চেপে বসে। তার গর্জনে বন কেঁপে উঠল।\n\nসেই গর্জন শুনে ছুটে এল ইঁদুর। সে তার ধারালো দাঁত দিয়ে জালের দড়ি একটা একটা করে কাটতে লাগল। কিছুক্ষণের মধ্যেই সিংহ মুক্ত হয়ে গেল।\n\nসিংহ কৃতজ্ঞ গলায় বলল, ‘বন্ধু, সেদিন তোমাকে নিয়ে হেসেছিলাম। আজ বুঝলাম, ছোটরাও বড় কাজ করতে পারে।’\n\nশিক্ষা: কাউকে ছোট ভেবে অবহেলা করতে নেই। দয়ার প্রতিদান একদিন ফিরে আসে।"
+        },
+        {
+          "title": "রাখাল বালক আর বাঘ",
+          "text": "রাখাল বালক আর বাঘ।\n\nএক গ্রামের পাশে পাহাড়ের ঢালে এক রাখাল বালক প্রতিদিন ভেড়া চরাত। সারা দিন একা একা তার ভালো লাগত না। একদিন দুষ্টুমি করে সে চিৎকার করে উঠল, ‘বাঘ! বাঘ! বাঁচাও, বাঘ এসেছে!’\n\nগ্রামের লোকজন লাঠিসোটা নিয়ে ছুটে এল। এসে দেখে কোথাও বাঘ নেই, ছেলেটা হাসতে হাসতে গড়াগড়ি খাচ্ছে। লোকেরা বিরক্ত হয়ে ফিরে গেল।\n\nকয়েক দিন পর সে আবার একই কাজ করল। আবারও লোকজন ছুটে এল, আবারও দেখল সবই মিথ্যে। এবার তারা খুব রেগে গেল।\n\nতারপর একদিন সত্যি সত্যিই বন থেকে একটা বাঘ বেরিয়ে এল। ভয়ে কাঁপতে কাঁপতে ছেলেটা প্রাণপণে চিৎকার করল, ‘বাঘ! বাঘ! এবার সত্যিই বাঘ এসেছে!’\n\nকিন্তু গ্রামের কেউ আর তার কথা বিশ্বাস করল না। সবাই ভাবল, সে আবার মজা করছে। কেউ এল না। বাঘ তার অনেকগুলো ভেড়া নিয়ে চলে গেল।\n\nশিক্ষা: মিথ্যাবাদীর কথা সত্যি বললেও কেউ বিশ্বাস করে না।"
+        },
+        {
+          "title": "শিয়াল আর আঙুর",
+          "text": "শিয়াল আর আঙুর।\n\nএক গরমের দুপুরে এক ক্ষুধার্ত শিয়াল খাবারের খোঁজে ঘুরছিল। হঠাৎ সে দেখল, একটা বাগানে মাচার ওপর থোকা থোকা পাকা আঙুর ঝুলছে। রসে টসটস করছে আঙুরগুলো।\n\nশিয়ালের জিভে জল এসে গেল। সে লাফ দিয়ে আঙুর ধরতে চাইল, কিন্তু নাগাল পেল না। একটু পিছিয়ে গিয়ে জোরে দৌড়ে আবার লাফ দিল। এবারও পারল না।\n\nএভাবে বারবার চেষ্টা করে সে ক্লান্ত হয়ে পড়ল। শেষে হাঁপাতে হাঁপাতে মুখ ফিরিয়ে নিয়ে বলল, ‘ধুর! ওই আঙুর নিশ্চয়ই টক। ও আঙুর খেয়ে কী হবে!’ এই বলে সে চলে গেল।\n\nশিক্ষা: যা পাওয়া যায় না, অনেকে সেটাকেই তুচ্ছ বলে নিজেকে সান্ত্বনা দেয়।"
+        }
+      ]
+    },
+    {
+      "title": "Gitanjali (Selected Songs)",
+      "author": "Rabindranath Tagore",
+      "language": "en",
+      "genre": "poetry",
+      "access_tier": "free",
+      "description": "Two songs from Tagore's own English Gitanjali (1912), the collection that made him the first non-European Nobel laureate in Literature.",
+      "chapters": [
+        {
+          "title": "Song 1 — Thou hast made me endless",
+          "text": "Gitanjali, song one. By Rabindranath Tagore.\n\nThou hast made me endless, such is thy pleasure. This frail vessel thou emptiest again and again, and fillest it ever with fresh life.\n\nThis little flute of a reed thou hast carried over hills and dales, and hast breathed through it melodies eternally new.\n\nAt the immortal touch of thy hands my little heart loses its limits in joy and gives birth to utterance ineffable.\n\nThy infinite gifts come to me only on these very small hands of mine. Ages pass, and still thou pourest, and still there is room to fill."
+        },
+        {
+          "title": "Song 35 — Where the mind is without fear",
+          "text": "Gitanjali, song thirty-five. By Rabindranath Tagore.\n\nWhere the mind is without fear and the head is held high;\nWhere knowledge is free;\nWhere the world has not been broken up into fragments by narrow domestic walls;\nWhere words come out from the depth of truth;\nWhere tireless striving stretches its arms towards perfection;\nWhere the clear stream of reason has not lost its way into the dreary desert sand of dead habit;\nWhere the mind is led forward by thee into ever-widening thought and action—\nInto that heaven of freedom, my Father, let my country awake."
+        }
+      ]
+    },
+    {
+      "title": "Aesop's Fables",
+      "author": "Aesop",
+      "language": "en",
+      "genre": "children",
+      "access_tier": "premium",
+      "description": "Timeless fables retold in plain English, each ending with its moral.",
+      "chapters": [
+        {
+          "title": "The Ant and the Grasshopper",
+          "text": "The Ant and the Grasshopper.\n\nAll through the long summer, a grasshopper sang and danced in the sunny fields. Nearby, an ant worked from morning to night, carrying grain after grain to her nest.\n\n'Why work so hard on such a lovely day?' laughed the grasshopper. 'Come and sing with me.'\n\n'I am storing food for the winter,' said the ant, 'and you would be wise to do the same.' But the grasshopper only laughed and went on singing.\n\nThen winter came. The fields were covered in snow and there was nothing left to eat. The hungry grasshopper knocked at the ant's door and begged for a little food. The ant shared what she could, and the grasshopper never forgot the lesson.\n\nMoral: Work today to be ready for tomorrow."
+        },
+        {
+          "title": "The North Wind and the Sun",
+          "text": "The North Wind and the Sun.\n\nThe North Wind and the Sun were arguing about which of them was stronger. Just then a traveller came along the road, wrapped in a warm cloak.\n\n'Let us agree,' said the Sun, 'that whoever can make that man take off his cloak is the stronger.'\n\nThe North Wind went first. He blew a cold, fierce blast, but the harder he blew, the more tightly the traveller wrapped his cloak around himself. At last the Wind gave up.\n\nThen the Sun came out and shone warmly on the traveller. Soon the man felt so hot that he unfastened his cloak, and then took it off altogether and sat down in the shade.\n\nMoral: Kindness and gentle persuasion succeed where force fails."
+        },
+        {
+          "title": "The Crow and the Pitcher",
+          "text": "The Crow and the Pitcher.\n\nOn a hot, dry day, a thirsty crow found a pitcher with a little water at the very bottom. She pushed her beak in as far as it would go, but she could not reach the water.\n\nShe tried to tip the pitcher over, but it was too heavy. The crow did not give up. She looked around and saw some small pebbles on the ground.\n\nOne by one, she picked up the pebbles and dropped them into the pitcher. With every pebble the water rose a little higher, until at last it was near the top. The crow drank until her thirst was gone.\n\nMoral: Necessity is the mother of invention, and patience finds a way."
+        }
+      ]
+    }
+  ]
+}

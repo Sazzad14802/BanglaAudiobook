@@ -16,12 +16,12 @@ class Settings(BaseSettings):
     )
 
     # ── App ────────────────────────────────────────────────────────────────
-    APP_NAME: str = "Audiobook Platform API"
+    APP_NAME: str = "BornoVerse API"
     APP_VERSION: str = "0.1.0"
     DEBUG: bool = False
     ENVIRONMENT: str = "development"
     MOCK_PAYMENTS_ENABLED: bool = False
-    TTS_SERVICE_KEY: str = "banglabook-secure-tts-internal-key-2026"
+    TTS_SERVICE_KEY: str = "bornoverse-secure-tts-internal-key-2026"
     TTS_GENERATE_URL: str = "http://localhost:8001/generate"
     TTS_EXTRACT_URL: str = "http://localhost:8001/extract-page"
     GEMINI_API_KEY: str = ""
@@ -31,7 +31,23 @@ class Settings(BaseSettings):
     SMTP_USER: str = ""
     SMTP_PASSWORD: str = ""
     MAIL_FROM: str = ""
-    RECOVERY_URL: str = "banglabook://reset-password"
+    RECOVERY_URL: str = "bornoverse://reset-password"
+    # Send Expo push notifications for in-app notifications (disable in tests/offline dev).
+    PUSH_NOTIFICATIONS_ENABLED: bool = True
+
+    # ── Supabase (Google sign-in identity provider) ───────────────────────
+    SUPABASE_URL: str = ""
+    SUPABASE_ANON_KEY: str = ""
+
+    # ── Payments (SSLCommerz) ──────────────────────────────────────────────
+    SSLCOMMERZ_STORE_ID: str = ""
+    SSLCOMMERZ_STORE_PASSWORD: str = ""
+    SSLCOMMERZ_SANDBOX: bool = True
+    # Public base URL SSLCommerz and the phone browser use to reach this API
+    # (e.g. https://api.example.com). Empty = derive from the incoming request (LAN dev).
+    PUBLIC_API_BASE_URL: str = ""
+    # Schemes the app may ask to be redirected to after checkout (deep links only).
+    PAYMENT_RETURN_SCHEMES: str = "bornoverse,exp,exps"
 
     # ── Server ─────────────────────────────────────────────────────────────
     HOST: str = "0.0.0.0"

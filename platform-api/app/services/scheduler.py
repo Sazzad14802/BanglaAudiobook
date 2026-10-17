@@ -26,6 +26,11 @@ async def claim(db):
         from app.models import Audiobook
         book = await db.get(Audiobook, job.audiobook_id)
         book.status = job.status
+        if job.status == AudiobookStatus.FAILED:
+            from app.services.notification_service import notify
+            notify(db, job.owner_id, "generation.failed", "অডিওবুক তৈরি ব্যর্থ",
+                   f"«{book.title}» তৈরি করা যায়নি। আবার চেষ্টা করুন।",
+                   audiobook_id=book.id, job_id=job.id)
     await db.flush()
     busy = set((await db.scalars(select(GenerationJob.owner_id).where(
         GenerationJob.status == AudiobookStatus.PROCESSING, GenerationJob.cancelled.is_(False)))).all())

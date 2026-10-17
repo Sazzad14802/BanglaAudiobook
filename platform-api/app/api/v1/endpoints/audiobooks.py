@@ -275,6 +275,31 @@ async def upload_source_pdf(
     return AudiobookRead.model_validate(audiobook)
 
 
+# ── Cover Image Upload ────────────────────────────────────────────────────────
+
+@router.post(
+    "/{id}/cover",
+    response_model=AudiobookRead,
+    summary="Upload a cover image (Owner only)",
+)
+async def upload_cover(
+    id: uuid.UUID,
+    db: DatabaseDep,
+    current_user: CurrentUserDep,
+    file: UploadFile = File(..., description="JPEG, PNG or WebP cover image (max 5MB)"),
+) -> AudiobookRead:
+    """Replace the audiobook cover. Covers are public catalog artwork, not protected media."""
+    from fastapi import HTTPException
+    audiobook = await audiobook_service.get_audiobook_raw(db, id)
+    if not audiobook or audiobook.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Audiobook not found")
+    name = await get_storage_service().save_cover_image(file)
+    audiobook.cover_image_url = f"/api/v1/covers/{name}"
+    await db.commit()
+    await db.refresh(audiobook)
+    return AudiobookRead.model_validate(audiobook)
+
+
 # ── Generation Job Trigger & Status ───────────────────────────────────────────
 
 @router.post(

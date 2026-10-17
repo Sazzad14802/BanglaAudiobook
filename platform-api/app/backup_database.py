@@ -12,7 +12,7 @@ def main():
     if url.get_backend_name()!='postgresql':
         raise RuntimeError('PostgreSQL connection required')
     destination=Path('backups');destination.mkdir(exist_ok=True)
-    path=destination/f"banglabook-{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}.dump"
+    path=destination/f"bornoverse-{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}.dump"
     executable=shutil.which('pg_dump')
     if not executable:
         raise RuntimeError('Install PostgreSQL client tools and add pg_dump to PATH')

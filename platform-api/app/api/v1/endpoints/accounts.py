@@ -1,7 +1,7 @@
 from uuid import UUID
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
-from sqlalchemy import select, func
+from sqlalchemy import delete, select, func
 from app.api.deps import DatabaseDep, MemberDep, PublisherDep, ActivePublisherDep
 from app.models import User, Audiobook, PlaybackProgress
 from app.models.platform import (PublisherApplication, Channel, Plan, Order, Withdrawal, Ledger,
@@ -54,7 +54,9 @@ async def generation_retry(id: UUID, db: DatabaseDep, user: MemberDep):
     policy = await configuration(db)
     if row.status != AudiobookStatus.FAILED or row.cancelled or row.attempts >= policy["max_attempts"]:
         raise HTTPException(409, "Retry is unavailable for this request")
-    row.status, row.available_at = AudiobookStatus.PENDING, None
+    row.status, row.available_at, row.error_message = AudiobookStatus.PENDING, None, None
+    book = await db.get(Audiobook, row.audiobook_id)
+    book.status = AudiobookStatus.PENDING
     await db.commit()
     return record(row)
 
@@ -84,6 +86,11 @@ async def apply(db: DatabaseDep, user: PublisherDep, legal_name: str = Form(...,
     audit(db, user, "application.submit", row.id)
     await db.commit()
     return record(row)
+
+@router.get("/publisher/registration-fee")
+async def registration_fee(db: DatabaseDep, user: PublisherDep):
+    """The one-time publisher fee in BDT, as charged by POST /payments."""
+    return {"amount": str((await configuration(db))["publisher_fee"]), "currency": "BDT"}
 
 @router.get("/publisher/channels")
 async def channels(db: DatabaseDep, user: PublisherDep):
@@ -186,6 +193,14 @@ async def owned_playlist(db, id, user):
     if not row or row.user_id != user.id:
         raise HTTPException(404, "Playlist not found")
     return row
+
+@router.delete("/playlists/{id}")
+async def playlist_delete(id: UUID, db: DatabaseDep, user: MemberDep):
+    row = await owned_playlist(db, id, user)
+    await db.execute(delete(PlaylistBook).where(PlaylistBook.playlist_id == id))
+    await db.delete(row)
+    await db.commit()
+    return {"removed": True}
 
 @router.get("/playlists/{id}/books")
 async def playlist_books(id: UUID, db: DatabaseDep, user: MemberDep):

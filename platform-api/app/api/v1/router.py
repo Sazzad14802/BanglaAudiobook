@@ -17,7 +17,11 @@ api_router = APIRouter()
 from app.api.v1.endpoints import management, accounts
 from app.api.v1.endpoints import media
 from app.api.v1.endpoints import identity
+from app.api.v1.endpoints import notifications
+from app.api.v1.endpoints import payments
 api_router.include_router(identity.router, prefix="/auth", tags=["identity"])
+api_router.include_router(payments.router, tags=["payments"])
+api_router.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
 api_router.include_router(media.router, tags=["media"])
 api_router.include_router(management.router, prefix="/admin", tags=["admin"])
 api_router.include_router(accounts.router, tags=["accounts"])

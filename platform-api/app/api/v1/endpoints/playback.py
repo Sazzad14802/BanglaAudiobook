@@ -7,10 +7,34 @@ import uuid
 from fastapi import APIRouter, HTTPException, status
 
 from app.api.deps import MemberDep, DatabaseDep
-from app.schemas.playback import PlaybackProgressRead, PlaybackProgressUpdate
+from app.schemas.audiobook import AudiobookRead
+from app.schemas.playback import PlaybackProgressRead, PlaybackProgressUpdate, RecentPlaybackItem
 from app.services import playback_service
 
 router = APIRouter()
+
+
+@router.get(
+    "/recent",
+    response_model=list[RecentPlaybackItem],
+    summary="Recently played audiobooks for 'Continue listening'",
+)
+async def get_recent_playback(
+    db: DatabaseDep,
+    current_user: MemberDep,
+) -> list[RecentPlaybackItem]:
+    """Newest-first listening history with overall completion percentage."""
+    rows = await playback_service.get_recent_progress(db=db, user=current_user)
+    return [
+        RecentPlaybackItem(
+            audiobook=AudiobookRead.model_validate(book),
+            chapter_id=progress.chapter_id,
+            position_seconds=progress.position_seconds,
+            progress_percent=percent,
+            updated_at=progress.updated_at,
+        )
+        for progress, book, percent in rows
+    ]
 
 
 @router.get(

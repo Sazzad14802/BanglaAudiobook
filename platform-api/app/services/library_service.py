@@ -74,6 +74,22 @@ async def add_to_library(
     return item
 
 
+async def is_saved(
+    db: AsyncSession,
+    user: User,
+    audiobook_id: uuid.UUID,
+) -> bool:
+    """True when the user has saved this audiobook and may still access it."""
+    await get_audiobook_for_user(db, audiobook_id, user)
+    item_id = await db.scalar(
+        select(LibraryItem.id).where(
+            LibraryItem.user_id == user.id,
+            LibraryItem.audiobook_id == audiobook_id,
+        )
+    )
+    return item_id is not None
+
+
 async def remove_from_library(
     db: AsyncSession,
     user: User,

@@ -80,7 +80,7 @@ async def request_audiobook_generation(
         if reader.is_encrypted or not 0 < len(reader.pages) <= 1000:
             raise ValueError("Encrypted or excessive page count")
     except Exception:
-        raise HTTPException(400, "PDF must be readable, unencrypted, and contain 1?1000 pages")
+        raise HTTPException(400, "PDF must be readable, unencrypted, and contain 1–1000 pages")
     quota.used += 1
     job = GenerationJob(audiobook_id=audiobook.id, owner_id=user.id,
         status=AudiobookStatus.PENDING, priority={"free": 0, "premium": 1, "publisher": 2}[tier],

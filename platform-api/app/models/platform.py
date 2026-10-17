@@ -47,6 +47,8 @@ class Order(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     status: Mapped[str] = mapped_column(String(20), default="pending")
     idempotency_key: Mapped[str] = mapped_column(String(100))
     provider: Mapped[str] = mapped_column(String(20), default="mock")
+    gateway_session: Mapped[Optional[str]] = mapped_column(String(255))
+    return_url: Mapped[Optional[str]] = mapped_column(String(1024))
     __table_args__ = (UniqueConstraint("user_id", "idempotency_key"),)
 
 class PaymentEvent(Base, UUIDPrimaryKeyMixin):

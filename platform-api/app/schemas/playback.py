@@ -7,6 +7,8 @@ from typing import Optional
 import uuid
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.audiobook import AudiobookRead
+
 
 class PlaybackProgressUpdate(BaseModel):
     chapter_id: Optional[uuid.UUID] = Field(
@@ -17,6 +19,14 @@ class PlaybackProgressUpdate(BaseModel):
         ge=0.0,
         description="Playback offset in seconds within the chapter/audiobook"
     )
+
+
+class RecentPlaybackItem(BaseModel):
+    audiobook: AudiobookRead
+    chapter_id: Optional[uuid.UUID]
+    position_seconds: float
+    progress_percent: float
+    updated_at: datetime
 
 
 class PlaybackProgressRead(BaseModel):

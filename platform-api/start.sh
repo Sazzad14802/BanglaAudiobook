@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# BanglaBook Platform API - Cloud Production Startup Script
+# BornoVerse Platform API - Cloud Production Startup Script
 # Runs Alembic migrations, starts background generation worker, and boots FastAPI
 # ==============================================================================
 

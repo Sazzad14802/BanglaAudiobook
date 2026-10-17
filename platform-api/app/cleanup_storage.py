@@ -13,8 +13,10 @@ async def main(apply=False):
     root=Path(settings.UPLOAD_DIR).resolve()
     referenced=set()
     async with async_session_maker() as db:
-        for column in [Audiobook.source_file_url,Audiobook.audio_url,Chapter.audio_url,PublisherApplication.document_key]:
+        for column in [Audiobook.source_file_url,Audiobook.audio_url,Audiobook.cover_image_url,Chapter.audio_url,PublisherApplication.document_key]:
             for key in (await db.scalars(select(column).where(column.is_not(None)))).all():
+                if key.startswith('/api/v1/covers/'):
+                    key='/uploads/covers/'+key.rsplit('/',1)[1]
                 if key.startswith('/uploads/'):
                     referenced.add((root/key[len('/uploads/'):]).resolve())
     for file in root.rglob('*'):

@@ -7,7 +7,7 @@ import math
 from typing import Optional
 import uuid
 from fastapi import HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.audiobook import Audiobook, AudiobookStatus, AudiobookVisibility
@@ -126,8 +126,9 @@ async def get_public_audiobooks(
 
     # Base query: strictly PUBLIC and COMPLETED
     conditions = [public_conditions()]
-    if q:
-        conditions.append(Audiobook.title.ilike(f"%{q}%"))
+    if q and q.strip():
+        term = f"%{q.strip()}%"
+        conditions.append(or_(Audiobook.title.ilike(term), Audiobook.author.ilike(term)))
     if genre:
         conditions.append(Audiobook.genre == genre)
     if publisher:

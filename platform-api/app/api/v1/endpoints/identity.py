@@ -27,7 +27,11 @@ async def admin_login(data: LoginRequest, db: DatabaseDep):
 
 @router.post("/logout")
 async def logout(db: DatabaseDep, user: CurrentUserDep):
+    from sqlalchemy import delete
+    from app.models.notification import PushToken
     user.token_version += 1
+    # Revoked sessions must stop receiving pushes on every device.
+    await db.execute(delete(PushToken).where(PushToken.user_id == user.id))
     await db.commit()
     return {"message": "All sessions revoked"}
 
@@ -41,8 +45,8 @@ class ResetRequest(BaseModel):
 
 def send_recovery(email, token):
     message = EmailMessage()
-    message["From"], message["To"], message["Subject"] = settings.MAIL_FROM, email, "Reset your BanglaBook password"
-    message.set_content(f"Your one-time reset code (expires in 20 minutes):\n{token}\n\nOpen BanglaBook > Forgot password > Reset with code.")
+    message["From"], message["To"], message["Subject"] = settings.MAIL_FROM, email, "Reset your BornoVerse password"
+    message.set_content(f"Your one-time reset code (expires in 20 minutes):\n{token}\n\nOpen BornoVerse > Forgot password > Reset with code.")
     with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=15) as smtp:
         smtp.starttls()
         if settings.SMTP_USER:
@@ -92,6 +96,52 @@ def google_claims(token):
         return claims
     except Exception:
         raise HTTPException(401, "Invalid Google identity token")
+
+class SupabaseRequest(BaseModel):
+    access_token: str = Field(min_length=20, max_length=10000)
+    account_type: Literal["listener", "publisher"] = "listener"
+
+
+async def supabase_identity(access_token: str) -> dict:
+    """Ask Supabase Auth who this token belongs to (server-side validation)."""
+    import httpx
+    if not settings.SUPABASE_URL or not settings.SUPABASE_ANON_KEY:
+        raise HTTPException(503, "Google sign-in is not configured")
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            response = await client.get(
+                f"{settings.SUPABASE_URL.rstrip('/')}/auth/v1/user",
+                headers={"Authorization": f"Bearer {access_token}", "apikey": settings.SUPABASE_ANON_KEY},
+            )
+    except httpx.HTTPError:
+        raise HTTPException(502, "Identity provider is unreachable")
+    if response.status_code != 200:
+        raise HTTPException(401, "Invalid or expired Google sign-in")
+    return response.json()
+
+
+@router.post("/supabase", summary="Exchange a Supabase Google session for a BornoVerse session")
+async def supabase_login(data: SupabaseRequest, db: DatabaseDep):
+    identity = await supabase_identity(data.access_token)
+    providers = set((identity.get("app_metadata") or {}).get("providers") or [])
+    email = (identity.get("email") or "").strip().lower()
+    # Only identities verified by Google may sign in, so the email is proven.
+    if "google" not in providers or not email:
+        raise HTTPException(401, "A verified Google account is required")
+    user = await get_user_by_email(db, email, data.account_type)
+    if not user:
+        from app.services.auth_service import register_user
+        metadata = identity.get("user_metadata") or {}
+        base = "".join(ch for ch in email.split("@")[0].lower() if ch.isalnum() or ch == "_")[:30] or "user"
+        user = await register_user(db, RegisterRequest(
+            email=email, username=f"{base}_{secrets.token_hex(3)}", password=secrets.token_urlsafe(32)[:60],
+            account_type=data.account_type, full_name=(metadata.get("full_name") or metadata.get("name") or "")[:150]))
+        audit(db, user, "account.google_signup", user.id)
+        await db.commit()
+    if user.suspended:
+        raise HTTPException(403, "Account suspended")
+    return create_user_token(user)
+
 
 @router.post("/google")
 async def google(data: GoogleRequest, db: DatabaseDep):

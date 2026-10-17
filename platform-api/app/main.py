@@ -68,4 +68,4 @@ def create_app() -> FastAPI:
     return app
 
 
-app = create_app()  # Bangla AudioBook Platform API
+app = create_app()  # BornoVerse Platform API

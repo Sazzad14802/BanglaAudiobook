@@ -39,6 +39,19 @@ async def get_my_library(
     )
 
 
+@router.get(
+    "/{audiobook_id}",
+    summary="Check whether an audiobook is saved in the current user's library",
+)
+async def get_library_status(
+    audiobook_id: uuid.UUID,
+    db: DatabaseDep,
+    current_user: MemberDep,
+) -> dict:
+    """Return {"saved": bool} without leaking private audiobook existence."""
+    return {"saved": await library_service.is_saved(db=db, user=current_user, audiobook_id=audiobook_id)}
+
+
 @router.post(
     "/{audiobook_id}",
     response_model=LibraryItemRead,

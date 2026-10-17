@@ -8,10 +8,12 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.audiobook import Audiobook
 from app.models.chapter import Chapter
 from app.models.playback import PlaybackProgress
 from app.models.user import User
 from app.services.audiobook_service import get_audiobook_for_user
+from app.services.policy import public_conditions
 
 
 async def get_playback_progress(
@@ -33,6 +35,42 @@ async def get_playback_progress(
         )
     )
     return result.scalar_one_or_none()
+
+
+async def get_recent_progress(
+    db: AsyncSession,
+    user: User,
+    limit: int = 10,
+) -> list[tuple[PlaybackProgress, Audiobook, float]]:
+    """
+    Recently played audiobooks the user can still access, newest first,
+    with overall completion as a 0–100 percentage across all chapters.
+    """
+    visible = ((Audiobook.owner_id == user.id) & (Audiobook.publication_status != "deleted")) | public_conditions()
+    rows = (await db.execute(
+        select(PlaybackProgress, Audiobook)
+        .join(Audiobook, Audiobook.id == PlaybackProgress.audiobook_id)
+        .where(PlaybackProgress.user_id == user.id, visible)
+        .order_by(PlaybackProgress.updated_at.desc())
+        .limit(limit)
+    )).all()
+
+    result = []
+    for progress, audiobook in rows:
+        chapters = (await db.execute(
+            select(Chapter.id, Chapter.duration_seconds)
+            .where(Chapter.audiobook_id == audiobook.id)
+            .order_by(Chapter.chapter_number)
+        )).all()
+        total = sum(d for _, d in chapters) or audiobook.duration_seconds or 0
+        listened = progress.position_seconds
+        for chapter_id, duration in chapters:
+            if chapter_id == progress.chapter_id:
+                break
+            listened += duration
+        percent = min(100.0, listened / total * 100) if total else 0.0
+        result.append((progress, audiobook, round(percent, 1)))
+    return result
 
 
 async def save_playback_progress(

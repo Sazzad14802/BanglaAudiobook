@@ -13,6 +13,7 @@ from app.models.platform import FinancialAdjustment
 from app.schemas.user import UserRead
 from app.services.policy import audit, configuration, month_now
 from app.services import billing
+from app.services.notification_service import deliver, notify
 
 router = APIRouter()
 
@@ -82,7 +83,13 @@ async def application_decision(id: UUID, data: Decision, db: DatabaseDep, admin:
     row.reason = data.reason
     user.publisher_status = "approved_pending_payment" if data.action == "approve" else "rejected"
     audit(db, admin, "application." + data.action, id, reason=data.reason)
+    if data.action == "approve":
+        notice = notify(db, user.id, "publisher.approved", "প্রকাশক আবেদন অনুমোদিত",
+                        "নিবন্ধন ফি পরিশোধ করে আপনার প্রকাশক অ্যাকাউন্ট চালু করুন।")
+    else:
+        notice = notify(db, user.id, "publisher.rejected", "প্রকাশক আবেদন বাতিল", data.reason)
     await db.commit()
+    await deliver(db, [notice])
     return record(row)
 
 @router.get("/audiobooks")
@@ -103,7 +110,13 @@ async def moderate(kind: str, id: UUID, data: Decision, db: DatabaseDep, admin: 
         raise HTTPException(404, "Content not found")
     row.moderated = data.action == "restrict"
     audit(db, admin, f"{kind}.{data.action}", id, reason=data.reason)
+    owner_id = row.owner_id
+    label = getattr(row, "title", None) or getattr(row, "name", "")
+    notice = notify(db, owner_id, f"moderation.{data.action}",
+                    "কনটেন্ট সীমিত করা হয়েছে" if data.action == "restrict" else "কনটেন্ট পুনরায় চালু",
+                    f"«{label}»: {data.reason}")
     await db.commit()
+    await deliver(db, [notice])
     return record(row)
 
 @router.get("/reports")
@@ -244,7 +257,10 @@ async def withdrawal_decision(id: UUID, data: Decision, db: DatabaseDep, admin: 
         db.add(Ledger(publisher_id=row.publisher_id, month=month_now(), amount=-row.amount,
                       kind="withdrawal", reference=f"withdrawal:{row.id}"))
     audit(db, admin, "withdrawal." + data.action, id, reason=data.reason, simulated=True)
+    titles = {"approved": "উত্তোলন অনুমোদিত", "rejected": "উত্তোলন বাতিল", "completed": "উত্তোলন সম্পন্ন"}
+    notice = notify(db, row.publisher_id, f"withdrawal.{target}", titles[target], f"৳{row.amount} · {data.reason}")
     await db.commit()
+    await deliver(db, [notice])
     return record(row)
 
 @router.get("/audit")

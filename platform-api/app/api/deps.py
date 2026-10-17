@@ -76,7 +76,13 @@ async def get_current_user_optional(
     if not token:
         return None
 
-    return await get_current_user(db, token)
+    try:
+        return await get_current_user(db, token)
+    except HTTPException as exc:
+        # A stale or revoked token must not block public browsing; suspension still applies.
+        if exc.status_code == status.HTTP_401_UNAUTHORIZED:
+            return None
+        raise
 
 
 CurrentUserDep = Annotated[User, Depends(get_current_user)]

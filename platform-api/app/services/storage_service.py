@@ -14,6 +14,20 @@ from fastapi import HTTPException, UploadFile, status
 from app.core.config import settings
 
 
+COVER_MAX_BYTES = 5 * 1024 * 1024
+
+
+def image_extension(data: bytes) -> Optional[str]:
+    """Identify an image by its magic bytes rather than trusting the client filename."""
+    if data.startswith(b"\xff\xd8\xff"):
+        return ".jpg"
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return ".png"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return ".webp"
+    return None
+
+
 class BaseStorageService(ABC):
     """Abstract interface for file storage backends."""
 
@@ -24,6 +38,11 @@ class BaseStorageService(ABC):
         subfolder: str = "sources",
     ) -> str:
         """Save an uploaded file and return its accessible URL / storage key."""
+        pass
+
+    @abstractmethod
+    async def save_cover_image(self, file: UploadFile) -> str:
+        """Save a validated cover image and return its public file name."""
         pass
 
     @abstractmethod
@@ -108,6 +127,20 @@ class LocalStorageService(BaseStorageService):
         # Return standardized URL/path reference
         relative_path = f"/uploads/{subfolder}/{unique_filename}"
         return relative_path
+
+    async def save_cover_image(self, file: UploadFile) -> str:
+        """Store a JPEG/PNG/WebP cover (validated by signature, max 5 MB) and return its file name."""
+        data = await file.read(COVER_MAX_BYTES + 1)
+        if len(data) > COVER_MAX_BYTES:
+            raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Cover image exceeds 5MB")
+        extension = image_extension(data)
+        if not extension:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Cover must be a JPEG, PNG or WebP image")
+        target_dir = self.base_dir / "covers"
+        target_dir.mkdir(parents=True, exist_ok=True)
+        name = f"{uuid.uuid4()}{extension}"
+        (target_dir / name).write_bytes(data)
+        return name
 
     async def get_file_path(self, file_url_or_key: str) -> Optional[str]:
         clean_key = file_url_or_key.lstrip("/")

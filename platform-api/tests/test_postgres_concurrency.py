@@ -19,7 +19,7 @@ from tests.test_platform import pdf
 @pytest.mark.skipif(os.environ.get('RUN_PG_TESTS')!='1',reason='Set RUN_PG_TESTS=1 to run isolated PostgreSQL concurrency checks')
 async def test_postgres_atomic_quota_and_payment(tmp_path,monkeypatch):
     assert settings.DATABASE_URL.startswith('postgresql'), 'PostgreSQL DATABASE_URL is required'
-    schema='banglabook_test_'+uuid4().hex
+    schema='bornoverse_test_'+uuid4().hex
     engine=create_async_engine(settings.DATABASE_URL)
     async with engine.begin() as connection:
         await connection.execute(text(f'CREATE SCHEMA "{schema}"'))
