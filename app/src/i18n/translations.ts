@@ -8,10 +8,10 @@
 
 export const enTranslations = {
   // Brand & Identity
-  appName: 'BanglaBook',
-  appTagline: 'Bangla Audiobooks, Your Way',
+  appName: 'BornoVerse',
+  appTagline: 'A Universe Worth Listening To.',
   splashBadge: 'Listen · Save · Create',
-  editorialPick: "BANGLABOOK EDITOR'S PICK",
+  editorialPick: "BORNOVERSE EDITOR'S PICK",
 
   // Bottom Navigation Tabs
   tabHome: 'Home',
@@ -152,7 +152,7 @@ export const enTranslations = {
   appLanguageSection: 'App Interface Language',
   copyrightPolicySection: 'Copyright & Intellectual Property',
   copyrightPolicyDesc:
-    'BanglaBook safeguards the intellectual property rights of all authors and publishers. You can report any copyright infringement directly from any audiobook page.',
+    'BornoVerse safeguards the intellectual property rights of all authors and publishers. You can report any copyright infringement directly from any audiobook page.',
   btnLogout: 'Log Out',
   logoutConfirmTitle: 'Log Out',
   logoutConfirmMessage: 'Are you sure you want to log out?',
@@ -256,10 +256,10 @@ export type TranslationKey = keyof typeof enTranslations;
 
 export const bnTranslations: Record<TranslationKey, string> = {
   // Brand & Identity
-  appName: 'BanglaBook',
-  appTagline: 'বাংলা অডিওবুক, নিজের মতো',
+  appName: 'BornoVerse',
+  appTagline: 'A Universe Worth Listening To.',
   splashBadge: 'শুনুন · সংরক্ষণ করুন · তৈরি করুন',
-  editorialPick: "বাংলাবুক এডিটর্স চয়েস",
+  editorialPick: "BornoVerse এডিটর্স চয়েস",
 
   // Bottom Navigation Tabs
   tabHome: 'হোম',
@@ -400,7 +400,7 @@ export const bnTranslations: Record<TranslationKey, string> = {
   appLanguageSection: 'অ্যাপের ভাষা (Language)',
   copyrightPolicySection: 'কপিরাইট ও স্বত্বাধিকার নীতিমালা',
   copyrightPolicyDesc:
-    'বাংলাবুক প্ল্যাটফর্মে সকল স্বত্বাধিকারীর অধিকার সুরক্ষিত রাখা হয়। যে কোনো বইয়ের বিরুদ্ধে লঙ্ঘনের অভিযোগ সরাসরি প্রতিটি বইয়ের বিস্তারিত পাতা থেকে রিপোর্ট করা যায়।',
+    'BornoVerse প্ল্যাটফর্মে সকল স্বত্বাধিকারীর অধিকার সুরক্ষিত রাখা হয়। যে কোনো বইয়ের বিরুদ্ধে লঙ্ঘনের অভিযোগ সরাসরি প্রতিটি বইয়ের বিস্তারিত পাতা থেকে রিপোর্ট করা যায়।',
   btnLogout: 'লগআউট করুন',
   logoutConfirmTitle: 'লগআউট',
   logoutConfirmMessage: 'আপনি কি নিশ্চিত যে লগআউট করতে চান?',

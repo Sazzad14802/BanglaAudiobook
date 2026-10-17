@@ -21,8 +21,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
 import { AuthStackParamList } from '../../navigation/types';
-import { BanglaBookHeader } from '../../components/BanglaBookHeader';
-import { BanglaBookButton } from '../../components/BanglaBookButton';
+import { AppHeader } from '../../components/AppHeader';
+import { AppButton } from '../../components/AppButton';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { apiClient } from '../../api/client';
@@ -95,11 +95,10 @@ export function ForgotPasswordScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <BanglaBookHeader
+      <AppHeader
         title={t('forgotHeaderTitle')}
         subtitle={t('forgotHeaderSub')}
         onBack={() => nav.goBack()}
-        onOptionsPress={() => {}}
       />
 
       <KeyboardAvoidingView
@@ -226,7 +225,7 @@ export function ForgotPasswordScreen() {
 
           {/* CTA Buttons */}
           {step === 1 && (
-            <BanglaBookButton
+            <AppButton
               label={isEnglish ? 'Send Recovery Code' : 'রিকভারি কোড পাঠান'}
               onPress={handleSendCode}
               variant="primary"
@@ -235,7 +234,7 @@ export function ForgotPasswordScreen() {
           )}
 
           {step === 2 && (
-            <BanglaBookButton
+            <AppButton
               label={t('btnChangePassword')}
               onPress={handleResetPassword}
               variant="primary"
@@ -253,7 +252,7 @@ export function ForgotPasswordScreen() {
                   : 'পাসওয়ার্ড সফলভাবে পরিবর্তিত হয়েছে। নতুন পাসওয়ার্ড দিয়ে সাইন ইন করুন।'}
               </Text>
               <View style={{ marginTop: Spacing.md }}>
-                <BanglaBookButton
+                <AppButton
                   label={t('tabSignIn')}
                   onPress={() => nav.navigate('Login')}
                   variant="primary"
@@ -264,10 +263,6 @@ export function ForgotPasswordScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Android edge-to-edge indicator bar */}
-      <View style={styles.bottomBarContainer}>
-        <View style={styles.homeIndicator} />
-      </View>
     </SafeAreaView>
   );
 }
@@ -293,7 +288,7 @@ const styles = StyleSheet.create({
   },
   stepBar: {
     height: 3,
-    backgroundColor: '#E2DBD2',
+    backgroundColor: Colors.track,
     borderRadius: Radius.full,
     marginBottom: 4,
   },
@@ -418,15 +413,5 @@ const styles = StyleSheet.create({
   successSub: {
     fontSize: FontSizes.xs,
     color: Colors.tintGreenText,
-  },
-  bottomBarContainer: {
-    alignItems: 'center',
-    paddingBottom: Spacing.xs,
-  },
-  homeIndicator: {
-    width: 120,
-    height: 4,
-    borderRadius: Radius.full,
-    backgroundColor: '#000000',
   },
 });

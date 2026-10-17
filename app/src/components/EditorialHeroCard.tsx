@@ -1,63 +1,67 @@
 /**
- * EditorialHeroCard — Featured audiobook card matching Figma Plates 3 & 4.
- * Features background artwork, BANGLA BOOK EDITOR'S PICK pill, and dark overlay.
+ * EditorialHeroCard — featured audiobook card: artwork with a dark caption panel.
+ * Without uploaded artwork it falls back to the book's generated typographic cover.
  */
 
 import React from 'react';
-import {
-  ImageBackground,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
 import { TagBadge } from './TagBadge';
+import { BookCover } from './BookCover';
+import { resolveMediaUrl } from '../config';
 import { Colors, FontSizes, Radius, Spacing } from '../theme';
 
 interface EditorialHeroCardProps {
   title: string;
   meta: string;
-  coverUrl?: string;
+  coverUrl?: string | null;
+  badge?: string;
   onPress?: () => void;
   height?: number;
 }
 
-export function EditorialHeroCard({
-  title,
-  meta,
-  coverUrl,
-  onPress,
-  height = 240,
-}: EditorialHeroCardProps) {
-  const defaultBg = 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?q=80&w=800&auto=format&fit=crop';
+export function EditorialHeroCard({ title, meta, coverUrl, badge, onPress, height = 220 }: EditorialHeroCardProps) {
+  const source = resolveMediaUrl(coverUrl);
+
+  const caption = (
+    <>
+      {badge ? (
+        <View style={styles.topBadgeContainer}>
+          <TagBadge label={badge} variant="editorial" />
+        </View>
+      ) : (
+        <View />
+      )}
+      <View style={styles.darkOverlay}>
+        <Text style={styles.title} numberOfLines={2}>
+          {title}
+        </Text>
+        <Text style={styles.meta} numberOfLines={1}>
+          {meta}
+        </Text>
+      </View>
+    </>
+  );
 
   return (
     <Pressable
       onPress={onPress}
+      disabled={!onPress}
       style={({ pressed }) => [styles.wrapper, pressed && styles.pressed]}
-      accessibilityRole="button"
-      accessibilityLabel={`Featured: ${title}`}
+      accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityLabel={title}
     >
-      <ImageBackground
-        source={{ uri: coverUrl || defaultBg }}
-        style={[styles.imageBg, { height }]}
-        imageStyle={styles.image}
-      >
-        {/* Top Tag */}
-        <View style={styles.topBadgeContainer}>
-          <TagBadge label="BANGLA BOOK EDITOR'S PICK" variant="editorial" />
+      {source ? (
+        <ImageBackground source={{ uri: source }} style={[styles.imageBg, { height }]} imageStyle={styles.image}>
+          {caption}
+        </ImageBackground>
+      ) : (
+        <View style={[styles.imageBg, { height }]}>
+          <View style={StyleSheet.absoluteFill}>
+            <BookCover title={title} size={height} fill radius={Radius.xl} />
+          </View>
+          {caption}
         </View>
-
-        {/* Bottom Dark Card Overlay */}
-        <View style={styles.darkOverlay}>
-          <Text style={styles.title} numberOfLines={1}>
-            {title}
-          </Text>
-          <Text style={styles.meta} numberOfLines={1}>
-            {meta}
-          </Text>
-        </View>
-      </ImageBackground>
+      )}
     </Pressable>
   );
 }
@@ -89,12 +93,11 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   darkOverlay: {
-    backgroundColor: 'rgba(25, 24, 27, 0.88)',
+    backgroundColor: Colors.darkGlass,
     borderRadius: Radius.lg,
     paddingVertical: Spacing.sm + 2,
     paddingHorizontal: Spacing.md,
   },
-
   title: {
     color: '#FFFFFF',
     fontSize: FontSizes.lg,
@@ -102,7 +105,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
   },
   meta: {
-    color: '#D1CDC7',
+    color: Colors.textOnDarkSecondary,
     fontSize: FontSizes.xs,
     marginTop: 2,
     fontWeight: '500',

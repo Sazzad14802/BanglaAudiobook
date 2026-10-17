@@ -12,8 +12,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { BanglaBookHeader } from '../../components/BanglaBookHeader';
-import { BanglaBookButton } from '../../components/BanglaBookButton';
+import { AppHeader } from '../../components/AppHeader';
+import { AppButton } from '../../components/AppButton';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { AppLanguage } from '../../storage/languageStorage';
@@ -78,11 +78,10 @@ export function LanguageSelectScreen({ onBack, onContinue }: LanguageSelectScree
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <BanglaBookHeader
+      <AppHeader
         title={t('langSelectTitle')}
         subtitle={t('langSelectSub')}
         onBack={onBack}
-        onOptionsPress={() => {}}
       />
 
       <View style={styles.content}>
@@ -127,7 +126,7 @@ export function LanguageSelectScreen({ onBack, onContinue }: LanguageSelectScree
 
         {/* CTA Button */}
         <View style={styles.buttonWrapper}>
-          <BanglaBookButton
+          <AppButton
             label={t('btnContinue')}
             onPress={handleContinue}
             variant="primary"
@@ -135,10 +134,6 @@ export function LanguageSelectScreen({ onBack, onContinue }: LanguageSelectScree
         </View>
       </View>
 
-      {/* Android edge-to-edge indicator bar */}
-      <View style={styles.bottomBarContainer}>
-        <View style={styles.homeIndicator} />
-      </View>
     </SafeAreaView>
   );
 }
@@ -174,7 +169,7 @@ const styles = StyleSheet.create({
   cardBlue: {
     backgroundColor: Colors.tintBlue,
     borderWidth: 1,
-    borderColor: '#C8E3F2',
+    borderColor: Colors.primaryLight,
   },
   cardSelectedBorder: {
     borderWidth: 2,
@@ -199,22 +194,12 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
   },
   subMutedWhite: {
-    color: '#B5B1A8',
+    color: Colors.textMuted,
   },
   subMutedDark: {
     color: Colors.textSecondary,
   },
   buttonWrapper: {
     marginTop: Spacing.md,
-  },
-  bottomBarContainer: {
-    alignItems: 'center',
-    paddingBottom: Spacing.xs,
-  },
-  homeIndicator: {
-    width: 120,
-    height: 4,
-    borderRadius: Radius.full,
-    backgroundColor: '#000000',
   },
 });

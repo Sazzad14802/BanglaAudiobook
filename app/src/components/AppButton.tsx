@@ -1,5 +1,5 @@
 /**
- * BanglaBookButton — Buttons matching Figma designs.
+ * AppButton — Buttons matching Figma designs.
  * Supports primary (terracotta), secondary outline, Google sign-in, and loading states.
  */
 
@@ -7,19 +7,19 @@ import React from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Colors, FontSizes, Radius, Spacing } from '../theme';
 
-export type BanglaBookButtonVariant = 'primary' | 'secondary' | 'google' | 'outline' | 'compact';
+export type AppButtonVariant = 'primary' | 'secondary' | 'google' | 'outline' | 'compact';
 
-interface BanglaBookButtonProps {
+interface AppButtonProps {
   label: string;
   onPress: () => void;
-  variant?: BanglaBookButtonVariant;
+  variant?: AppButtonVariant;
   disabled?: boolean;
   isLoading?: boolean;
   fullWidth?: boolean;
   bulletPrefix?: boolean;
 }
 
-export function BanglaBookButton({
+export function AppButton({
   label,
   onPress,
   variant = 'primary',
@@ -27,7 +27,7 @@ export function BanglaBookButton({
   isLoading = false,
   fullWidth = true,
   bulletPrefix = false,
-}: BanglaBookButtonProps) {
+}: AppButtonProps) {
   const isPrimary = variant === 'primary' || variant === 'compact';
   const isGoogle = variant === 'google';
   const isSecondary = variant === 'secondary' || variant === 'outline';

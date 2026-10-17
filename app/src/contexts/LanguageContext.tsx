@@ -20,6 +20,8 @@ interface LanguageContextValue {
   language: AppLanguage;
   setLanguage: (lang: AppLanguage) => Promise<void>;
   t: (key: TranslationKey, params?: Record<string, string | number>) => string;
+  /** Inline bilingual string for copy not yet in the dictionaries. Mixed mode reads Bangla. */
+  tx: (bangla: string, english: string) => string;
   isEnglish: boolean;
   isBangla: boolean;
   isMixed: boolean;
@@ -70,10 +72,16 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     [language],
   );
 
+  const tx = useCallback(
+    (bangla: string, english: string) => (language === 'en' ? english : bangla),
+    [language],
+  );
+
   const value: LanguageContextValue = {
     language,
     setLanguage,
     t,
+    tx,
     isEnglish: language === 'en',
     isBangla: language === 'bn',
     isMixed: language === 'mixed',

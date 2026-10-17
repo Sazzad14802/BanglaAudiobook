@@ -1,9 +1,9 @@
 /**
- * AuthNavigator — Entry, onboarding, permissions, and auth flow.
- * Matches Figma Plates 1 and 2.
+ * AuthNavigator — first-run onboarding (intro → language → notification permission)
+ * followed by sign-in. Returning users skip straight from the splash to sign-in.
  */
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { AuthStackParamList } from './types';
 import { SplashScreen } from '../screens/entry/SplashScreen';
@@ -12,11 +12,25 @@ import { LanguageSelectScreen } from '../screens/entry/LanguageSelectScreen';
 import { NotificationsPromptScreen } from '../screens/entry/NotificationsPromptScreen';
 import { LoginScreen } from '../screens/auth/LoginScreen';
 import { ForgotPasswordScreen } from '../screens/auth/ForgotPasswordScreen';
+import { useNotifications } from '../contexts/NotificationsContext';
+import { onboardingStorage } from '../storage/onboardingStorage';
 import { Colors } from '../theme';
 
 const Stack = createNativeStackNavigator<AuthStackParamList>();
 
 export function AuthNavigator() {
+  const { requestPermission } = useNotifications();
+  const [onboarded, setOnboarded] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    onboardingStorage.isDone().then(setOnboarded);
+  }, []);
+
+  const finishOnboarding = async (navigation: any) => {
+    await onboardingStorage.markDone();
+    navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+  };
+
   return (
     <Stack.Navigator
       initialRouteName="Splash"
@@ -28,7 +42,12 @@ export function AuthNavigator() {
     >
       <Stack.Screen name="Splash">
         {({ navigation }) => (
-          <SplashScreen onContinue={() => navigation.navigate('Onboarding')} />
+          <SplashScreen
+            onContinue={() =>
+              onboarded ? navigation.replace('Login') : navigation.replace('Onboarding')
+            }
+            ready={onboarded !== null}
+          />
         )}
       </Stack.Screen>
 
@@ -51,8 +70,11 @@ export function AuthNavigator() {
         {({ navigation }) => (
           <NotificationsPromptScreen
             onBack={() => navigation.goBack()}
-            onAllow={() => navigation.navigate('Login')}
-            onSkip={() => navigation.navigate('Login')}
+            onAllow={async () => {
+              await requestPermission().catch(() => false);
+              await finishOnboarding(navigation);
+            }}
+            onSkip={() => finishOnboarding(navigation)}
           />
         )}
       </Stack.Screen>

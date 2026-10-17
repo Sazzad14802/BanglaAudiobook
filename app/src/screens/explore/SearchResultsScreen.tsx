@@ -1,298 +1,131 @@
 /**
- * SearchResultsScreen — Search results & Filter modal matching Figma Plate 3 Screens 3 & 4.
- * Search bar, suggestions card, recent history card, results, filter/sort bottom sheet.
+ * SearchResultsScreen — live search over title and author (debounced).
  */
 
-import React, { useState } from 'react';
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-import { useNavigation, useRoute } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ExploreStackParamList } from '../../navigation/types';
-import { BanglaBookHeader } from '../../components/BanglaBookHeader';
+import { RouteProp, useRoute } from '@react-navigation/native';
+import { AppHeader } from '../../components/AppHeader';
 import { AudiobookCard } from '../../components/AudiobookCard';
-import { ModalBottomSheet } from '../../components/ModalBottomSheet';
-import { BanglaBookButton } from '../../components/BanglaBookButton';
-import { FIGMA_AUDIOBOOKS } from '../../data/mockAudiobooks';
+import { StateView } from '../../components/StateView';
+import { audiobooksApi } from '../../api/audiobooks';
+import { errorMessage } from '../../api/client';
 import { usePlayer } from '../../contexts/PlayerContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useAppNavigation } from '../../navigation/useAppNavigation';
+import { ExploreStackParamList } from '../../navigation/types';
+import { Audiobook } from '../../types/audiobook';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
-import { apiClient } from '../../api/client';
 
-type Nav = NativeStackNavigationProp<ExploreStackParamList, 'SearchResults'>;
+const DEBOUNCE_MS = 350;
 
 export function SearchResultsScreen() {
-  const nav = useNavigation<Nav>();
-  const route = useRoute<any>();
+  const { navigation } = useAppNavigation();
+  const route = useRoute<RouteProp<ExploreStackParamList, 'SearchResults'>>();
   const { loadAudiobook } = usePlayer();
-  const { t, isEnglish } = useLanguage();
+  const { t, tx } = useLanguage();
 
-  const [query, setQuery] = useState(
-    route.params?.query ?? (isEnglish ? 'Rabindranath' : 'রবীন্দ্রনাথ')
-  );
-  const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [query, setQuery] = useState(route.params?.query ?? '');
+  const [results, setResults] = useState<Audiobook[]>([]);
+  const [total, setTotal] = useState(0);
+  const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+  const [error, setError] = useState('');
+  const latest = useRef(0);
 
-  // Filter chips state
-  const [selectedFilters, setSelectedFilters] = useState<Record<string, boolean>>({
-    bn: true,
-    en: false,
-    free: false,
-    premium: true,
-  });
-
-  const [sortOption, setSortOption] = useState(isEnglish ? 'For You' : 'আপনার জন্য');
-
-  const rabindranathBooks = FIGMA_AUDIOBOOKS.filter(
-    (b) => b.id === 'shesher-kobita' || b.id === 'gitanjali'
-  );
-
-  const [liveResults, setLiveResults] = useState<any[]>([]);
-
-  React.useEffect(() => {
-    let active = true;
-    const fetchResults = async () => {
+  useEffect(() => {
+    const term = query.trim();
+    if (term.length < 2) {
+      setResults([]);
+      setStatus('idle');
+      return;
+    }
+    const requestId = ++latest.current;
+    setStatus('loading');
+    const timer = setTimeout(async () => {
       try {
-        const lang = selectedFilters.bn && !selectedFilters.en ? 'bn' : (!selectedFilters.bn && selectedFilters.en ? 'en' : '');
-        const tier = selectedFilters.free && !selectedFilters.premium ? 'FREE' : (!selectedFilters.free && selectedFilters.premium ? 'PREMIUM' : '');
-        let url = `/audiobooks?q=${encodeURIComponent(query)}`;
-        if (lang) url += `&language=${lang}`;
-        if (tier) url += `&access_tier=${tier}`;
-        const res = await apiClient.get<any>(url).catch(() => null);
-        if (active && res?.items && res.items.length > 0) {
-          setLiveResults(res.items);
-          return;
-        }
-      } catch {}
-      if (active) {
-        const qLower = query.toLowerCase();
-        const matched = FIGMA_AUDIOBOOKS.filter(
-          (b) => b.title.toLowerCase().includes(qLower) || (b.author || '').toLowerCase().includes(qLower)
-        );
-        setLiveResults(matched.length > 0 ? matched : rabindranathBooks);
+        const page = await audiobooksApi.list({ q: term, size: 30 });
+        if (requestId !== latest.current) return;
+        setResults(page.items);
+        setTotal(page.total);
+        setStatus('done');
+      } catch (e) {
+        if (requestId !== latest.current) return;
+        setError(errorMessage(e));
+        setStatus('error');
       }
-    };
-    fetchResults();
-    return () => { active = false; };
-  }, [query, selectedFilters]);
+    }, DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [query]);
 
-  const displayedBooks = liveResults.length > 0 ? liveResults : rabindranathBooks;
-
-  const toggleFilter = (key: string) => {
-    setSelectedFilters((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
-
-  const handleBookPress = (audiobookId: string) => {
-    nav.navigate('AudiobookDetails', { audiobookId });
-  };
-
-  const handlePlayBook = async (book: any) => {
-    await loadAudiobook(book);
-    nav.navigate('Player', { audiobookId: book.id });
+  const playBook = async (book: Audiobook) => {
+    try {
+      await loadAudiobook(book);
+      navigation.navigate('Player');
+    } catch (e) {
+      Alert.alert(tx('চালানো যায়নি', 'Could not play'), errorMessage(e));
+    }
   };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <BanglaBookHeader
-        title={t('searchResultsTitle')}
-        subtitle={t('searchResultsSub')}
-        onBack={() => nav.goBack()}
-        onOptionsPress={() => {}}
-      />
+      <AppHeader title={tx('খুঁজুন', 'Search')} onBack={() => navigation.goBack()} />
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Search Input Bar */}
-        <View style={styles.searchBar}>
-          <Text style={styles.searchIcon}>🔍</Text>
-          <TextInput
-            style={styles.input}
-            value={query}
-            onChangeText={setQuery}
-            placeholder={t('searchPlaceholder')}
-            placeholderTextColor={Colors.textMuted}
-          />
-          <Text style={styles.micIcon}>🎙️</Text>
-        </View>
-
-        {/* Suggestions Card */}
-        <View style={styles.suggestionsCard}>
-          <Text style={styles.suggestionsTitle}>{t('searchSuggestions')}</Text>
-          <Text style={styles.suggestionsSub}>
-            {isEnglish
-              ? 'Rabindranath Tagore · Shesher Kobita · Gitanjali'
-              : 'রবীন্দ্রনাথ ঠাকুর · শেষের কবিতা · গীতাঞ্জলি'}
-          </Text>
-        </View>
-
-        {/* Recent History Card */}
-        <View style={styles.historyCard}>
-          <Text style={styles.historyTitle}>{t('recentHistory')}</Text>
-          <Text style={styles.historySub}>
-            {isEnglish
-              ? 'Pather Panchali · Bangla Poetry · Mystery'
-              : 'পথের পাঁচালী · বাংলা কবিতা · রহস্য গল্প'}
-          </Text>
-        </View>
-
-        {/* Search Results List */}
-        <View style={styles.resultsList}>
-          {displayedBooks.map((book) => (
-            <AudiobookCard
-              key={book.id}
-              audiobook={book}
-              onPress={() => handleBookPress(book.id)}
-              onPlayPress={() => handlePlayBook(book)}
-            />
-          ))}
-        </View>
-
-        {/* Filter · 3 / Sort Button */}
-        <View style={styles.filterButtonWrapper}>
-          <Pressable
-            style={({ pressed }) => [styles.filterButton, pressed && styles.pressed]}
-            onPress={() => setFilterModalVisible(true)}
-          >
-            <Text style={styles.filterButtonText}>{t('filterSortBtn')}</Text>
+      <View style={styles.searchBar}>
+        <Text style={styles.searchIcon}>🔍</Text>
+        <TextInput
+          style={styles.input}
+          value={query}
+          onChangeText={setQuery}
+          placeholder={t('searchPlaceholder')}
+          placeholderTextColor={Colors.textMuted}
+          autoFocus
+          returnKeyType="search"
+          autoCorrect={false}
+        />
+        {query ? (
+          <Pressable onPress={() => setQuery('')} hitSlop={10} accessibilityLabel={tx('মুছুন', 'Clear')}>
+            <Text style={styles.clear}>×</Text>
           </Pressable>
-        </View>
-      </ScrollView>
-
-      {/* Filter & Sort Modal Bottom Sheet (Plate 3 Screen 4) */}
-      <ModalBottomSheet
-        visible={filterModalVisible}
-        onClose={() => setFilterModalVisible(false)}
-      >
-        <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>{t('filterModalHeading')}</Text>
-
-          <Text style={styles.filterSectionTitle}>
-            {t('filterSectionTitle')}
-          </Text>
-
-          {/* Filter Chips Row */}
-          <View style={styles.chipsRow}>
-            {/* Bangla */}
-            <Pressable
-              onPress={() => toggleFilter('bn')}
-              style={[
-                styles.modalChip,
-                selectedFilters.bn ? styles.chipDark : styles.chipNeutral,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.modalChipText,
-                  selectedFilters.bn ? styles.textWhite : styles.textDark,
-                ]}
-              >
-                {selectedFilters.bn
-                  ? isEnglish
-                    ? '✓ Bangla'
-                    : '✓ বাংলা'
-                  : isEnglish
-                  ? 'Bangla'
-                  : 'বাংলা'}
-              </Text>
-            </Pressable>
-
-            {/* English */}
-            <Pressable
-              onPress={() => toggleFilter('en')}
-              style={[
-                styles.modalChip,
-                selectedFilters.en ? styles.chipDark : styles.chipNeutral,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.modalChipText,
-                  selectedFilters.en ? styles.textWhite : styles.textDark,
-                ]}
-              >
-                {selectedFilters.en ? '✓ English' : 'English'}
-              </Text>
-            </Pressable>
-
-            {/* Free */}
-            <Pressable
-              onPress={() => toggleFilter('free')}
-              style={[
-                styles.modalChip,
-                selectedFilters.free ? styles.chipDark : styles.chipMint,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.modalChipText,
-                  selectedFilters.free ? styles.textWhite : styles.textMint,
-                ]}
-              >
-                {selectedFilters.free
-                  ? isEnglish
-                    ? '✓ Free'
-                    : '✓ ফ্রি'
-                  : isEnglish
-                  ? 'Free'
-                  : 'ফ্রি'}
-              </Text>
-            </Pressable>
-
-            {/* Premium */}
-            <Pressable
-              onPress={() => toggleFilter('premium')}
-              style={[
-                styles.modalChip,
-                selectedFilters.premium ? styles.chipDark : styles.chipPurple,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.modalChipText,
-                  selectedFilters.premium ? styles.textWhite : styles.textPurple,
-                ]}
-              >
-                {selectedFilters.premium
-                  ? isEnglish
-                    ? '✓ Premium'
-                    : '✓ প্রিমিয়াম'
-                  : isEnglish
-                  ? 'Premium'
-                  : 'প্রিমিয়াম'}
-              </Text>
-            </Pressable>
-          </View>
-
-          {/* Sort Option Container Card */}
-          <View style={styles.sortCard}>
-            <Text style={styles.sortCardTitle}>{t('sortForYou')}</Text>
-            <Text style={styles.sortCardSub}>
-              {t('sortOptionsSub')}
-            </Text>
-          </View>
-
-          {/* Apply CTA Button */}
-          <BanglaBookButton
-            label={t('btnViewResults')}
-            onPress={() => setFilterModalVisible(false)}
-            variant="primary"
-          />
-        </View>
-      </ModalBottomSheet>
-
-      {/* Android edge-to-edge indicator bar */}
-      <View style={styles.bottomBarContainer}>
-        <View style={styles.homeIndicator} />
+        ) : null}
       </View>
+
+      <FlatList
+        data={results}
+        keyExtractor={(b) => b.id}
+        contentContainerStyle={styles.list}
+        keyboardShouldPersistTaps="handled"
+        ListHeaderComponent={
+          status === 'done' && results.length ? (
+            <Text style={styles.count}>{tx(`${total}টি ফলাফল`, `${total} results`)}</Text>
+          ) : null
+        }
+        renderItem={({ item }) => (
+          <AudiobookCard
+            audiobook={item}
+            onPress={() => navigation.navigate('AudiobookDetails', { audiobookId: item.id })}
+            onPlayPress={() => playBook(item)}
+          />
+        )}
+        ListEmptyComponent={
+          status === 'loading' ? (
+            <StateView kind="loading" compact />
+          ) : status === 'error' ? (
+            <StateView kind="error" compact message={error} />
+          ) : status === 'done' ? (
+            <StateView
+              kind="empty"
+              compact
+              title={t('noResultsTitle')}
+              message={tx('অন্য শব্দ বা লেখকের নাম দিয়ে খুঁজুন।', 'Try another word or an author name.')}
+            />
+          ) : (
+            <Text style={styles.hint}>
+              {tx('বইয়ের নাম বা লেখকের নাম লিখুন', 'Type a title or an author name')}
+            </Text>
+          )
+        }
+      />
     </SafeAreaView>
   );
 }
@@ -302,14 +135,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  scrollContent: {
-    paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.xs,
-    paddingBottom: Spacing.xl,
-    gap: Spacing.md,
-  },
   searchBar: {
     height: 48,
+    marginHorizontal: Spacing.md,
+    marginBottom: Spacing.sm,
     backgroundColor: Colors.surface,
     borderRadius: Radius.full,
     borderWidth: 1,
@@ -329,142 +158,23 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     paddingVertical: 0,
   },
-  micIcon: {
-    fontSize: 18,
-    opacity: 0.8,
+  clear: {
+    fontSize: 22,
+    color: Colors.textMuted,
   },
-  suggestionsCard: {
-    backgroundColor: Colors.tintBlue,
-    borderRadius: Radius.lg,
-    padding: Spacing.md,
+  list: {
+    paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.xl,
   },
-  suggestionsTitle: {
-    fontSize: FontSizes.xs + 1,
-    fontWeight: '700',
-    color: Colors.tintBlueText,
-    marginBottom: 2,
-  },
-  suggestionsSub: {
+  count: {
     fontSize: FontSizes.xs,
-    color: Colors.tintBlueText,
-  },
-  historyCard: {
-    backgroundColor: '#F5EDE3',
-    borderRadius: Radius.lg,
-    padding: Spacing.md,
-  },
-  historyTitle: {
-    fontSize: FontSizes.xs + 1,
-    fontWeight: '700',
-    color: '#6E5D46',
-    marginBottom: 2,
-  },
-  historySub: {
-    fontSize: FontSizes.xs,
-    color: '#6E5D46',
-  },
-  resultsList: {
-    gap: Spacing.xs,
-  },
-  filterButtonWrapper: {
-    alignItems: 'center',
-    marginTop: Spacing.sm,
-  },
-  filterButton: {
-    paddingVertical: Spacing.sm + 2,
-    paddingHorizontal: Spacing.xl,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Colors.surfaceBorder,
-    backgroundColor: Colors.surface,
-  },
-  filterButtonText: {
-    fontSize: FontSizes.sm,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  pressed: {
-    opacity: 0.8,
-  },
-  modalContent: {
-    gap: Spacing.md,
-    paddingTop: Spacing.xs,
-  },
-  modalTitle: {
-    fontSize: FontSizes.lg,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  filterSectionTitle: {
-    fontSize: FontSizes.xs + 1,
-    fontWeight: '600',
     color: Colors.textSecondary,
+    marginBottom: Spacing.xs,
   },
-  chipsRow: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    flexWrap: 'wrap',
-  },
-  modalChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: Radius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  chipDark: {
-    backgroundColor: Colors.surfaceDark,
-  },
-  chipNeutral: {
-    backgroundColor: Colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: Colors.surfaceBorder,
-  },
-  chipMint: {
-    backgroundColor: Colors.tintGreen,
-  },
-  chipPurple: {
-    backgroundColor: Colors.tintPurple,
-  },
-  modalChipText: {
+  hint: {
+    textAlign: 'center',
+    color: Colors.textMuted,
     fontSize: FontSizes.sm,
-    fontWeight: '600',
-  },
-  textWhite: {
-    color: '#FFFFFF',
-  },
-  textDark: {
-    color: Colors.textPrimary,
-  },
-  textMint: {
-    color: Colors.tintGreenText,
-  },
-  textPurple: {
-    color: Colors.tintPurpleText,
-  },
-  sortCard: {
-    backgroundColor: Colors.tintBlue,
-    borderRadius: Radius.lg,
-    padding: Spacing.md,
-  },
-  sortCardTitle: {
-    fontSize: FontSizes.xs + 1,
-    fontWeight: '700',
-    color: Colors.tintBlueText,
-    marginBottom: 2,
-  },
-  sortCardSub: {
-    fontSize: FontSizes.xs,
-    color: Colors.tintBlueText,
-  },
-  bottomBarContainer: {
-    alignItems: 'center',
-    paddingBottom: Spacing.xs,
-  },
-  homeIndicator: {
-    width: 120,
-    height: 4,
-    borderRadius: Radius.full,
-    backgroundColor: '#000000',
+    marginTop: Spacing.xl,
   },
 });

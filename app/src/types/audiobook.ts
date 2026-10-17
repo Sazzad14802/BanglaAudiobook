@@ -5,6 +5,7 @@
 
 export type AudiobookStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
 export type AudiobookVisibility = 'PUBLIC' | 'PRIVATE';
+export type AccessTier = 'free' | 'premium';
 
 export interface Audiobook {
   id: string;
@@ -12,24 +13,21 @@ export interface Audiobook {
   title: string;
   author: string | null;
   description: string | null;
-  genre?: string | null;
-  access_type?: 'FREE' | 'PREMIUM';
-  access_tier?: 'free' | 'premium';
-  channel_id?: string;
-  publication_status?: string;
+  genre: string | null;
+  access_tier: AccessTier;
+  channel_id: string | null;
+  publication_status: string;
+  moderated: boolean;
   cover_image_url: string | null;
-  source_file_url?: string | null;
-  audio_url?: string | null;
-  audio_file_url?: string | null;
-  duration_seconds?: number;
-
+  source_file_url: string | null;
+  audio_url: string | null;
+  duration_seconds: number;
   language: string;
   visibility: AudiobookVisibility;
   status: AudiobookStatus;
   created_at: string;
   updated_at: string;
 }
-
 
 export interface AudiobookCreate {
   title: string;
@@ -38,7 +36,7 @@ export interface AudiobookCreate {
   language: string;
   visibility: AudiobookVisibility;
   genre?: string;
-  access_tier?: string;
+  access_tier?: AccessTier;
   channel_id?: string;
 }
 
@@ -47,14 +45,9 @@ export interface AudiobookUpdate {
   author?: string;
   description?: string;
   language?: string;
-  cover_image_url?: string;
   genre?: string;
-  access_tier?: string;
-  channel_id?: string;
-}
-
-export interface AudiobookVisibilityUpdate {
-  visibility: AudiobookVisibility;
+  access_tier?: AccessTier;
+  channel_id?: string | null;
 }
 
 export interface AudiobookListResponse {
@@ -63,4 +56,15 @@ export interface AudiobookListResponse {
   page: number;
   size: number;
   pages: number;
+}
+
+export interface AudiobookQuery {
+  q?: string;
+  genre?: string;
+  language?: string;
+  access_tier?: AccessTier;
+  publisher?: string;
+  channel?: string;
+  page?: number;
+  size?: number;
 }

@@ -1,50 +1,61 @@
 /**
- * App-wide design tokens matching Figma design specification.
- * Colors, typography, spacing, and radii.
+ * BornoVerse design tokens: colors, typography, spacing and radii.
+ *
+ * Palette derived from the logo (#13AD81 deep green, #56DDA4 mint).
+ * `primary` is a darker shade of the brand green so white text on buttons
+ * meets WCAG AA (4.98:1); the logo green itself is `brand`, used for accents.
  */
 
 export const Colors = {
-  // Brand: Warm terracotta / brick orange
-  primary: '#CE5337',
-  primaryDark: '#B8452B',
-  primaryLight: '#E26D52',
-  primarySurface: '#FBEBE7',
+  // Brand
+  primary: '#0C7F5F', // buttons, links, selected states (AA with white text)
+  primaryDark: '#0A6B50', // pressed states
+  primaryLight: '#13AD81', // logo green: highlights, borders
+  primarySurface: '#E6F7F0', // selected option background
+  brand: '#13AD81', // progress bars, active indicators, icons
+  brandLight: '#56DDA4', // mint accent
+  brandSoft: '#D5F3E6', // play buttons, soft fills
+  brandSoftPressed: '#B9EAD4',
 
   // Canvas & background
-  background: '#FAF6F0', // Warm cream paper background
+  background: '#F5FAF7', // app canvas (very light mint)
   surface: '#FFFFFF',
-  surfaceDark: '#19181B', // Dark charcoal used in splash, active filter, mini player
-  surfaceElevated: '#F4EFEA', // Soft warm beige container
-  surfaceBorder: '#E7E1D8',
+  surfaceDark: '#0F2A22', // deep green-black: splash, mini player, dark cards
+  surfaceDarkElevated: '#183A30',
+  surfaceElevated: '#EDF5F1', // inputs, chips, secondary containers
+  surfaceBorder: '#DCE8E2',
+  track: '#DCE8E2', // empty part of progress bars
 
-  // Accent tints (from Figma plates)
-  tintCoral: '#F8E5E1', // Notifications & alert banners
-  tintPeachActive: '#FCEBE7', // Active now-playing chapter
-  tintGreen: '#E2F5EA', // Free badge & verified email
+  // Accent tints
+  tintBrand: '#E6F7F0', // highlight banners, notification prompts
+  tintActive: '#DDF5EA', // now-playing chapter
+  tintGreen: '#E2F5EA', // success
   tintGreenText: '#18794E',
-  tintBlue: '#E4F1F8', // Suggestions, queue preview, mixed language
+  tintBlue: '#E4F1F8', // info, playlists
   tintBlueText: '#1B658A',
-  tintPurple: '#F2ECFA', // Premium badge & preview banner
+  tintPurple: '#F2ECFA', // premium
   tintPurpleText: '#6937A1',
-  tintAmber: '#FBF1DC', // Offline notice
+  tintAmber: '#FBF1DC', // warnings / pending work
   tintAmberText: '#8C5E14',
-  tintError: '#FCE7E7', // Validation error
+  tintError: '#FCE7E7',
   tintErrorText: '#B91C1C',
 
   // Text
-  textPrimary: '#1C1917',
-  textSecondary: '#6B665E',
-  textMuted: '#9E988F',
+  textPrimary: '#10231C',
+  textSecondary: '#55675F',
+  textMuted: '#8A9A93',
   textOnPrimary: '#FFFFFF',
-  textOnDark: '#FAF6F0',
+  textOnDark: '#F2FAF6',
+  textOnDarkSecondary: '#A9C2B8',
+  textOnDarkAccent: '#7EE6B8',
 
-  // Badges & Pills
-  badgeFreeBg: '#E2F5EA',
-  badgeFreeText: '#18794E',
+  // Badges
+  badgeFreeBg: '#E4F1F8',
+  badgeFreeText: '#1B658A',
   badgePremiumBg: '#F2ECFA',
   badgePremiumText: '#6937A1',
-  badgeNeutralBg: '#EAE3D9',
-  badgeNeutralText: '#555047',
+  badgeNeutralBg: '#E3EDE8',
+  badgeNeutralText: '#3F5149',
 
   // Semantic
   success: '#18794E',
@@ -53,8 +64,12 @@ export const Colors = {
   info: '#1B658A',
 
   // Overlays
-  overlay: 'rgba(25, 24, 27, 0.5)',
-  overlayLight: 'rgba(0, 0, 0, 0.06)',
+  overlay: 'rgba(15, 42, 34, 0.5)',
+  overlayLight: 'rgba(15, 42, 34, 0.06)',
+  scrim: 'rgba(15, 42, 34, 0.45)',
+  darkGlass: 'rgba(15, 42, 34, 0.88)',
+  onDarkHairline: 'rgba(255, 255, 255, 0.12)',
+  onDarkFill: 'rgba(255, 255, 255, 0.08)',
 } as const;
 
 export const FontSizes = {
@@ -85,4 +100,3 @@ export const Radius = {
   xl: 24,
   full: 9999,
 } as const;
-

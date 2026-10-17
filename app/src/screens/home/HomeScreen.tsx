@@ -1,98 +1,80 @@
 /**
- * HomeScreen — Discovery matching Figma Plate 3 Screen 1.
- * Features:
- * - Proper notch-safe edge handling (react-native-safe-area-context)
- * - Real live fetching from FastAPI backend & PostgreSQL database (Repository Pattern)
- * - Fallback to curated Figma classics if offline or disconnected
- * - Pull-to-refresh
- * - Playback integration via usePlayer facade
+ * HomeScreen — personal start page: greeting, a featured new release,
+ * "Continue listening" from real playback history, and the latest catalog.
+ * All content comes from the Platform API.
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
-import {
-  FlatList,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import React, { useCallback } from 'react';
+import { Alert, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { HomeStackParamList } from '../../navigation/types';
-import { BanglaBookHeader } from '../../components/BanglaBookHeader';
+import { AppHeader } from '../../components/AppHeader';
 import { EditorialHeroCard } from '../../components/EditorialHeroCard';
 import { AudiobookCard } from '../../components/AudiobookCard';
-import { FIGMA_AUDIOBOOKS } from '../../data/mockAudiobooks';
+import { SectionHeader } from '../../components/SectionHeader';
+import { StateView } from '../../components/StateView';
 import { audiobooksApi } from '../../api/audiobooks';
-import { Audiobook } from '../../types/audiobook';
+import { playbackApi } from '../../api/playback';
+import { errorMessage } from '../../api/client';
 import { usePlayer } from '../../contexts/PlayerContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { Colors, FontSizes, Radius, Spacing } from '../../theme';
+import { useNotifications } from '../../contexts/NotificationsContext';
+import { useResource } from '../../hooks/useResource';
+import { useAppNavigation } from '../../navigation/useAppNavigation';
+import { Audiobook } from '../../types/audiobook';
+import { formatDuration, greetingPeriod } from '../../utils/format';
+import { Colors, Spacing } from '../../theme';
 
-type Nav = NativeStackNavigationProp<HomeStackParamList, 'Home'>;
+const GREETING_KEYS = {
+  morning: 'greetingMorning',
+  afternoon: 'greetingAfternoon',
+  evening: 'greetingEvening',
+  night: 'greetingEvening',
+} as const;
 
 export function HomeScreen() {
-  const nav = useNavigation<Nav>();
+  const { navigation } = useAppNavigation();
   const { loadAudiobook } = usePlayer();
   const { user } = useAuth();
-  const { t, isEnglish } = useLanguage();
+  const { t, tx } = useLanguage();
+  const { unreadCount, refreshUnread } = useNotifications();
 
-  const [audiobooks, setAudiobooks] = useState<Audiobook[]>(FIGMA_AUDIOBOOKS);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  // Repository Pattern: Fetch from live backend
-  const loadData = useCallback(async () => {
-    try {
-      const res = await audiobooksApi.list(1, 20);
-      if (res && res.items && res.items.length > 0) {
-        setAudiobooks(res.items);
-      }
-    } catch (e) {
-      // Gracefully fall back to local seed data if network is unreachable
-      console.log('Using local fallback audiobooks:', e);
-      setAudiobooks(FIGMA_AUDIOBOOKS);
-    }
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      loadData();
-    }, [loadData])
+  const catalog = useResource(() => audiobooksApi.list({ size: 20 }));
+  const recent = useResource(() =>
+    user?.account_type === 'admin' ? Promise.resolve([]) : playbackApi.recent(),
   );
 
-  const onRefresh = async () => {
-    setIsRefreshing(true);
-    await loadData();
-    setIsRefreshing(false);
+  const onRefresh = useCallback(async () => {
+    await Promise.all([catalog.refresh(), recent.refresh(), refreshUnread()]);
+  }, [catalog, recent, refreshUnread]);
+
+  const openBook = (book: Audiobook) => navigation.navigate('AudiobookDetails', { audiobookId: book.id });
+
+  const playBook = async (book: Audiobook) => {
+    try {
+      await loadAudiobook(book);
+      navigation.navigate('Player');
+    } catch (error) {
+      Alert.alert(tx('চালানো যায়নি', 'Could not play'), errorMessage(error));
+    }
   };
 
-  const featuredBook =
-    audiobooks.find((b) => b.title === 'পথের পাঁচালী') ?? audiobooks[0] ?? FIGMA_AUDIOBOOKS[0];
-
-  const continueListeningBooks = audiobooks.filter((b) => b.id !== featuredBook.id).slice(0, 4);
-
-  const handleBookPress = (audiobookId: string) => {
-    nav.navigate('AudiobookDetails', { audiobookId });
-  };
-
-  const handlePlayBook = async (book: any) => {
-    await loadAudiobook(book);
-    nav.navigate('Player', { audiobookId: book.id });
-  };
-
-  const firstName = user?.full_name?.split(' ')[0] ?? user?.username ?? (isEnglish ? 'Nabila' : 'নাবিলা');
+  const books = catalog.data?.items ?? [];
+  const featured = books[0];
+  const latest = books.slice(1);
+  const continueItems = (recent.data ?? []).filter((r) => r.progress_percent < 99).slice(0, 5);
+  const firstName = (user?.full_name || user?.username || '').split(' ')[0];
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <BanglaBookHeader
+      <AppHeader
         showLogo
-        title={t('greetingEvening', { name: firstName })}
+        title={t(GREETING_KEYS[greetingPeriod()], { name: firstName })}
         subtitle={t('greetingQuestion')}
-        onOptionsPress={() => nav.navigate('DiscoveryStates')}
+        rightIcon="🔔"
+        rightIconLabel={tx('নোটিফিকেশন', 'Notifications')}
+        onRightIconPress={() => navigation.navigate('Notifications')}
+        badgeCount={unreadCount}
       />
 
       <ScrollView
@@ -100,45 +82,88 @@ export function HomeScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={isRefreshing}
+            refreshing={catalog.isRefreshing || recent.isRefreshing}
             onRefresh={onRefresh}
             tintColor={Colors.primary}
             colors={[Colors.primary]}
           />
         }
       >
-        {/* Featured Editorial Hero Card */}
-        <View style={styles.heroSection}>
-          <EditorialHeroCard
-            title={featuredBook.title}
-            meta={t('editorsPickMeta')}
-            coverUrl={featuredBook.cover_image_url ?? undefined}
-            onPress={() => handleBookPress(featuredBook.id)}
+        {catalog.isLoading ? (
+          <StateView kind="loading" />
+        ) : catalog.error && !books.length ? (
+          <StateView
+            kind="error"
+            title={tx('ক্যাটালগ লোড করা যায়নি', 'Could not load the catalog')}
+            message={catalog.error}
+            actionLabel={tx('আবার চেষ্টা করুন', 'Try again')}
+            onAction={catalog.reload}
           />
-        </View>
+        ) : (
+          <>
+            {featured ? (
+              <View style={styles.section}>
+                <EditorialHeroCard
+                  title={featured.title}
+                  badge={tx('নতুন সংযোজন', 'NEW RELEASE')}
+                  meta={[featured.author, featured.duration_seconds ? formatDuration(featured.duration_seconds) : null]
+                    .filter(Boolean)
+                    .join(' · ')}
+                  coverUrl={featured.cover_image_url}
+                  onPress={() => openBook(featured)}
+                />
+              </View>
+            ) : null}
 
-        {/* Section: শোনা চালিয়ে যান */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>{t('continueListeningSection')}</Text>
-        </View>
+            {continueItems.length > 0 ? (
+              <View style={styles.section}>
+                <SectionHeader
+                  title={t('continueListeningSection')}
+                  actionLabel={tx('লাইব্রেরি', 'Library')}
+                  onAction={() => (navigation.getParent() as any)?.navigate('LibraryTab')}
+                />
+                {continueItems.map((item) => (
+                  <AudiobookCard
+                    key={item.audiobook.id}
+                    audiobook={item.audiobook}
+                    progressPercent={item.progress_percent}
+                    onPress={() => openBook(item.audiobook)}
+                    onPlayPress={() => playBook(item.audiobook)}
+                  />
+                ))}
+              </View>
+            ) : null}
 
-        {/* Continue Listening List */}
-        <View style={styles.listContainer}>
-          {continueListeningBooks.map((book) => (
-            <AudiobookCard
-              key={book.id}
-              audiobook={book}
-              onPress={() => handleBookPress(book.id)}
-              onPlayPress={() => handlePlayBook(book)}
-            />
-          ))}
-        </View>
+            <View style={styles.section}>
+              <SectionHeader
+                title={tx('নতুন অডিওবুক', 'New audiobooks')}
+                actionLabel={tx('সব দেখুন', 'See all')}
+                onAction={() => (navigation.getParent() as any)?.navigate('ExploreTab')}
+              />
+              {books.length === 0 ? (
+                <StateView
+                  kind="empty"
+                  compact
+                  title={tx('এখনো কোনো অডিওবুক প্রকাশিত হয়নি', 'No audiobooks published yet')}
+                  message={tx(
+                    'প্রকাশকরা অডিওবুক প্রকাশ করলে এখানে দেখা যাবে।',
+                    'Published audiobooks will appear here.',
+                  )}
+                />
+              ) : (
+                (latest.length ? latest : books).map((book) => (
+                  <AudiobookCard
+                    key={book.id}
+                    audiobook={book}
+                    onPress={() => openBook(book)}
+                    onPlayPress={() => playBook(book)}
+                  />
+                ))
+              )}
+            </View>
+          </>
+        )}
       </ScrollView>
-
-      {/* Android edge-to-edge indicator bar */}
-      <View style={styles.bottomBarContainer}>
-        <View style={styles.homeIndicator} />
-      </View>
     </SafeAreaView>
   );
 }
@@ -153,29 +178,7 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.xs,
     paddingBottom: Spacing.xl,
   },
-  heroSection: {
+  section: {
     marginBottom: Spacing.lg,
-  },
-  sectionHeader: {
-    marginBottom: Spacing.xs,
-  },
-  sectionTitle: {
-    fontSize: FontSizes.md + 1,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-    letterSpacing: -0.1,
-  },
-  listContainer: {
-    gap: Spacing.xs,
-  },
-  bottomBarContainer: {
-    alignItems: 'center',
-    paddingBottom: Spacing.xs,
-  },
-  homeIndicator: {
-    width: 120,
-    height: 4,
-    borderRadius: Radius.full,
-    backgroundColor: '#000000',
   },
 });

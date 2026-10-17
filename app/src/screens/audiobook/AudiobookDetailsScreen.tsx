@@ -1,14 +1,15 @@
 /**
- * AudiobookDetailsScreen — Details matching Figma Plate 4 Screens 2, 3, 4.
- * Handles Free, Premium, and Locked preview variants with exact badges,
- * description, primary CTA, and ActionPillBar (`Save · Playlist · Offline · Report`).
- * Connected to live FastAPI backend & DRM storage.
+ * AudiobookDetailsScreen — everything about one audiobook:
+ * listen (or unlock), save, add to playlist, download for offline, report,
+ * chapter list, and owner tools (generation status, edit, delete).
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,365 +17,440 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-
-import { HomeStackParamList } from '../../navigation/types';
-import { BanglaBookHeader } from '../../components/BanglaBookHeader';
+import { RouteProp, useRoute } from '@react-navigation/native';
+import { AppHeader } from '../../components/AppHeader';
 import { EditorialHeroCard } from '../../components/EditorialHeroCard';
 import { TagBadge } from '../../components/TagBadge';
-import { BanglaBookButton } from '../../components/BanglaBookButton';
+import { AppButton } from '../../components/AppButton';
 import { ActionItem, ActionPillBar } from '../../components/ActionPillBar';
 import { ModalBottomSheet } from '../../components/ModalBottomSheet';
-import { FIGMA_AUDIOBOOKS } from '../../data/mockAudiobooks';
+import { StateView } from '../../components/StateView';
+import { audiobooksApi } from '../../api/audiobooks';
+import { libraryApi, playlistsApi } from '../../api/library';
+import { reportsApi } from '../../api/account';
+import { errorMessage } from '../../api/client';
+import { offline } from '../../storage/offline';
 import { usePlayer } from '../../contexts/PlayerContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useResource } from '../../hooks/useResource';
+import { useAppNavigation } from '../../navigation/useAppNavigation';
+import { SharedStackParamList } from '../../navigation/types';
+import { genreLabel, languageLabel } from '../../constants/genres';
+import { isPremium } from '../../types/auth';
+import { Playlist } from '../../types/domain';
+import { formatDuration } from '../../utils/format';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
-import { audiobooksApi } from '../../api/audiobooks';
-import { apiClient } from '../../api/client';
-import { offline } from '../../storage/offline';
 
-type Nav = NativeStackNavigationProp<HomeStackParamList, 'AudiobookDetails'>;
-type Route = RouteProp<HomeStackParamList, 'AudiobookDetails'>;
+const REPORT_REASONS = [
+  { bn: 'কপিরাইট লঙ্ঘন', en: 'Copyright infringement' },
+  { bn: 'অনুপযুক্ত কনটেন্ট', en: 'Inappropriate content' },
+  { bn: 'অডিওর মান খারাপ', en: 'Poor audio quality' },
+  { bn: 'ভুল তথ্য', en: 'Incorrect information' },
+];
 
 export function AudiobookDetailsScreen() {
-  const nav = useNavigation<Nav>();
-  const route = useRoute<Route>();
-  const { loadAudiobook } = usePlayer();
+  const { navigation, goToTab } = useAppNavigation();
+  const { audiobookId } = useRoute<RouteProp<SharedStackParamList, 'AudiobookDetails'>>().params;
+  const { loadAudiobook, audiobook: playing } = usePlayer();
   const { user } = useAuth();
-  const { t, isEnglish } = useLanguage();
+  const { tx, isEnglish } = useLanguage();
 
-  const audiobookId = route.params?.audiobookId ?? 'pather-panchali';
-  const fallbackBook = FIGMA_AUDIOBOOKS.find((b) => b.id === audiobookId) ?? FIGMA_AUDIOBOOKS[0];
+  const isMember = user?.account_type === 'listener' || user?.account_type === 'publisher';
 
-  const [audiobook, setAudiobook] = useState<any>(fallbackBook);
-  const [isLoading, setIsLoading] = useState(false);
-
-  // Interactive action states
-  const [isSaved, setIsSaved] = useState(false);
-  const [isOfflineSaved, setIsOfflineSaved] = useState(false);
-  const [isDownloading, setIsDownloading] = useState(false);
-
-  // Playlist bottom sheet
-  const [playlistModalVisible, setPlaylistModalVisible] = useState(false);
-  const [playlists, setPlaylists] = useState<any[]>([]);
-  const [newPlaylistName, setNewPlaylistName] = useState('');
-
-  // Report bottom sheet
-  const [reportModalVisible, setReportModalVisible] = useState(false);
-  const [reportReason, setReportReason] = useState(isEnglish ? 'Copyright Infringement' : 'কপিরাইট লঙ্ঘন');
-  const [reportSubmitting, setReportSubmitting] = useState(false);
-
-  // Fetch real audiobook details
-  const fetchBookDetails = useCallback(async () => {
-    try {
-      const data = await audiobooksApi.get(audiobookId);
-      if (data) setAudiobook(data);
-    } catch {
-      // Use fallback
-      setAudiobook(fallbackBook);
-    }
+  const details = useResource(async () => {
+    const [book, chapters, saved, downloads] = await Promise.all([
+      audiobooksApi.get(audiobookId),
+      audiobooksApi.chapters(audiobookId).catch(() => []),
+      isMember ? libraryApi.isSaved(audiobookId).catch(() => false) : Promise.resolve(false),
+      user ? offline.list(user.id).catch(() => []) : Promise.resolve([]),
+    ]);
+    return { book, chapters, saved, downloaded: downloads.some((b) => b.id === audiobookId) };
   }, [audiobookId]);
 
-  // Check offline presence
-  const checkOffline = useCallback(async () => {
-    if (!user?.id) return;
-    try {
-      const downloaded = await offline.list(user.id);
-      setIsOfflineSaved(downloaded.some((b) => b.id === audiobookId));
-    } catch {}
-  }, [audiobookId, user?.id]);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [playlistSheet, setPlaylistSheet] = useState(false);
+  const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [newPlaylist, setNewPlaylist] = useState('');
+  const [reportSheet, setReportSheet] = useState(false);
+  const [reportReason, setReportReason] = useState(0);
+  const [reportDetails, setReportDetails] = useState('');
 
-  useEffect(() => {
-    fetchBookDetails();
-    checkOffline();
-  }, [fetchBookDetails, checkOffline]);
+  if (details.isLoading || !details.data) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+        <AppHeader title="" onBack={() => navigation.goBack()} />
+        {details.error ? (
+          <StateView
+            kind="error"
+            title={tx('অডিওবুকটি পাওয়া যায়নি', 'Audiobook not available')}
+            message={details.error}
+            actionLabel={tx('আবার চেষ্টা', 'Retry')}
+            onAction={details.reload}
+          />
+        ) : (
+          <StateView kind="loading" />
+        )}
+      </SafeAreaView>
+    );
+  }
 
-  const isFree = audiobook.access_tier === 'free' || audiobook.access_type === 'FREE';
-  const isPremiumUser = Boolean(user?.premium_until && new Date(user.premium_until) > new Date());
-  const isLocked = !isFree && !isPremiumUser;
+  const { book, chapters, saved, downloaded } = details.data;
+  const isOwner = book.owner_id === user?.id;
+  const isFree = book.access_tier !== 'premium';
+  const isLocked = !isFree && !isOwner && !isPremium(user);
+  const isReady = book.status === 'COMPLETED';
+  // Same filter the play manifest applies, so list indexes match player indexes.
+  const playableChapters = chapters.filter((c) => c.audio_url);
 
-  // Save / Unsave to user library
-  const handleToggleSave = async () => {
-    try {
-      if (isSaved) {
-        setIsSaved(false);
-        Alert.alert(isEnglish ? 'Library' : 'লাইব্রেরি', isEnglish ? 'Removed from your library.' : 'লাইব্রেরি থেকে সরানো হয়েছে।');
-      } else {
-        await apiClient.post(`/library/${audiobook.id}`).catch(() => {});
-        setIsSaved(true);
-        Alert.alert(isEnglish ? 'Library' : 'লাইব্রেরি', isEnglish ? 'Saved to your library.' : 'লাইব্রেরিতে সংরক্ষণ করা হয়েছে।');
-      }
-    } catch {
-      setIsSaved((prev) => !prev);
-    }
-  };
+  const update = (patch: Partial<typeof details.data>) =>
+    details.setData((current) => ({ ...current!, ...patch }));
 
-  // Open Playlist Picker
-  const handleOpenPlaylists = async () => {
-    try {
-      const list = await apiClient.get<any[]>('/playlists');
-      setPlaylists(list);
-    } catch {
-      setPlaylists([]);
-    }
-    setPlaylistModalVisible(true);
-  };
+  const premiumPrompt = (message: string) =>
+    Alert.alert(tx('প্রিমিয়াম প্রয়োজন', 'Premium required'), message, [
+      { text: tx('বাতিল', 'Cancel'), style: 'cancel' },
+      { text: tx('প্রিমিয়াম নিন', 'Get Premium'), onPress: () => goToTab('ProfileTab', { screen: 'Subscription' }) },
+    ]);
 
-  const handleAddToPlaylist = async (playlistId: string) => {
-    try {
-      await apiClient.put(`/playlists/${playlistId}/books/${audiobook.id}`);
-      setPlaylistModalVisible(false);
-      Alert.alert(isEnglish ? 'Playlist' : 'প্লেলিস্ট', isEnglish ? 'Added to playlist!' : 'প্লেলিস্টে যোগ করা হয়েছে!');
-    } catch (e: any) {
-      Alert.alert(isEnglish ? 'Error' : 'ত্রুটি', e.detail || 'Could not add to playlist');
-    }
-  };
-
-  const handleCreateAndAddToPlaylist = async () => {
-    if (!newPlaylistName.trim()) return;
-    try {
-      const created = await apiClient.post<any>('/playlists', { name: newPlaylistName.trim() });
-      await apiClient.put(`/playlists/${created.id}/books/${audiobook.id}`);
-      setNewPlaylistName('');
-      setPlaylistModalVisible(false);
-      Alert.alert(isEnglish ? 'Playlist' : 'প্লেলিস্ট', isEnglish ? 'Playlist created and book added!' : 'প্লেলিস্ট তৈরি ও বই যোগ করা হয়েছে!');
-    } catch (e: any) {
-      Alert.alert(isEnglish ? 'Error' : 'ত্রুটি', e.detail || 'Could not create playlist');
-    }
-  };
-
-  // Encrypted Offline Download
-  const handleToggleOffline = async () => {
-    if (!user?.id) {
-      Alert.alert(isEnglish ? 'Notice' : 'বিজ্ঞপ্তি', isEnglish ? 'Please sign in to download.' : 'ডাউনলোড করতে সাইন ইন করুন।');
-      return;
-    }
-    if (!isPremiumUser && !isFree) {
-      Alert.alert(
-        isEnglish ? 'Premium Feature' : 'প্রিমিয়াম সুবিধা',
-        isEnglish ? 'Offline downloads are reserved for Premium subscribers.' : 'অফলাইন লিসেনিং কেবল প্রিমিয়াম গ্রাহকদের জন্য।'
-      );
-      return;
-    }
-
-    if (isOfflineSaved) {
-      await offline.remove(audiobook.id, user.id);
-      setIsOfflineSaved(false);
-      Alert.alert(isEnglish ? 'Offline' : 'অফলাইন', isEnglish ? 'Downloaded audio removed from device.' : 'ডিভাইস থেকে অফলাইন ফাইল মুছে ফেলা হয়েছে।');
-      return;
-    }
-
-    setIsDownloading(true);
-    try {
-      await offline.download(audiobook, user.id);
-      setIsOfflineSaved(true);
-      Alert.alert(
-        isEnglish ? 'Download Complete' : 'ডাউনলোড সম্পন্ন',
-        isEnglish ? 'Audiobook downloaded with hardware-backed DRM. Listen anytime offline!' : 'অডিওবুক সফলভাবে অফলাইনে এনক্রিপ্ট করে সংরক্ষণ করা হয়েছে!'
-      );
-    } catch (err: any) {
-      Alert.alert(isEnglish ? 'Download Failed' : 'ডাউনলোড ব্যর্থ', err.message || 'Could not download audio chapters.');
-    } finally {
-      setIsDownloading(false);
-    }
-  };
-
-  // Submit Content Report
-  const handleSubmitReport = async () => {
-    setReportSubmitting(true);
-    try {
-      await apiClient.post('/reports', {
-        audiobook_id: audiobook.id,
-        reason: reportReason,
-      });
-      setReportModalVisible(false);
-      Alert.alert(
-        isEnglish ? 'Report Submitted' : 'রিপোর্ট জমা হয়েছে',
-        isEnglish ? 'Our moderation team will investigate this content.' : 'আমাদের মডারেশন টিম অভিযোগটি খতিয়ে দেখবে।'
-      );
-    } catch (err: any) {
-      Alert.alert(isEnglish ? 'Error' : 'ত্রুটি', err.detail || 'Could not submit report.');
-    } finally {
-      setReportSubmitting(false);
-    }
-  };
-
-  const handleStartListening = async () => {
+  const listen = async (chapterIndex?: number) => {
     if (isLocked) {
-      Alert.alert(
-        isEnglish ? 'Premium Locked' : 'প্রিমিয়াম লকড',
-        isEnglish ? 'This audiobook requires a Premium subscription.' : 'এই অডিওবুকটি শুনতে প্রিমিয়াম সাবস্ক্রিপশন প্রয়োজন।',
-        [
-          { text: isEnglish ? 'Cancel' : 'বাতিল', style: 'cancel' },
-          { text: isEnglish ? 'Upgrade' : 'আপগ্রেড করুন', onPress: () => nav.navigate('Profile' as any) },
-        ]
-      );
+      premiumPrompt(tx('এটি শুনতে প্রিমিয়াম সাবস্ক্রিপশন প্রয়োজন।', 'A Premium subscription is required to listen.'));
       return;
     }
-    await loadAudiobook(audiobook);
-    nav.navigate('Player', { audiobookId: audiobook.id });
+    setBusy('listen');
+    try {
+      if (playing?.id !== book.id || chapterIndex !== undefined) {
+        await loadAudiobook(book, chapterIndex !== undefined ? { chapterIndex, resume: false } : {});
+      }
+      navigation.navigate('Player');
+    } catch (error) {
+      Alert.alert(tx('চালানো যায়নি', 'Could not play'), errorMessage(error));
+    } finally {
+      setBusy(null);
+    }
   };
 
-  const actionItems: ActionItem[] = [
-    {
+  const toggleSave = async () => {
+    setBusy('save');
+    try {
+      if (saved) await libraryApi.remove(book.id);
+      else await libraryApi.add(book.id);
+      update({ saved: !saved });
+    } catch (error) {
+      Alert.alert(tx('লাইব্রেরি', 'Library'), errorMessage(error));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const openPlaylists = async () => {
+    setPlaylistSheet(true);
+    try {
+      setPlaylists(await playlistsApi.list());
+    } catch (error) {
+      Alert.alert(tx('প্লেলিস্ট', 'Playlists'), errorMessage(error));
+    }
+  };
+
+  const addToPlaylist = async (playlist: Playlist) => {
+    try {
+      await playlistsApi.addBook(playlist.id, book.id);
+      setPlaylistSheet(false);
+      Alert.alert(tx('যোগ হয়েছে', 'Added'), tx(`«${playlist.name}»-এ যোগ করা হয়েছে।`, `Added to “${playlist.name}”.`));
+    } catch (error) {
+      Alert.alert(tx('প্লেলিস্ট', 'Playlist'), errorMessage(error));
+    }
+  };
+
+  const createPlaylist = async () => {
+    const name = newPlaylist.trim();
+    if (!name) return;
+    try {
+      const created = await playlistsApi.create(name);
+      setNewPlaylist('');
+      await addToPlaylist(created);
+    } catch (error) {
+      Alert.alert(tx('প্লেলিস্ট', 'Playlist'), errorMessage(error));
+    }
+  };
+
+  const toggleOffline = async () => {
+    if (!user) return;
+    if (downloaded) {
+      await offline.remove(book.id, user.id);
+      update({ downloaded: false });
+      return;
+    }
+    if (!isPremium(user)) {
+      premiumPrompt(tx('ডাউনলোড করে অফলাইনে শুনতে প্রিমিয়াম প্রয়োজন।', 'Downloading for offline listening needs Premium.'));
+      return;
+    }
+    setBusy('offline');
+    try {
+      await offline.download(book, user.id);
+      update({ downloaded: true });
+      Alert.alert(tx('ডাউনলোড সম্পন্ন', 'Downloaded'), tx('লাইব্রেরি থেকে অফলাইনে শুনতে পারবেন।', 'Play it offline from your Library.'));
+    } catch (error) {
+      Alert.alert(tx('ডাউনলোড ব্যর্থ', 'Download failed'), errorMessage(error));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const submitReport = async () => {
+    const reason = REPORT_REASONS[reportReason];
+    const text = `${reason.en}${reportDetails.trim() ? `: ${reportDetails.trim()}` : ''}`;
+    setBusy('report');
+    try {
+      await reportsApi.submit(book.id, text);
+      setReportSheet(false);
+      setReportDetails('');
+      Alert.alert(tx('রিপোর্ট জমা হয়েছে', 'Report submitted'), tx('আমাদের টিম এটি পর্যালোচনা করবে।', 'Our team will review it.'));
+    } catch (error) {
+      Alert.alert(tx('রিপোর্ট', 'Report'), errorMessage(error));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const remove = () =>
+    Alert.alert(
+      tx('অডিওবুক মুছবেন?', 'Delete audiobook?'),
+      tx('এটি আর কেউ দেখতে বা শুনতে পারবে না।', 'Nobody will be able to see or play it.'),
+      [
+        { text: tx('বাতিল', 'Cancel'), style: 'cancel' },
+        {
+          text: tx('মুছুন', 'Delete'),
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await audiobooksApi.delete(book.id);
+              navigation.goBack();
+            } catch (error) {
+              Alert.alert(tx('মুছা যায়নি', 'Could not delete'), errorMessage(error));
+            }
+          },
+        },
+      ],
+    );
+
+  const actions: ActionItem[] = [];
+  if (isMember) {
+    actions.push({
       id: 'save',
-      label: isSaved ? (isEnglish ? 'Saved' : 'সংরক্ষিত') : (isEnglish ? 'Save' : 'সেভ'),
-      active: isSaved,
-      onPress: handleToggleSave,
-    },
-    {
-      id: 'playlist',
-      label: isEnglish ? 'Playlist' : 'প্লেলিস্ট',
-      onPress: handleOpenPlaylists,
-    },
-    {
+      label: saved ? tx('সংরক্ষিত ✓', 'Saved ✓') : tx('সেভ', 'Save'),
+      active: saved,
+      onPress: toggleSave,
+    });
+    actions.push({ id: 'playlist', label: tx('প্লেলিস্ট', 'Playlist'), onPress: openPlaylists });
+  }
+  if (isReady && isMember) {
+    actions.push({
       id: 'offline',
-      label: isDownloading
-        ? (isEnglish ? 'Saving...' : 'সংরক্ষণ...')
-        : isOfflineSaved
-        ? (isEnglish ? 'Downloaded' : 'ডাউনলোডেড')
-        : (isEnglish ? 'Offline' : 'অফলাইন'),
-      active: isOfflineSaved,
-      onPress: handleToggleOffline,
-    },
-    {
-      id: 'report',
-      label: isEnglish ? 'Report' : 'রিপোর্ট',
-      onPress: () => setReportModalVisible(true),
-    },
-  ];
+      label:
+        busy === 'offline'
+          ? tx('ডাউনলোড…', 'Saving…')
+          : downloaded
+            ? tx('ডাউনলোডেড', 'Downloaded')
+            : tx('অফলাইন', 'Offline'),
+      active: downloaded,
+      onPress: toggleOffline,
+    });
+  }
+  if (isMember && !isOwner) {
+    actions.push({ id: 'report', label: tx('রিপোর্ট', 'Report'), onPress: () => setReportSheet(true) });
+  }
+
+  const meta = [
+    book.author,
+    languageLabel(book.language, isEnglish),
+    book.duration_seconds ? formatDuration(book.duration_seconds) : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <BanglaBookHeader
-        title={audiobook.title}
-        subtitle={isFree ? (isEnglish ? 'Free audiobook detail' : 'ফ্রি অডিওবুক') : (isEnglish ? 'Premium audiobook detail' : 'প্রিমিয়াম অডিওবুক')}
-        onBack={() => nav.goBack()}
-        onOptionsPress={() => {}}
+      <AppHeader
+        title={book.title}
+        subtitle={isFree ? tx('ফ্রি অডিওবুক', 'Free audiobook') : tx('প্রিমিয়াম অডিওবুক', 'Premium audiobook')}
+        onBack={() => navigation.goBack()}
       />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={details.isRefreshing} onRefresh={details.refresh} tintColor={Colors.primary} />
+        }
       >
-        {/* Cover / Hero Artwork Card */}
-        <View style={styles.heroSection}>
-          <EditorialHeroCard
-            title={audiobook.title}
-            meta={`${audiobook.author || 'বাংলা সাহিত্য'} · ${audiobook.language === 'en' ? 'English' : 'বাংলা'}`}
-            coverUrl={audiobook.cover_image_url ?? undefined}
-          />
-        </View>
+        <EditorialHeroCard title={book.title} meta={meta} coverUrl={book.cover_image_url} />
 
-        {/* Access Badges & Genre */}
         <View style={styles.badgeRow}>
           <TagBadge
-            label={isFree ? 'FREE ACCESS' : isLocked ? 'PREMIUM (LOCKED)' : 'PREMIUM (UNLOCKED)'}
-            variant={isFree ? 'free' : isLocked ? 'genre' : 'premium'}
+            label={
+              isFree
+                ? tx('ফ্রি', 'FREE')
+                : isLocked
+                  ? tx('প্রিমিয়াম · লকড', 'PREMIUM · LOCKED')
+                  : tx('প্রিমিয়াম', 'PREMIUM')
+            }
+            variant={isFree ? 'free' : 'premium'}
           />
-          {audiobook.genre ? <TagBadge label={audiobook.genre} variant="genre" /> : null}
+          {book.genre ? <TagBadge label={genreLabel(book.genre, isEnglish)} variant="genre" /> : null}
+          {isOwner ? (
+            <TagBadge
+              label={book.visibility === 'PUBLIC' ? tx('পাবলিক', 'Public') : tx('প্রাইভেট', 'Private')}
+              variant="offline"
+            />
+          ) : null}
         </View>
 
-        {/* Primary CTA */}
-        <View style={styles.ctaWrapper}>
-          <BanglaBookButton
-            label={isLocked ? (isEnglish ? '🔒 Unlock with Premium' : '🔒 প্রিমিয়ামে শুনুন') : (isEnglish ? '▶ Start Listening' : '▶ শোনা শুরু করুন')}
-            onPress={handleStartListening}
+        {isReady ? (
+          <AppButton
+            label={
+              isLocked
+                ? tx('🔒 প্রিমিয়াম নিয়ে শুনুন', '🔒 Unlock with Premium')
+                : playing?.id === book.id
+                  ? tx('▶ প্লেয়ার খুলুন', '▶ Open player')
+                  : tx('▶ শোনা শুরু করুন', '▶ Start listening')
+            }
+            onPress={() => listen()}
+            isLoading={busy === 'listen'}
             variant={isLocked ? 'secondary' : 'primary'}
           />
-        </View>
-
-        {/* Action Pills Bar */}
-        <View style={styles.actionPillSection}>
-          <ActionPillBar items={actionItems} />
-        </View>
-
-        {/* Description Section */}
-        <View style={styles.detailsCard}>
-          <Text style={styles.sectionHeader}>{isEnglish ? 'About Audiobook' : 'অডিওবুক সম্পর্কে'}</Text>
-          <Text style={styles.descriptionText}>
-            {audiobook.description || (isEnglish ? 'Immerse yourself in authentic narration produced with high-fidelity speech synthesis.' : 'উচ্চমানের কথা ও বর্ণনায় সমৃদ্ধ বাংলা সাহিত্যের অনন্য সৃষ্টি।')}
-          </Text>
-        </View>
-      </ScrollView>
-
-      {/* Playlist Picker Modal */}
-      <ModalBottomSheet
-        visible={playlistModalVisible}
-        onClose={() => setPlaylistModalVisible(false)}
-      >
-        <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>{isEnglish ? 'Add to Playlist' : 'প্লেলিস্টে যোগ করুন'}</Text>
-          
-          <View style={styles.createPlaylistRow}>
-            <TextInput
-              style={styles.textInput}
-              value={newPlaylistName}
-              onChangeText={setNewPlaylistName}
-              placeholder={isEnglish ? 'New playlist name' : 'নতুন প্লেলিস্টের নাম'}
-              placeholderTextColor={Colors.textMuted}
-            />
-            <BanglaBookButton
-              label={isEnglish ? 'Create' : 'তৈরি'}
-              onPress={handleCreateAndAddToPlaylist}
-              variant="primary"
+        ) : isOwner ? (
+          <View style={styles.statusCard}>
+            <Text style={styles.statusTitle}>
+              {book.status === 'FAILED'
+                ? tx('অডিও তৈরি ব্যর্থ হয়েছে', 'Audio generation failed')
+                : book.source_file_url
+                  ? tx('অডিও তৈরি হচ্ছে…', 'Audio is being generated…')
+                  : tx('এখনো কোনো ফাইল আপলোড হয়নি', 'No file uploaded yet')}
+            </Text>
+            <AppButton
+              label={book.source_file_url ? tx('অবস্থা দেখুন', 'View progress') : tx('ফাইল আপলোড করুন', 'Upload a file')}
+              onPress={() =>
+                book.source_file_url
+                  ? navigation.navigate('GenerationStatus', { audiobookId: book.id })
+                  : goToTab('CreateTab', { screen: 'UploadSource', params: { audiobookId: book.id, title: book.title } })
+              }
+              variant="secondary"
             />
           </View>
+        ) : null}
 
-          <View style={{ gap: Spacing.xs, marginTop: Spacing.sm }}>
-            {playlists.map((p) => (
+        {actions.length ? <ActionPillBar items={actions} /> : null}
+        {busy === 'save' ? <ActivityIndicator color={Colors.primary} /> : null}
+
+        {book.description ? (
+          <View style={styles.card}>
+            <Text style={styles.sectionHeader}>{tx('অডিওবুক সম্পর্কে', 'About')}</Text>
+            <Text style={styles.descriptionText}>{book.description}</Text>
+          </View>
+        ) : null}
+
+        {playableChapters.length > 0 && !isLocked ? (
+          <View style={styles.card}>
+            <Text style={styles.sectionHeader}>
+              {tx(`অধ্যায় (${playableChapters.length})`, `Chapters (${playableChapters.length})`)}
+            </Text>
+            {playableChapters.map((chapter, index) => (
               <Pressable
-                key={p.id}
-                style={styles.playlistItem}
-                onPress={() => handleAddToPlaylist(p.id)}
+                key={chapter.id}
+                onPress={() => listen(index)}
+                style={({ pressed }) => [styles.chapterRow, pressed && styles.pressed]}
+                accessibilityRole="button"
               >
-                <Text style={styles.playlistItemText}>📁 {p.name}</Text>
+                <Text style={styles.chapterNumber}>{chapter.chapter_number}</Text>
+                <Text style={styles.chapterTitle} numberOfLines={1}>
+                  {chapter.title}
+                </Text>
+                <Text style={styles.chapterDuration}>{formatDuration(chapter.duration_seconds)}</Text>
               </Pressable>
             ))}
-            {playlists.length === 0 && (
-              <Text style={styles.emptyNotice}>{isEnglish ? 'No playlists found. Create one above!' : 'কোনো প্লেলিস্ট পাওয়া যায়নি। উপরে নতুন প্লেলিস্ট তৈরি করুন।'}</Text>
-            )}
           </View>
+        ) : null}
+
+        {isOwner ? (
+          <View style={styles.ownerRow}>
+            <View style={styles.ownerButton}>
+              <AppButton
+                label={tx('সম্পাদনা', 'Edit')}
+                variant="secondary"
+                onPress={() => goToTab('ProfileTab', { screen: 'EditAudiobook', params: { audiobookId: book.id } })}
+              />
+            </View>
+            <View style={styles.ownerButton}>
+              <AppButton label={tx('মুছুন', 'Delete')} variant="secondary" onPress={remove} />
+            </View>
+          </View>
+        ) : null}
+      </ScrollView>
+
+      <ModalBottomSheet visible={playlistSheet} onClose={() => setPlaylistSheet(false)}>
+        <View style={styles.modalContent}>
+          <Text style={styles.modalTitle}>{tx('প্লেলিস্টে যোগ করুন', 'Add to playlist')}</Text>
+          <View style={styles.inlineRow}>
+            <TextInput
+              style={styles.textInput}
+              value={newPlaylist}
+              onChangeText={setNewPlaylist}
+              placeholder={tx('নতুন প্লেলিস্টের নাম', 'New playlist name')}
+              placeholderTextColor={Colors.textMuted}
+              maxLength={150}
+            />
+            <AppButton
+              label={tx('তৈরি', 'Create')}
+              onPress={createPlaylist}
+              variant="compact"
+              fullWidth={false}
+              disabled={!newPlaylist.trim()}
+            />
+          </View>
+          {playlists.map((p) => (
+            <Pressable
+              key={p.id}
+              style={({ pressed }) => [styles.option, pressed && styles.pressed]}
+              onPress={() => addToPlaylist(p)}
+            >
+              <Text style={styles.optionText}>{p.name}</Text>
+            </Pressable>
+          ))}
+          {playlists.length === 0 ? (
+            <Text style={styles.emptyNotice}>{tx('এখনো কোনো প্লেলিস্ট নেই।', 'No playlists yet.')}</Text>
+          ) : null}
         </View>
       </ModalBottomSheet>
 
-      {/* Content Reporting Modal */}
-      <ModalBottomSheet
-        visible={reportModalVisible}
-        onClose={() => setReportModalVisible(false)}
-      >
+      <ModalBottomSheet visible={reportSheet} onClose={() => setReportSheet(false)}>
         <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>{isEnglish ? 'Report Audiobook' : 'অডিওবুক রিপোর্ট করুন'}</Text>
-          <Text style={styles.modalSub}>
-            {isEnglish ? 'Select the reason for copyright or moderation review:' : 'রিপোর্টের কারণ নির্বাচন করুন:'}
-          </Text>
-
-          <View style={{ gap: Spacing.sm }}>
-            {[
-              isEnglish ? 'Copyright Infringement' : 'কপিরাইট লঙ্ঘন',
-              isEnglish ? 'Inappropriate Content' : 'অনুপযুক্ত উপাদান',
-              isEnglish ? 'Low Audio Quality' : 'ত্রুটিপূর্ণ অডিও',
-            ].map((reason) => (
-              <Pressable
-                key={reason}
-                style={[styles.reasonOption, reportReason === reason && styles.reasonOptionActive]}
-                onPress={() => setReportReason(reason)}
-              >
-                <Text style={[styles.reasonText, reportReason === reason && styles.reasonTextActive]}>
-                  {reason}
-                </Text>
-              </Pressable>
-            ))}
-
-            <BanglaBookButton
-              label={reportSubmitting ? (isEnglish ? 'Submitting...' : 'জমা হচ্ছে...') : (isEnglish ? 'Submit Report' : 'রিপোর্ট জমা দিন')}
-              onPress={handleSubmitReport}
-              variant="secondary"
-              isLoading={reportSubmitting}
-            />
-          </View>
+          <Text style={styles.modalTitle}>{tx('অডিওবুক রিপোর্ট করুন', 'Report audiobook')}</Text>
+          {REPORT_REASONS.map((reason, index) => (
+            <Pressable
+              key={reason.en}
+              style={[styles.option, reportReason === index && styles.optionActive]}
+              onPress={() => setReportReason(index)}
+            >
+              <Text style={[styles.optionText, reportReason === index && styles.optionTextActive]}>
+                {isEnglish ? reason.en : reason.bn}
+              </Text>
+            </Pressable>
+          ))}
+          <TextInput
+            style={[styles.textInput, styles.multiline]}
+            value={reportDetails}
+            onChangeText={setReportDetails}
+            placeholder={tx('বিস্তারিত (ঐচ্ছিক)', 'Details (optional)')}
+            placeholderTextColor={Colors.textMuted}
+            multiline
+            maxLength={1000}
+          />
+          <AppButton
+            label={tx('রিপোর্ট জমা দিন', 'Submit report')}
+            onPress={submitReport}
+            isLoading={busy === 'report'}
+          />
         </View>
       </ModalBottomSheet>
     </SafeAreaView>
@@ -392,21 +468,23 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xl,
     gap: Spacing.md,
   },
-  heroSection: {
-    marginBottom: Spacing.xs,
-  },
   badgeRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: Spacing.xs,
-    alignItems: 'center',
   },
-  ctaWrapper: {
-    marginTop: Spacing.xs,
+  statusCard: {
+    backgroundColor: Colors.tintAmber,
+    borderRadius: Radius.lg,
+    padding: Spacing.md,
+    gap: Spacing.sm,
   },
-  actionPillSection: {
-    marginVertical: Spacing.xs,
+  statusTitle: {
+    fontSize: FontSizes.base,
+    fontWeight: '700',
+    color: Colors.tintAmberText,
   },
-  detailsCard: {
+  card: {
     backgroundColor: Colors.surface,
     borderRadius: Radius.lg,
     padding: Spacing.lg,
@@ -424,27 +502,57 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     lineHeight: 22,
   },
-  modalContent: {
+  chapterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.surfaceBorder,
     gap: Spacing.md,
+  },
+  chapterNumber: {
+    width: 22,
+    fontSize: FontSizes.sm,
+    fontWeight: '700',
+    color: Colors.textMuted,
+  },
+  chapterTitle: {
+    flex: 1,
+    fontSize: FontSizes.sm,
+    color: Colors.textPrimary,
+  },
+  chapterDuration: {
+    fontSize: FontSizes.xs,
+    color: Colors.textSecondary,
+  },
+  ownerRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  ownerButton: {
+    flex: 1,
+  },
+  pressed: {
+    opacity: 0.7,
+  },
+  modalContent: {
+    gap: Spacing.sm,
     paddingTop: Spacing.xs,
   },
   modalTitle: {
     fontSize: FontSizes.lg,
     fontWeight: '700',
     color: Colors.textPrimary,
+    marginBottom: Spacing.xs,
   },
-  modalSub: {
-    fontSize: FontSizes.xs + 1,
-    color: Colors.textSecondary,
-  },
-  createPlaylistRow: {
+  inlineRow: {
     flexDirection: 'row',
     gap: Spacing.sm,
     alignItems: 'center',
   },
   textInput: {
     flex: 1,
-    height: 48,
+    minHeight: 46,
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.surfaceBorder,
@@ -453,41 +561,35 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
     color: Colors.textPrimary,
   },
-  playlistItem: {
+  multiline: {
+    minHeight: 80,
+    paddingTop: Spacing.sm,
+    textAlignVertical: 'top',
+    flex: 0,
+  },
+  option: {
     backgroundColor: Colors.surfaceElevated,
     padding: Spacing.md,
     borderRadius: Radius.md,
     borderWidth: 1,
     borderColor: Colors.surfaceBorder,
   },
-  playlistItemText: {
+  optionActive: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primarySurface,
+  },
+  optionText: {
     fontSize: FontSizes.sm,
     fontWeight: '600',
     color: Colors.textPrimary,
+  },
+  optionTextActive: {
+    color: Colors.primary,
   },
   emptyNotice: {
     fontSize: FontSizes.xs,
     color: Colors.textMuted,
     textAlign: 'center',
     paddingVertical: Spacing.sm,
-  },
-  reasonOption: {
-    backgroundColor: Colors.surfaceElevated,
-    padding: Spacing.md,
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: Colors.surfaceBorder,
-  },
-  reasonOptionActive: {
-    borderColor: Colors.primary,
-    backgroundColor: '#FDEAE4',
-  },
-  reasonText: {
-    fontSize: FontSizes.sm,
-    color: Colors.textPrimary,
-  },
-  reasonTextActive: {
-    color: Colors.primary,
-    fontWeight: '700',
   },
 });

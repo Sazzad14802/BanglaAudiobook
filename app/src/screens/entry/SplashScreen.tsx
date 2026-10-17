@@ -2,33 +2,33 @@ import React, { useEffect } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { BanglaBookHeader } from '../../components/BanglaBookHeader';
+import { AppHeader } from '../../components/AppHeader';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
 import { useLanguage } from '../../contexts/LanguageContext';
 
 interface SplashScreenProps {
   onContinue: () => void;
+  /** False until the app knows where to go next (first run vs. returning user). */
+  ready?: boolean;
 }
 
-export function SplashScreen({ onContinue }: SplashScreenProps) {
+export function SplashScreen({ onContinue, ready = true }: SplashScreenProps) {
   const { t } = useLanguage();
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      onContinue();
-    }, 2400);
+    if (!ready) return;
+    const timer = setTimeout(onContinue, 1400);
     return () => clearTimeout(timer);
-  }, [onContinue]);
+  }, [onContinue, ready]);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <BanglaBookHeader
+      <AppHeader
         title={t('appName')}
         subtitle={t('appTagline')}
-        onOptionsPress={() => {}}
       />
 
-      <Pressable style={styles.mainContainer} onPress={onContinue}>
+      <Pressable style={styles.mainContainer} onPress={ready ? onContinue : undefined}>
         {/* Dark Charcoal Hero Card */}
         <View style={styles.darkCard}>
           {/* Official App Logo */}
@@ -53,10 +53,6 @@ export function SplashScreen({ onContinue }: SplashScreenProps) {
         </View>
       </Pressable>
 
-      {/* Android edge-to-edge indicator bar */}
-      <View style={styles.bottomBarContainer}>
-        <View style={styles.homeIndicator} />
-      </View>
     </SafeAreaView>
   );
 }
@@ -93,9 +89,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.lg,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: '#FFFFFF',
+    padding: Spacing.md,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
+    borderColor: Colors.onDarkHairline,
   },
   logoImage: {
     width: '100%',
@@ -111,7 +108,7 @@ const styles = StyleSheet.create({
   },
   tagline: {
     fontSize: FontSizes.sm,
-    color: '#B5B1A8',
+    color: Colors.textOnDarkSecondary,
     letterSpacing: 0.2,
     marginBottom: Spacing.md,
   },
@@ -119,23 +116,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: 6,
     borderRadius: Radius.full,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: Colors.onDarkFill,
     marginTop: Spacing.xs,
   },
   badgeText: {
     fontSize: FontSizes.xs,
-    color: '#F4ECE1',
+    color: Colors.textOnDark,
     fontWeight: '600',
     letterSpacing: 0.5,
-  },
-  bottomBarContainer: {
-    alignItems: 'center',
-    paddingBottom: Spacing.xs,
-  },
-  homeIndicator: {
-    width: 120,
-    height: 4,
-    borderRadius: Radius.full,
-    backgroundColor: '#000000',
   },
 });

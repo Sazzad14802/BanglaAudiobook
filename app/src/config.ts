@@ -1,19 +1,16 @@
 /**
  * App-wide configuration.
  *
- * Supported environments:
- * 1. Cloud Tunnel: https://bangla-audiobook-api.loca.lt (accessible from any network, cellular, Wi-Fi)
- * 2. LAN Wi-Fi: http://192.168.0.118:8000
- * 3. Android Emulator: http://10.0.2.2:8000
- * 4. Web / iOS Simulator: http://localhost:8000
- *
- * Design Pattern: Strategy & Chain of Responsibility (Endpoint Candidate Resolver)
+ * API base URL resolution (Chain of Responsibility):
+ * 1. EXPO_PUBLIC_API_URL, when set, is the only candidate (APK / tunnel builds).
+ * 2. The LAN host Expo Go was loaded from, so a phone reaches the dev machine.
+ * 3. The emulator / simulator loopback address.
+ * The HTTP client remembers whichever candidate answered last.
  */
 
 import { Platform, NativeModules } from 'react-native';
 import Constants from 'expo-constants';
 
-export const CLOUD_TUNNEL_URL = 'https://bangla-audiobook-api.loca.lt';
 export const LAN_DEFAULT_IP = '192.168.0.118';
 
 function isIpAddress(host: string): boolean {
@@ -21,15 +18,14 @@ function isIpAddress(host: string): boolean {
 }
 
 function getDetectedLanHost(): string {
-  // 1. Official Expo hostUri
-  const hostUri = Constants.expoConfig?.hostUri || (Constants as any)?.manifest2?.extra?.expoClient?.hostUri;
+  const hostUri =
+    Constants.expoConfig?.hostUri || (Constants as any)?.manifest2?.extra?.expoClient?.hostUri;
   if (hostUri) {
     const rawHost = hostUri.split(':')[0];
     if (rawHost && isIpAddress(rawHost) && rawHost !== '127.0.0.1') {
       return rawHost;
     }
   }
-  // 2. NativeModules scriptURL
   const scriptURL = (NativeModules as any)?.SourceCode?.scriptURL as string | undefined;
   if (scriptURL) {
     const match = scriptURL.match(/^(?:https?|exps?):\/\/([^:/]+)/);
@@ -42,7 +38,7 @@ function getDetectedLanHost(): string {
 
 export function getApiBaseUrlCandidates(): string[] {
   const configured = process.env.EXPO_PUBLIC_API_URL;
-  if (configured) return [configured];
+  if (configured) return [configured.replace(/\/+$/, '')];
   const lanHost = getDetectedLanHost();
   return [
     `http://${lanHost}:8000`,
@@ -50,28 +46,37 @@ export function getApiBaseUrlCandidates(): string[] {
   ];
 }
 
-const candidates = getApiBaseUrlCandidates();
-let currentApiBaseUrl = candidates[0];
+let currentApiBaseUrl = getApiBaseUrlCandidates()[0];
 
 export function getActiveApiBaseUrl(): string {
   return currentApiBaseUrl;
 }
 
 export function setActiveApiBaseUrl(url: string) {
-  console.log(`[Config] Active API base URL updated to: ${url}`);
   currentApiBaseUrl = url;
 }
 
-export function getActiveApiV1(): string {
-  return `${currentApiBaseUrl}/api/v1`;
+/**
+ * Turns a server-relative path (covers, signed media grants) into an absolute URL.
+ * Absolute http(s) and local file URIs are returned unchanged.
+ */
+export function resolveMediaUrl(url: string | null | undefined): string | undefined {
+  if (!url) return undefined;
+  if (/^(https?:|file:|content:|data:)/.test(url)) return url;
+  return `${currentApiBaseUrl}${url.startsWith('/') ? '' : '/'}${url}`;
 }
 
-// Default exports for backward compatibility
-export const API_BASE_URL = currentApiBaseUrl;
-export const API_V1 = `${currentApiBaseUrl}/api/v1`;
+/** Fail-fast timeout for JSON requests. */
+export const REQUEST_TIMEOUT_MS = 15_000;
 
-/** Playback progress sync interval in milliseconds */
+/** Timeout for multipart uploads (PDF, MP3, covers). */
+export const UPLOAD_TIMEOUT_MS = 180_000;
+
+/** Playback progress sync / listening heartbeat interval. */
 export const PLAYBACK_SYNC_INTERVAL_MS = 10_000;
 
-/** Generation status polling interval in milliseconds */
-export const GENERATION_POLL_INTERVAL_MS = 5_000;
+/** Generation status polling interval. */
+export const GENERATION_POLL_INTERVAL_MS = 4_000;
+
+/** Media grants are valid for 15 minutes; refresh a little before they expire. */
+export const MEDIA_GRANT_REFRESH_MS = 12 * 60_000;

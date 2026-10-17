@@ -6,14 +6,16 @@ import {
   aesDecryptAsync,
 } from "expo-crypto";
 import * as SecureStore from "expo-secure-store";
-import { apiClient, ApiError } from "../api/client";
-import { getActiveApiBaseUrl } from "../config";
+import { ApiError } from "../api/client";
+import { playbackApi } from "../api/playback";
+import { resolveMediaUrl } from "../config";
 import { Audiobook } from "../types/audiobook";
+import type { PlayerChapter } from "../contexts/PlayerContext";
 function getFolder(): Directory {
-  return new Directory(Paths.document, "banglabook-offline");
+  return new Directory(Paths.document, "bornoverse-offline");
 }
 function getPlayback(): Directory {
-  return new Directory(Paths.cache, "banglabook-playback");
+  return new Directory(Paths.cache, "bornoverse-playback");
 }
 const indexKey = (user: string) => `offline-index-${user}`;
 const keyName = (id: string, user: string) => `offline-${user}-${id}`;
@@ -22,19 +24,15 @@ async function index(user: string): Promise<string[]> {
 }
 export const offline = {
   async download(book: Audiobook, user: string) {
-    const license = await apiClient.post<any>(
-      `/audiobooks/${book.id}/offline-license`,
-    );
+    const license = await playbackApi.offlineLicense(book.id);
     if (!license.chapters.length)
       throw new Error("No completed audio is available.");
     const folder = getFolder();
     folder.create({ idempotent: true, intermediates: true });
     const key = await AESEncryptionKey.generate();
-    const chapters = [];
+    const chapters: Omit<PlayerChapter, "audio_url">[] = [];
     for (const chapter of license.chapters) {
-      const response = await fetch(
-        `${getActiveApiBaseUrl()}${chapter.audio_url}`,
-      );
+      const response = await fetch(resolveMediaUrl(chapter.audio_url)!);
       if (!response.ok) throw new Error("Audio download failed. Please retry.");
       const sealed = await aesEncryptAsync(
         new Uint8Array(await response.arrayBuffer()),
@@ -43,7 +41,8 @@ export const offline = {
       const file = new File(folder, `${user}-${book.id}-${chapter.id}.enc`);
       file.create({ overwrite: true });
       file.write(await sealed.combined());
-      chapters.push({ ...chapter, audio_url: undefined });
+      const { audio_url: _signedUrl, ...metadata } = chapter;
+      chapters.push(metadata);
     }
     const manifest = new File(folder, `${user}-${book.id}.json`);
     manifest.create({ overwrite: true });
@@ -76,7 +75,7 @@ export const offline = {
     }
     return result;
   },
-  async open(id: string, user: string) {
+  async open(id: string, user: string): Promise<PlayerChapter[]> {
     const stored = await SecureStore.getItemAsync(keyName(id, user));
     if (!stored) throw new Error("Download unavailable.");
     const lease = JSON.parse(stored);
@@ -86,7 +85,7 @@ export const offline = {
     }
     // Check revocation whenever the server is reachable; only network failures permit offline fallback.
     try {
-      await apiClient.post(`/audiobooks/${id}/offline-license`);
+      await playbackApi.offlineLicense(id);
     } catch (e) {
       if (e instanceof ApiError && e.status !== 0) {
         await this.remove(id, user);
@@ -103,7 +102,7 @@ export const offline = {
     const manifest = JSON.parse(
       await new File(folder, `${user}-${id}.json`).text(),
     );
-    const chapters = [];
+    const chapters: PlayerChapter[] = [];
     for (const chapter of manifest.chapters) {
       const cipher = await new File(
         folder,

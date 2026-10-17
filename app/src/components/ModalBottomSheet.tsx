@@ -47,7 +47,7 @@ export function ModalBottomSheet({ visible, onClose, children }: ModalBottomShee
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(25, 24, 27, 0.45)',
+    backgroundColor: Colors.scrim,
     justifyContent: 'flex-end',
   },
   backdrop: {

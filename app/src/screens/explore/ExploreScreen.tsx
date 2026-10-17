@@ -1,161 +1,164 @@
 /**
- * ExploreScreen — Explore matching Figma Plate 3 Screen 2.
- * Search bar, category chips, curated banner, audiobooks list.
+ * ExploreScreen — browse the public catalog by genre, language and access tier.
+ * Filters map directly to API query parameters; results page in on demand.
  */
 
 import React, { useState } from 'react';
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Alert, FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ExploreStackParamList } from '../../navigation/types';
-import { BanglaBookHeader } from '../../components/BanglaBookHeader';
+import { AppHeader } from '../../components/AppHeader';
 import { AudiobookCard } from '../../components/AudiobookCard';
-import { FIGMA_AUDIOBOOKS } from '../../data/mockAudiobooks';
+import { Chip, ChipGroup } from '../../components/Chip';
+import { StateView } from '../../components/StateView';
+import { AppButton } from '../../components/AppButton';
+import { audiobooksApi } from '../../api/audiobooks';
+import { errorMessage } from '../../api/client';
 import { usePlayer } from '../../contexts/PlayerContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useResource } from '../../hooks/useResource';
+import { useAppNavigation } from '../../navigation/useAppNavigation';
+import { GENRES } from '../../constants/genres';
+import { AccessTier, Audiobook, AudiobookListResponse } from '../../types/audiobook';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
-import { apiClient } from '../../api/client';
 
-type Nav = NativeStackNavigationProp<ExploreStackParamList, 'Explore'>;
+const PAGE_SIZE = 20;
 
 export function ExploreScreen() {
-  const nav = useNavigation<Nav>();
+  const { navigation } = useAppNavigation();
   const { loadAudiobook } = usePlayer();
-  const { t, isEnglish } = useLanguage();
+  const { t, tx, isEnglish } = useLanguage();
 
-  const categories = isEnglish
-    ? ['Literature', 'Mystery', 'Poetry', 'History']
-    : ['সাহিত্য', 'রহস্য', 'কবিতা', 'ইতিহাস'];
+  const [genre, setGenre] = useState('all');
+  const [language, setLanguage] = useState('all');
+  const [tier, setTier] = useState<'all' | AccessTier>('all');
+  const [extra, setExtra] = useState<Audiobook[]>([]);
+  const [page, setPage] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
 
-  const [activeCategory, setActiveCategory] = useState(categories[0]);
-  const [liveBooks, setLiveBooks] = useState<any[]>([]);
+  const filters = {
+    genre: genre === 'all' ? undefined : genre,
+    language: language === 'all' ? undefined : language,
+    access_tier: tier === 'all' ? undefined : tier,
+  };
 
-  React.useEffect(() => {
-    let isMounted = true;
-    (async () => {
-      try {
-        const res = await apiClient.get<any>(`/audiobooks?genre=${encodeURIComponent(activeCategory)}&size=10`).catch(() => null);
-        if (isMounted && res?.items && res.items.length > 0) {
-          setLiveBooks(res.items);
-          return;
-        }
-      } catch {}
-      if (isMounted) {
-        const filtered = FIGMA_AUDIOBOOKS.filter(
-          (b) => b.genre?.toLowerCase() === activeCategory.toLowerCase()
-        );
-        setLiveBooks(filtered.length > 0 ? filtered : FIGMA_AUDIOBOOKS.filter(
-          (b) => b.id === 'neelkantha-pakhir-khoje' || b.id === 'chander-pahar'
-        ));
-      }
-    })();
-    return () => { isMounted = false; };
-  }, [activeCategory]);
+  const first = useResource<AudiobookListResponse>(async () => {
+    setExtra([]);
+    setPage(1);
+    return audiobooksApi.list({ ...filters, page: 1, size: PAGE_SIZE });
+  }, [genre, language, tier]);
 
-  const exploreBooks = liveBooks.length > 0 ? liveBooks : FIGMA_AUDIOBOOKS.filter(
-    (b) => b.id === 'neelkantha-pakhir-khoje' || b.id === 'chander-pahar'
+  const books = [...(first.data?.items ?? []), ...extra];
+  const hasMore = !!first.data && page < first.data.pages;
+
+  const loadMore = async () => {
+    if (!hasMore || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const next = await audiobooksApi.list({ ...filters, page: page + 1, size: PAGE_SIZE });
+      setExtra((current) => [...current, ...next.items]);
+      setPage(page + 1);
+    } catch (error) {
+      Alert.alert(tx('লোড করা যায়নি', 'Could not load more'), errorMessage(error));
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  const playBook = async (book: Audiobook) => {
+    try {
+      await loadAudiobook(book);
+      navigation.navigate('Player');
+    } catch (error) {
+      Alert.alert(tx('চালানো যায়নি', 'Could not play'), errorMessage(error));
+    }
+  };
+
+  const header = (
+    <View style={styles.headerBlock}>
+      <Pressable
+        style={({ pressed }) => [styles.searchBar, pressed && styles.pressed]}
+        onPress={() => navigation.navigate('SearchResults', {})}
+        accessibilityRole="search"
+      >
+        <Text style={styles.searchIcon}>🔍</Text>
+        <Text style={styles.searchPlaceholder}>{t('searchPlaceholder')}</Text>
+      </Pressable>
+
+      <ChipGroup
+        scrollable
+        value={genre}
+        onChange={setGenre}
+        options={[
+          { value: 'all', label: tx('সব', 'All') },
+          ...GENRES.map((g) => ({ value: g.key, label: isEnglish ? g.en : g.bn })),
+        ]}
+      />
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+        <Chip label={tx('সব ভাষা', 'All languages')} selected={language === 'all'} onPress={() => setLanguage('all')} />
+        <Chip label="বাংলা" selected={language === 'bn'} onPress={() => setLanguage('bn')} />
+        <Chip label="English" selected={language === 'en'} onPress={() => setLanguage('en')} />
+        <View style={styles.divider} />
+        <Chip
+          label={tx('ফ্রি', 'Free')}
+          selected={tier === 'free'}
+          onPress={() => setTier(tier === 'free' ? 'all' : 'free')}
+        />
+        <Chip
+          label={tx('প্রিমিয়াম', 'Premium')}
+          selected={tier === 'premium'}
+          onPress={() => setTier(tier === 'premium' ? 'all' : 'premium')}
+        />
+      </ScrollView>
+      {first.data ? (
+        <Text style={styles.count}>{tx(`${first.data.total}টি অডিওবুক`, `${first.data.total} audiobooks`)}</Text>
+      ) : null}
+    </View>
   );
-
-  const handleSearchFocus = () => {
-    nav.navigate('SearchResults', { query: isEnglish ? 'Tagore' : 'রবীন্দ্রনাথ' });
-  };
-
-  const handleBookPress = (audiobookId: string) => {
-    nav.navigate('AudiobookDetails', { audiobookId });
-  };
-
-  const handlePlayBook = async (book: any) => {
-    await loadAudiobook(book);
-    nav.navigate('Player', { audiobookId: book.id });
-  };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <BanglaBookHeader
-        title={t('exploreTitle')}
-        subtitle={t('exploreSub')}
-        onOptionsPress={() => {}}
-      />
-
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Search Bar */}
-        <Pressable style={styles.searchBar} onPress={handleSearchFocus}>
-          <Text style={styles.searchIcon}>🔍</Text>
-          <Text style={styles.searchPlaceholder}>{t('searchPlaceholder')}</Text>
-          <Text style={styles.micIcon}>🎙️</Text>
-        </Pressable>
-
-        {/* Category Filter Chips */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoriesRow}
-        >
-          {categories.map((cat) => {
-            const isSelected = activeCategory === cat;
-            return (
-              <Pressable
-                key={cat}
-                onPress={() => setActiveCategory(cat)}
-                style={[
-                  styles.categoryChip,
-                  isSelected ? styles.categoryChipSelected : styles.categoryChipDefault,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.chipText,
-                    isSelected ? styles.chipTextSelected : styles.chipTextDefault,
-                  ]}
-                >
-                  {isSelected ? `✓ ${cat}` : cat}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-
-        {/* Curated Highlight Card */}
-        <View style={styles.curatedCard}>
-          <Text style={styles.curatedTitle}>
-            {isEnglish ? 'Stories of the Cities' : 'শহরের গল্প'}
-          </Text>
-          <Text style={styles.curatedSub}>
-            {isEnglish
-              ? 'Curated Kolkata, Dhaka & River narratives'
-              : 'Curated Kolkata, Dhaka ও নদীর গল্প'}
-          </Text>
-        </View>
-
-        {/* Audiobooks List */}
-        <View style={styles.listContainer}>
-          {exploreBooks.map((book) => (
-            <AudiobookCard
-              key={book.id}
-              audiobook={book}
-              onPress={() => handleBookPress(book.id)}
-              onPlayPress={() => handlePlayBook(book)}
+      <AppHeader title={t('exploreTitle')} subtitle={t('exploreSub')} />
+      <FlatList
+        data={books}
+        keyExtractor={(b) => b.id}
+        contentContainerStyle={styles.list}
+        ListHeaderComponent={header}
+        refreshControl={
+          <RefreshControl refreshing={first.isRefreshing} onRefresh={first.refresh} tintColor={Colors.primary} />
+        }
+        renderItem={({ item }) => (
+          <AudiobookCard
+            audiobook={item}
+            onPress={() => navigation.navigate('AudiobookDetails', { audiobookId: item.id })}
+            onPlayPress={() => playBook(item)}
+          />
+        )}
+        ListEmptyComponent={
+          first.isLoading ? (
+            <StateView kind="loading" />
+          ) : first.error ? (
+            <StateView kind="error" message={first.error} actionLabel={tx('আবার চেষ্টা', 'Retry')} onAction={first.reload} />
+          ) : (
+            <StateView
+              kind="empty"
+              title={t('noResultsTitle')}
+              message={tx('অন্য ফিল্টার বেছে দেখুন।', 'Try a different filter.')}
             />
-          ))}
-        </View>
-      </ScrollView>
-
-      {/* Android edge-to-edge indicator bar */}
-      <View style={styles.bottomBarContainer}>
-        <View style={styles.homeIndicator} />
-      </View>
+          )
+        }
+        ListFooterComponent={
+          hasMore ? (
+            <View style={styles.footer}>
+              <AppButton
+                label={tx('আরও দেখুন', 'Load more')}
+                onPress={loadMore}
+                isLoading={loadingMore}
+                variant="secondary"
+              />
+            </View>
+          ) : null
+        }
+      />
     </SafeAreaView>
   );
 }
@@ -165,11 +168,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  scrollContent: {
+  list: {
     paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.xs,
     paddingBottom: Spacing.xl,
-    gap: Spacing.md,
+  },
+  headerBlock: {
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
   },
   searchBar: {
     height: 48,
@@ -182,6 +187,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     gap: Spacing.sm,
   },
+  pressed: {
+    opacity: 0.8,
+  },
   searchIcon: {
     fontSize: 16,
     opacity: 0.6,
@@ -191,66 +199,21 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.base,
     color: Colors.textSecondary,
   },
-  micIcon: {
-    fontSize: 18,
-    opacity: 0.8,
-  },
-  categoriesRow: {
+  filterRow: {
     flexDirection: 'row',
-    gap: Spacing.sm,
-    paddingVertical: Spacing.xs,
-  },
-  categoryChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: Radius.full,
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: Spacing.sm,
   },
-  categoryChipSelected: {
-    backgroundColor: Colors.surfaceDark,
+  divider: {
+    width: 1,
+    height: 20,
+    backgroundColor: Colors.surfaceBorder,
   },
-  categoryChipDefault: {
-    backgroundColor: Colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: Colors.surfaceBorder,
-  },
-  chipText: {
-    fontSize: FontSizes.sm,
-    fontWeight: '600',
-  },
-  chipTextSelected: {
-    color: '#FFFFFF',
-  },
-  chipTextDefault: {
-    color: Colors.textPrimary,
-  },
-  curatedCard: {
-    backgroundColor: '#F8E8E1', // peach curated card from Figma
-    borderRadius: Radius.lg,
-    padding: Spacing.lg,
-  },
-  curatedTitle: {
-    fontSize: FontSizes.md + 1,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-    marginBottom: 4,
-  },
-  curatedSub: {
-    fontSize: FontSizes.xs + 1,
+  count: {
+    fontSize: FontSizes.xs,
     color: Colors.textSecondary,
   },
-  listContainer: {
-    gap: Spacing.xs,
-  },
-  bottomBarContainer: {
-    alignItems: 'center',
-    paddingBottom: Spacing.xs,
-  },
-  homeIndicator: {
-    width: 120,
-    height: 4,
-    borderRadius: Radius.full,
-    backgroundColor: '#000000',
+  footer: {
+    marginTop: Spacing.md,
   },
 });

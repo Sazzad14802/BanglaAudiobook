@@ -1,5 +1,5 @@
 /**
- * BanglaBookHeader — Standardized app header matching Figma design.
+ * AppHeader — Standardized app header matching Figma design.
  * Features back button, title, contextual subtitle, and 3-dot options menu.
  */
 
@@ -7,7 +7,7 @@ import React from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Colors, FontSizes, Radius, Spacing } from '../theme';
 
-interface BanglaBookHeaderProps {
+interface AppHeaderProps {
   title: string;
   subtitle?: string;
   onBack?: () => void;
@@ -16,9 +16,14 @@ interface BanglaBookHeaderProps {
   showLogo?: boolean;
   rightActionText?: string;
   onRightAction?: () => void;
+  /** Icon button (e.g. 🔔) shown on the right; takes precedence over the options menu. */
+  rightIcon?: string;
+  rightIconLabel?: string;
+  onRightIconPress?: () => void;
+  badgeCount?: number;
 }
 
-export function BanglaBookHeader({
+export function AppHeader({
   title,
   subtitle,
   onBack,
@@ -27,7 +32,11 @@ export function BanglaBookHeader({
   showLogo = false,
   rightActionText,
   onRightAction,
-}: BanglaBookHeaderProps) {
+  rightIcon,
+  rightIconLabel,
+  onRightIconPress,
+  badgeCount = 0,
+}: AppHeaderProps) {
   return (
     <View style={styles.header}>
       <View style={styles.leftContainer}>
@@ -77,7 +86,22 @@ export function BanglaBookHeader({
       )}
 
       <View style={styles.rightContainer}>
-        {rightActionText && onRightAction ? (
+        {rightIcon && onRightIconPress ? (
+          <Pressable
+            onPress={onRightIconPress}
+            style={({ pressed }) => [styles.iconButton, pressed && styles.iconButtonPressed]}
+            hitSlop={12}
+            accessibilityLabel={rightIconLabel ?? rightIcon}
+            accessibilityRole="button"
+          >
+            <Text style={styles.rightIcon}>{rightIcon}</Text>
+            {badgeCount > 0 ? (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{badgeCount > 9 ? '9+' : badgeCount}</Text>
+              </View>
+            ) : null}
+          </Pressable>
+        ) : rightActionText && onRightAction ? (
           <Pressable
             onPress={onRightAction}
             style={({ pressed }) => [styles.headerTextBtn, pressed && styles.iconButtonPressed]}
@@ -165,6 +189,27 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     fontWeight: 'bold',
   },
+  rightIcon: {
+    fontSize: 19,
+    color: Colors.textPrimary,
+  },
+  badge: {
+    position: 'absolute',
+    top: 2,
+    right: 0,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 3,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '800',
+  },
   headerLogo: {
     width: 38,
     height: 38,
@@ -175,7 +220,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: Radius.full,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    backgroundColor: Colors.overlayLight,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -4,7 +4,7 @@
  * - Proper notch-safe edge handling (react-native-safe-area-context)
  * - Sign In & Sign Up connected to live FastAPI backend & PostgreSQL database
  * - Secure JWT storage
- * - Quick Google Sign-In / Demo Login bypass
+ * - Google sign-in via Supabase (verified by the Platform API)
  * - Strategy pattern for auth input validation & registration resolution
  * - Failover resilience: never hangs in loading state
  */
@@ -27,23 +27,24 @@ import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { AuthStackParamList } from '../../navigation/types';
-import { BanglaBookHeader } from '../../components/BanglaBookHeader';
-import { BanglaBookButton } from '../../components/BanglaBookButton';
+import { AppHeader } from '../../components/AppHeader';
+import { AppButton } from '../../components/AppButton';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
-import { ApiError } from '../../api/client';
+import { ApiError, errorMessage } from '../../api/client';
+import { GoogleSignInCancelled, isGoogleSignInConfigured, signInWithGoogle } from '../../services/googleAuth';
 
 type Nav = NativeStackNavigationProp<AuthStackParamList, 'Login'>;
 
 export function LoginScreen() {
   const nav = useNavigation<Nav>();
-  const { login, register } = useAuth();
+  const { login, register, acceptSession } = useAuth();
   const { t, isEnglish } = useLanguage();
 
   const [isSignUp, setIsSignUp] = useState(false);
   const [accountType, setAccountType] = useState<'listener' | 'publisher'>('listener');
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('nabila@example.com');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -54,7 +55,8 @@ export function LoginScreen() {
     setSuccessMessage(null);
 
     const cleanEmail = email.trim().toLowerCase();
-    const cleanPassword = password.trim();
+    // Passwords are used exactly as typed; spaces are valid characters.
+    const cleanPassword = password;
 
     // Strategy Pattern: Validation Strategy
     if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
@@ -142,26 +144,20 @@ export function LoginScreen() {
   };
 
   const handleGoogleSignIn = async () => {
-    setIsSubmitting(true);
     setValidationError(null);
+    if (!isGoogleSignInConfigured()) {
+      setValidationError(
+        isEnglish
+          ? 'Google sign-in is not set up yet. Use email and password for now.'
+          : 'Google সাইন-ইন এখনো চালু করা হয়নি। আপাতত ইমেইল ও পাসওয়ার্ড ব্যবহার করুন।',
+      );
+      return;
+    }
+    setIsSubmitting(true);
     try {
-      try {
-        await login({
-          username_or_email: 'salehsadid16@gmail.com',
-          password: 'password123',
-        });
-      } catch {
-        await login({
-          username_or_email: 'nabila@example.com',
-          password: 'password123',
-        });
-      }
-    } catch {
-      // If server unreachable, proceed gracefully in demo state
-      await login({
-        username_or_email: 'nabila@example.com',
-        password: 'password123',
-      }).catch(() => {});
+      await acceptSession(await signInWithGoogle(accountType));
+    } catch (err) {
+      if (!(err instanceof GoogleSignInCancelled)) setValidationError(errorMessage(err));
     } finally {
       setIsSubmitting(false);
     }
@@ -169,11 +165,10 @@ export function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <BanglaBookHeader
+      <AppHeader
         title={t('authHeaderTitle')}
         subtitle={t('authHeaderSub')}
         onBack={() => nav.goBack()}
-        onOptionsPress={() => {}}
       />
 
       <KeyboardAvoidingView
@@ -229,8 +224,6 @@ export function LoginScreen() {
                 setIsSignUp(false);
                 setValidationError(null);
                 setSuccessMessage(null);
-                if (!email) setEmail('nabila@example.com');
-                if (!password) setPassword('password123');
               }}
               style={[styles.toggleTab, !isSignUp && styles.toggleTabActive]}
             >
@@ -243,10 +236,6 @@ export function LoginScreen() {
                 setIsSignUp(true);
                 setValidationError(null);
                 setSuccessMessage(null);
-                if (email === 'nabila@example.com') {
-                  setEmail('');
-                  setPassword('');
-                }
               }}
               style={[styles.toggleTab, isSignUp && styles.toggleTabActive]}
             >
@@ -259,19 +248,20 @@ export function LoginScreen() {
           {/* Form Fields */}
           <View style={styles.formContainer}>
             {/* Name Field (Sign up only) */}
-            <View style={styles.fieldWrapper}>
-              <Text style={styles.fieldLabel}>
-                {isSignUp ? t('fieldNameLabel') : t('fieldNameOptional')}
-              </Text>
-              <TextInput
-                style={[styles.textInput, !isSignUp && styles.inputDisabled]}
-                placeholder={isSignUp ? t('fieldNamePlaceholder') : '—'}
-                placeholderTextColor={Colors.textMuted}
-                value={name}
-                onChangeText={setName}
-                editable={isSignUp}
-              />
-            </View>
+            {isSignUp && (
+              <View style={styles.fieldWrapper}>
+                <Text style={styles.fieldLabel}>
+                  {t('fieldNameLabel')}
+                </Text>
+                <TextInput
+                  style={styles.textInput}
+                  placeholder={t('fieldNamePlaceholder')}
+                  placeholderTextColor={Colors.textMuted}
+                  value={name}
+                  onChangeText={setName}
+                />
+              </View>
+            )}
 
             {/* Email Field */}
             <View style={styles.fieldWrapper}>
@@ -312,7 +302,7 @@ export function LoginScreen() {
 
           {/* Action Buttons */}
           <View style={styles.actionsContainer}>
-            <BanglaBookButton
+            <AppButton
               label={
                 isSubmitting
                   ? isSignUp
@@ -327,7 +317,7 @@ export function LoginScreen() {
               isLoading={isSubmitting}
             />
 
-            <BanglaBookButton
+            <AppButton
               label={t('btnGoogleSignIn')}
               onPress={handleGoogleSignIn}
               variant="google"
@@ -340,17 +330,6 @@ export function LoginScreen() {
               <Text style={styles.validationTitle}>{t('noticeTitle')}</Text>
               <Text style={styles.validationDetail}>{validationError}</Text>
 
-              {/* If server connection failed, offer instant Demo fallback */}
-              {validationError.includes('সংযোগ') && (
-                <Pressable
-                  style={styles.demoBypassButton}
-                  onPress={handleGoogleSignIn}
-                >
-                  <Text style={styles.demoBypassText}>
-                    {t('offlineDemoBypass')}
-                  </Text>
-                </Pressable>
-              )}
             </View>
           )}
 
@@ -374,10 +353,6 @@ export function LoginScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Android edge-to-edge indicator bar */}
-      <View style={styles.bottomBarContainer}>
-        <View style={styles.homeIndicator} />
-      </View>
     </SafeAreaView>
   );
 }
@@ -467,7 +442,7 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
   },
   inputDisabled: {
-    backgroundColor: '#F3EFE9',
+    backgroundColor: Colors.surfaceElevated,
     color: Colors.textMuted,
   },
   passwordRow: {
@@ -512,19 +487,6 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.xs,
     color: Colors.tintErrorText,
   },
-  demoBypassButton: {
-    marginTop: Spacing.sm,
-    backgroundColor: Colors.primary,
-    paddingVertical: Spacing.xs + 2,
-    paddingHorizontal: Spacing.md,
-    borderRadius: Radius.sm,
-    alignItems: 'center',
-  },
-  demoBypassText: {
-    color: Colors.textOnPrimary,
-    fontSize: FontSizes.xs + 1,
-    fontWeight: '700',
-  },
   successCard: {
     backgroundColor: Colors.tintGreen,
     borderRadius: Radius.md,
@@ -548,16 +510,6 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
     color: Colors.primary,
     fontWeight: '600',
-  },
-  bottomBarContainer: {
-    alignItems: 'center',
-    paddingBottom: Spacing.xs,
-  },
-  homeIndicator: {
-    width: 120,
-    height: 4,
-    borderRadius: Radius.full,
-    backgroundColor: '#000000',
   },
   accountTypeWrapper: {
     marginBottom: Spacing.sm,

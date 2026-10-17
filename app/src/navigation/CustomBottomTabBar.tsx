@@ -7,6 +7,8 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PersistentMiniPlayer } from '../components/PersistentMiniPlayer';
 import { Colors, FontSizes, Radius, Spacing } from '../theme';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -21,10 +23,10 @@ const TAB_ICONS: Record<string, { icon: string; activeIcon: string }> = {
 
 export function CustomBottomTabBar({
   state,
-  descriptors,
   navigation,
 }: BottomTabBarProps) {
   const { t } = useLanguage();
+  const insets = useSafeAreaInsets();
 
   const getTabLabel = (routeName: string) => {
     switch (routeName) {
@@ -43,15 +45,19 @@ export function CustomBottomTabBar({
     }
   };
 
-  // Check if current focused route disables mini-player (e.g. on full Player screen)
+  // The mini player is redundant on the full-screen player of the focused tab.
   const currentRoute = state.routes[state.index];
-  const descriptor = descriptors[currentRoute.key];
-  const hideMiniPlayer = (descriptor.options as any)?.tabBarHideMiniPlayer === true;
+  const focusedScreen = getFocusedRouteNameFromRoute(currentRoute);
+  const hideMiniPlayer = focusedScreen === 'Player';
 
   return (
-    <View style={styles.wrapper}>
+    <View style={[styles.wrapper, { paddingBottom: insets.bottom }]}>
       {/* Persistent Mini-Player Pinned Above Tabs */}
-      {!hideMiniPlayer && <PersistentMiniPlayer />}
+      {!hideMiniPlayer && (
+        <PersistentMiniPlayer
+          onPress={() => navigation.navigate(currentRoute.name, { screen: 'Player' } as any)}
+        />
+      )}
 
       {/* 5-Tab Bar */}
       <View style={styles.tabBar}>

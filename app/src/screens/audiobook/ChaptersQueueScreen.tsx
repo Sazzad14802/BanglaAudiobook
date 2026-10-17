@@ -1,187 +1,88 @@
 /**
- * ChaptersQueueScreen — Chapters and Queue matching Figma Plate 5 Screen 2.
- * Downloaded chapters list, active Now playing highlight card, Up next queue, Reorder button.
+ * ChaptersQueueScreen — every chapter of the loaded audiobook with the one
+ * now playing highlighted and the remaining chapters shown as "up next".
  */
 
-import React, { useState } from 'react';
-import {
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import React from 'react';
+import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-import { useNavigation } from '@react-navigation/native';
-import { BanglaBookHeader } from '../../components/BanglaBookHeader';
-import { Colors, FontSizes, Radius, Spacing } from '../../theme';
-import { useLanguage } from '../../contexts/LanguageContext';
-
+import { AppHeader } from '../../components/AppHeader';
+import { StateView } from '../../components/StateView';
+import { errorMessage } from '../../api/client';
 import { usePlayer } from '../../contexts/PlayerContext';
-
-interface ChapterItemData {
-  id: string;
-  number: string;
-  title: string;
-  duration: string;
-  status: string;
-  isPlaying?: boolean;
-}
+import { useLanguage } from '../../contexts/LanguageContext';
+import { useAppNavigation } from '../../navigation/useAppNavigation';
+import { formatDuration } from '../../utils/format';
+import { Colors, FontSizes, Radius, Spacing } from '../../theme';
 
 export function ChaptersQueueScreen() {
-  const nav = useNavigation();
-  const { t, isEnglish } = useLanguage();
-  const { chapters: liveChapters, currentChapterIndex, selectChapter } = usePlayer();
+  const { navigation } = useAppNavigation();
+  const { t, tx } = useLanguage();
+  const { audiobook, chapters, currentChapterIndex, isPlaying, selectChapter } = usePlayer();
 
-  const [chapters, setChapters] = useState<ChapterItemData[]>([
-    {
-      id: '1',
-      number: isEnglish ? '1' : '১',
-      title: isEnglish ? 'Nishchindipur' : 'নিশ্চিন্দিপুর',
-      duration: '38 min',
-      status: t('tabDownloaded'),
-    },
-    {
-      id: '2',
-      number: isEnglish ? '2' : '২',
-      title: isEnglish ? 'Durga' : 'দুর্গা',
-      duration: '39 min',
-      status: t('tabDownloaded'),
-    },
-    {
-      id: '3',
-      number: isEnglish ? '3' : '৩',
-      title: isEnglish ? 'Indir Thakrun' : 'ইন্দির ঠাকরুন',
-      duration: '40 min',
-      status: t('tabDownloaded'),
-    },
-    {
-      id: '4',
-      number: isEnglish ? '4' : '৪',
-      title: isEnglish ? 'Durer Railgari' : 'দূরের রেলগাড়ি',
-      duration: '41 min',
-      status: t('playerNowPlaying'),
-      isPlaying: true,
-    },
-  ]);
+  const remaining = chapters
+    .slice(currentChapterIndex + 1)
+    .reduce((sum, c) => sum + (c.duration_seconds || 0), 0);
 
-  const displayList = liveChapters.length > 0
-    ? liveChapters.map((c, i) => ({
-        id: c.id,
-        number: String(c.chapter_number),
-        title: c.title,
-        duration: c.duration_seconds ? `${Math.floor(c.duration_seconds / 60)} min` : 'Audio',
-        status: i === currentChapterIndex ? t('playerNowPlaying') : t('tabDownloaded'),
-        isPlaying: i === currentChapterIndex,
-        index: i,
-      }))
-    : chapters.map((c, i) => ({ ...c, index: i }));
-
-  const [queueCleared, setQueueCleared] = useState(false);
-
-  const handleReorderOrClear = () => {
-    Alert.alert(
-      t('queueOptionsTitle'),
-      t('queueOptionsMessage'),
-      [
-        {
-          text: t('btnClearQueue'),
-          style: 'destructive',
-          onPress: () => setQueueCleared(true),
-        },
-        { text: t('btnOk'), style: 'cancel' },
-      ]
-    );
-  };
-
-  const handleSelectChapter = (chapter: ChapterItemData) => {
-    setChapters((prev) =>
-      prev.map((c) => ({
-        ...c,
-        isPlaying: c.id === chapter.id,
-        status: c.id === chapter.id ? t('playerNowPlaying') : t('tabDownloaded'),
-      }))
-    );
+  const choose = async (index: number) => {
+    try {
+      await selectChapter(index);
+      navigation.goBack();
+    } catch (error) {
+      Alert.alert(tx('চালানো যায়নি', 'Could not play'), errorMessage(error));
+    }
   };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <BanglaBookHeader
+      <AppHeader
         title={t('chaptersQueueTitle')}
-        subtitle={t('chaptersQueueSub', { count: 12, next: 4 })}
-        onBack={() => nav.goBack()}
-        onOptionsPress={() => {}}
+        subtitle={audiobook ? audiobook.title : undefined}
+        onBack={() => navigation.goBack()}
       />
-
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Chapters List */}
-        <View style={styles.chaptersList}>
-          {displayList.map((chapter) => {
-            const isPlaying = chapter.isPlaying;
-            return (
-              <Pressable
-                key={chapter.id}
-                onPress={() => {
-                  selectChapter(chapter.index);
-                  nav.goBack();
-                }}
-                style={({ pressed }) => [
-                  styles.chapterCard,
-                  isPlaying ? styles.chapterCardPlaying : styles.chapterCardDefault,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.chapterTitle,
-                    isPlaying && styles.chapterTitlePlaying,
-                  ]}
-                >
-                  {chapter.number} · {chapter.title}
-                </Text>
-                <Text
-                  style={[
-                    styles.chapterStatus,
-                    isPlaying && styles.chapterStatusPlaying,
-                  ]}
-                >
-                  {chapter.duration} · {chapter.status}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        {/* Up Next Section */}
-        {!queueCleared && (
-          <View style={styles.upNextCard}>
-            <Text style={styles.upNextTitle}>{t('upNextSection')}</Text>
-            <Text style={styles.upNextSub}>
-              {isEnglish
-                ? 'Shesher Kobita → Chander Pahar → Gitanjali'
-                : 'শেষের কবিতা → চাঁদের পাহাড় → গীতাঞ্জলি'}
+      <FlatList
+        data={chapters}
+        keyExtractor={(c) => c.id}
+        contentContainerStyle={styles.list}
+        ListHeaderComponent={
+          chapters.length ? (
+            <Text style={styles.summary}>
+              {tx(
+                `${chapters.length}টি অধ্যায় · বাকি ${formatDuration(remaining)}`,
+                `${chapters.length} chapters · ${formatDuration(remaining)} left after this`,
+              )}
             </Text>
-          </View>
-        )}
-
-        {/* Reorder / Clear Queue Button */}
-        <Pressable
-          style={({ pressed }) => [styles.reorderButton, pressed && styles.pressed]}
-          onPress={handleReorderOrClear}
-        >
-          <Text style={styles.reorderButtonText}>{t('reorderClearQueue')}</Text>
-        </Pressable>
-      </ScrollView>
-
-      {/* Android edge-to-edge indicator bar */}
-      <View style={styles.bottomBarContainer}>
-        <View style={styles.homeIndicator} />
-      </View>
+          ) : null
+        }
+        ListEmptyComponent={
+          <StateView kind="empty" title={tx('কোনো অধ্যায় নেই', 'No chapters loaded')} />
+        }
+        renderItem={({ item, index }) => {
+          const current = index === currentChapterIndex;
+          const played = index < currentChapterIndex;
+          return (
+            <Pressable
+              onPress={() => choose(index)}
+              style={({ pressed }) => [styles.card, current && styles.cardCurrent, pressed && styles.pressed]}
+              accessibilityRole="button"
+              accessibilityState={{ selected: current }}
+            >
+              <Text style={[styles.number, current && styles.numberCurrent]}>
+                {current ? (isPlaying ? '▶' : '❚❚') : item.chapter_number}
+              </Text>
+              <View style={styles.textColumn}>
+                <Text style={[styles.title, played && styles.titlePlayed]} numberOfLines={2}>
+                  {item.title}
+                </Text>
+                <Text style={styles.meta}>
+                  {formatDuration(item.duration_seconds)}
+                  {current ? ` · ${t('playerNowPlaying')}` : played ? ` · ${tx('শোনা হয়েছে', 'Played')}` : ''}
+                </Text>
+              </View>
+            </Pressable>
+          );
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -191,88 +92,57 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  scrollContent: {
+  list: {
     paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.xs,
     paddingBottom: Spacing.xl,
-    gap: Spacing.md,
-  },
-  chaptersList: {
     gap: Spacing.sm,
   },
-  chapterCard: {
-    borderRadius: Radius.lg,
-    paddingVertical: Spacing.md + 2,
-    paddingHorizontal: Spacing.lg,
+  summary: {
+    fontSize: FontSizes.xs,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xs,
   },
-  chapterCardDefault: {
-    backgroundColor: Colors.surfaceElevated,
+  card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.surfaceBorder,
+    borderRadius: Radius.lg,
+    padding: Spacing.md,
   },
-  chapterCardPlaying: {
-    backgroundColor: Colors.tintPeachActive, // soft peach highlight from Figma
-    borderWidth: 1,
-    borderColor: '#F5C6BC',
+  cardCurrent: {
+    backgroundColor: Colors.tintActive,
+    borderColor: Colors.primaryLight,
   },
   pressed: {
-    opacity: 0.8,
+    opacity: 0.75,
   },
-  chapterTitle: {
+  number: {
+    width: 26,
+    textAlign: 'center',
     fontSize: FontSizes.base,
     fontWeight: '700',
+    color: Colors.textMuted,
+  },
+  numberCurrent: {
+    color: Colors.primary,
+  },
+  textColumn: {
+    flex: 1,
+    gap: 2,
+  },
+  title: {
+    fontSize: FontSizes.base,
+    fontWeight: '600',
     color: Colors.textPrimary,
-    marginBottom: 4,
   },
-  chapterTitlePlaying: {
-    color: '#8A2A17',
-  },
-  chapterStatus: {
-    fontSize: FontSizes.xs + 1,
+  titlePlayed: {
     color: Colors.textSecondary,
   },
-  chapterStatusPlaying: {
-    color: '#A8442E',
-    fontWeight: '600',
-  },
-  upNextCard: {
-    backgroundColor: Colors.tintBlue,
-    borderRadius: Radius.lg,
-    padding: Spacing.lg,
-  },
-  upNextTitle: {
-    fontSize: FontSizes.xs + 1,
-    fontWeight: '700',
-    color: Colors.tintBlueText,
-    marginBottom: 3,
-  },
-  upNextSub: {
+  meta: {
     fontSize: FontSizes.xs,
-    color: Colors.tintBlueText,
-    lineHeight: 18,
-  },
-  reorderButton: {
-    height: 50,
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: Colors.surfaceBorder,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  reorderButtonText: {
-    fontSize: FontSizes.sm,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  bottomBarContainer: {
-    alignItems: 'center',
-    paddingBottom: Spacing.xs,
-  },
-  homeIndicator: {
-    width: 120,
-    height: 4,
-    borderRadius: Radius.full,
-    backgroundColor: '#000000',
+    color: Colors.textSecondary,
   },
 });

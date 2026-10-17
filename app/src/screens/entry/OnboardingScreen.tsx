@@ -19,8 +19,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { BanglaBookHeader } from '../../components/BanglaBookHeader';
-import { BanglaBookButton } from '../../components/BanglaBookButton';
+import { AppHeader } from '../../components/AppHeader';
+import { AppButton } from '../../components/AppButton';
 import { TagBadge } from '../../components/TagBadge';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -92,7 +92,7 @@ export function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       {/* Top Header with title, step counter, back button and skip action */}
-      <BanglaBookHeader
+      <AppHeader
         title={currentStep.title}
         subtitle={currentStep.stepLabel}
         onBack={currentIndex > 0 ? handlePrev : undefined}
@@ -174,7 +174,7 @@ export function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
 
         {/* Actions Section: Primary Button & Secondary Text Actions */}
         <View style={styles.actionsContainer}>
-          <BanglaBookButton
+          <AppButton
             label={currentStep.ctaText}
             onPress={handleNext}
             variant="primary"
@@ -215,10 +215,6 @@ export function OnboardingScreen({ onFinish }: OnboardingScreenProps) {
         </View>
       </ScrollView>
 
-      {/* Android edge-to-edge indicator bar */}
-      <View style={styles.bottomBarContainer}>
-        <View style={styles.homeIndicator} />
-      </View>
     </SafeAreaView>
   );
 }
@@ -242,8 +238,8 @@ const styles = StyleSheet.create({
     position: 'relative',
     backgroundColor: Colors.surfaceElevated,
     borderWidth: 1,
-    borderColor: '#ECE5DB',
-    shadowColor: '#2C2216',
+    borderColor: Colors.surfaceBorder,
+    shadowColor: Colors.surfaceDark,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 10,
@@ -263,12 +259,12 @@ const styles = StyleSheet.create({
     bottom: Spacing.sm + 2,
     left: Spacing.sm + 2,
     right: Spacing.sm + 2,
-    backgroundColor: 'rgba(23, 22, 26, 0.92)',
+    backgroundColor: Colors.darkGlass,
     borderRadius: Radius.lg,
     paddingVertical: 10,
     paddingHorizontal: Spacing.md,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
+    borderColor: Colors.onDarkHairline,
   },
   overlayTitle: {
     color: '#FFFFFF',
@@ -277,7 +273,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
   },
   overlaySub: {
-    color: '#D1CBC2',
+    color: Colors.textOnDarkSecondary,
     fontSize: FontSizes.xs,
     marginTop: 2,
     fontWeight: '500',
@@ -320,13 +316,13 @@ const styles = StyleSheet.create({
   stepLine: {
     height: 4,
     borderRadius: Radius.full,
-    backgroundColor: '#E4DDD3',
+    backgroundColor: Colors.track,
   },
   stepLineActive: {
     backgroundColor: Colors.primary,
   },
   stepLinePassed: {
-    backgroundColor: '#D17C69',
+    backgroundColor: Colors.brand,
   },
   actionsContainer: {
     marginTop: Spacing.xs,
@@ -349,7 +345,7 @@ const styles = StyleSheet.create({
   },
   btnPressed: {
     opacity: 0.65,
-    backgroundColor: 'rgba(0, 0, 0, 0.04)',
+    backgroundColor: Colors.overlayLight,
   },
   prevBtnText: {
     fontSize: FontSizes.sm,
@@ -360,15 +356,5 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
     color: Colors.textSecondary,
     fontWeight: '600',
-  },
-  bottomBarContainer: {
-    alignItems: 'center',
-    paddingBottom: Spacing.xs,
-  },
-  homeIndicator: {
-    width: 120,
-    height: 4,
-    borderRadius: Radius.full,
-    backgroundColor: '#000000',
   },
 });

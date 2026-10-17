@@ -1,285 +1,221 @@
 /**
- * LibraryScreen — My Library matching Figma design system.
- * Saved books, playlists, and offline downloaded audiobooks.
- * Connected to live backend & local hardware-backed DRM storage.
+ * LibraryScreen — the user's own collections in four tabs:
+ * saved audiobooks, playlists, offline downloads, and audiobooks they created.
  */
 
-import React, { useCallback, useState } from 'react';
-import {
-  Alert,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import React, { useState } from 'react';
+import { Alert, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-
-import { LibraryStackParamList } from '../../navigation/types';
-import { BanglaBookHeader } from '../../components/BanglaBookHeader';
+import { AppHeader } from '../../components/AppHeader';
 import { AudiobookCard } from '../../components/AudiobookCard';
+import { ChipGroup } from '../../components/Chip';
+import { StateView } from '../../components/StateView';
 import { ModalBottomSheet } from '../../components/ModalBottomSheet';
-import { BanglaBookButton } from '../../components/BanglaBookButton';
-import { FIGMA_AUDIOBOOKS } from '../../data/mockAudiobooks';
+import { AppButton } from '../../components/AppButton';
+import { libraryApi, playlistsApi } from '../../api/library';
+import { audiobooksApi } from '../../api/audiobooks';
+import { errorMessage } from '../../api/client';
+import { offline } from '../../storage/offline';
 import { usePlayer } from '../../contexts/PlayerContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { Colors, FontSizes, Radius, Spacing } from '../../theme';
-import { apiClient } from '../../api/client';
-import { offline } from '../../storage/offline';
+import { useResource } from '../../hooks/useResource';
+import { useAppNavigation } from '../../navigation/useAppNavigation';
 import { Audiobook } from '../../types/audiobook';
+import { Playlist } from '../../types/domain';
+import { Colors, FontSizes, Radius, Spacing } from '../../theme';
 
-type Nav = NativeStackNavigationProp<LibraryStackParamList, 'Library'>;
+type Tab = 'saved' | 'playlists' | 'downloads' | 'mine';
 
 export function LibraryScreen() {
-  const nav = useNavigation<Nav>();
+  const { navigation, goToTab } = useAppNavigation();
   const { loadAudiobook, loadOffline } = usePlayer();
   const { user } = useAuth();
-  const { t, isEnglish } = useLanguage();
+  const { t, tx } = useLanguage();
+  const [tab, setTab] = useState<Tab>('saved');
+  const [playlistSheet, setPlaylistSheet] = useState(false);
+  const [playlistName, setPlaylistName] = useState('');
+  const [creating, setCreating] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'saved' | 'playlists' | 'offline'>('saved');
-  const [savedBooks, setSavedBooks] = useState<Audiobook[]>([]);
-  const [offlineBooks, setOfflineBooks] = useState<Audiobook[]>([]);
-  const [playlists, setPlaylists] = useState<any[]>([]);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  // New playlist modal
-  const [newPlaylistModalVisible, setNewPlaylistModalVisible] = useState(false);
-  const [newPlaylistName, setNewPlaylistName] = useState('');
-  const [isCreatingPlaylist, setIsCreatingPlaylist] = useState(false);
-
-  const loadData = useCallback(async () => {
-    try {
-      // 1. Saved items
-      try {
-        const libraryData = await apiClient.get<any>('/library');
-        if (libraryData?.items && libraryData.items.length > 0) {
-          setSavedBooks(libraryData.items.map((it: any) => it.audiobook || it));
-        } else {
-          setSavedBooks(FIGMA_AUDIOBOOKS.slice(0, 2));
-        }
-      } catch {
-        setSavedBooks(FIGMA_AUDIOBOOKS.slice(0, 2));
-      }
-
-      // 2. Playlists
-      try {
-        const pl = await apiClient.get<any[]>('/playlists');
-        setPlaylists(pl);
-      } catch {
-        setPlaylists([]);
-      }
-
-      // 3. Offline downloads
-      if (user?.id) {
-        try {
-          const dl = await offline.list(user.id);
-          setOfflineBooks(dl);
-        } catch {
-          setOfflineBooks([]);
-        }
-      }
-    } catch (e) {
-      console.warn('Failed to load library:', e);
-    }
+  const library = useResource(async () => {
+    const [saved, playlists, downloads, mine] = await Promise.all([
+      libraryApi.list().then((r) => r.items.map((i) => i.audiobook)),
+      playlistsApi.list(),
+      user ? offline.list(user.id).catch(() => []) : Promise.resolve([]),
+      audiobooksApi.listMine().then((r) => r.items),
+    ]);
+    return { saved, playlists, downloads, mine };
   }, [user?.id]);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadData();
-    }, [loadData])
-  );
+  const data = library.data;
 
-  const onRefresh = async () => {
-    setIsRefreshing(true);
-    await loadData();
-    setIsRefreshing(false);
-  };
+  const openBook = (book: Audiobook) => navigation.navigate('AudiobookDetails', { audiobookId: book.id });
 
-  const handleBookPress = (audiobookId: string) => {
-    nav.navigate('AudiobookDetails', { audiobookId });
-  };
-
-  const handlePlayBook = async (book: any) => {
-    if (activeTab === 'offline') {
-      try {
-        const chapters = await offline.open(book.id, user!.id);
-        await loadOffline(book, chapters);
-        nav.navigate('Player', { audiobookId: book.id });
-        return;
-      } catch (err: any) {
-        Alert.alert(isEnglish ? 'Offline Error' : 'অফলাইন ত্রুটি', err.message || 'Cannot open offline audio');
-      }
-    }
-    await loadAudiobook(book);
-    nav.navigate('Player', { audiobookId: book.id });
-  };
-
-  const handleCreatePlaylist = async () => {
-    if (!newPlaylistName.trim()) return;
-    setIsCreatingPlaylist(true);
+  const play = async (book: Audiobook, fromDownload = false) => {
     try {
-      await apiClient.post('/playlists', { name: newPlaylistName.trim() });
-      setNewPlaylistName('');
-      setNewPlaylistModalVisible(false);
-      await loadData();
-    } catch (err: any) {
-      Alert.alert(isEnglish ? 'Error' : 'ত্রুটি', err.detail || 'Could not create playlist.');
-    } finally {
-      setIsCreatingPlaylist(false);
+      if (fromDownload && user) await loadOffline(book, await offline.open(book.id, user.id));
+      else await loadAudiobook(book);
+      navigation.navigate('Player');
+    } catch (error) {
+      Alert.alert(tx('চালানো যায়নি', 'Could not play'), errorMessage(error));
     }
   };
+
+  const createPlaylist = async () => {
+    const name = playlistName.trim();
+    if (!name) return;
+    setCreating(true);
+    try {
+      const created = await playlistsApi.create(name);
+      library.setData((current) => ({ ...current!, playlists: [...current!.playlists, created] }));
+      setPlaylistName('');
+      setPlaylistSheet(false);
+    } catch (error) {
+      Alert.alert(tx('প্লেলিস্ট', 'Playlist'), errorMessage(error));
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const statusMeta = (book: Audiobook) => {
+    switch (book.status) {
+      case 'COMPLETED':
+        return book.visibility === 'PUBLIC' ? tx('প্রকাশিত', 'Published') : tx('প্রস্তুত · প্রাইভেট', 'Ready · Private');
+      case 'FAILED':
+        return tx('ব্যর্থ — আবার চেষ্টা করুন', 'Failed — tap to retry');
+      case 'PROCESSING':
+        return tx('তৈরি হচ্ছে…', 'Generating…');
+      default:
+        return book.source_file_url ? tx('কিউতে আছে', 'Queued') : tx('ফাইল আপলোড বাকি', 'Upload pending');
+    }
+  };
+
+  const empty = {
+    saved: {
+      title: tx('কিছু সেভ করা নেই', 'Nothing saved yet'),
+      message: tx('অডিওবুকের পাতায় “সেভ” চাপলে এখানে দেখা যাবে।', 'Tap “Save” on an audiobook to keep it here.'),
+      action: tx('অডিওবুক খুঁজুন', 'Browse audiobooks'),
+      onAction: () => goToTab('ExploreTab', { screen: 'Explore' }),
+    },
+    playlists: {
+      title: tx('কোনো প্লেলিস্ট নেই', 'No playlists yet'),
+      message: tx('নিজের মতো করে অডিওবুক সাজিয়ে রাখুন।', 'Group audiobooks your own way.'),
+      action: tx('প্লেলিস্ট তৈরি করুন', 'Create a playlist'),
+      onAction: () => setPlaylistSheet(true),
+    },
+    downloads: {
+      title: tx('কোনো ডাউনলোড নেই', 'No downloads'),
+      message: tx('প্রিমিয়াম সদস্যরা অডিওবুক ডাউনলোড করে অফলাইনে শুনতে পারেন।', 'Premium members can download audiobooks to listen offline.'),
+      action: undefined,
+      onAction: undefined,
+    },
+    mine: {
+      title: tx('আপনি এখনো কিছু তৈরি করেননি', 'You have not created anything yet'),
+      message: tx('PDF আপলোড করে নিজের অডিওবুক তৈরি করুন।', 'Upload a PDF to create your own audiobook.'),
+      action: tx('অডিওবুক তৈরি করুন', 'Create an audiobook'),
+      onAction: () => goToTab('CreateTab', { screen: 'CreateAudiobook' }),
+    },
+  }[tab];
+
+  const books: Audiobook[] = data ? (tab === 'saved' ? data.saved : tab === 'downloads' ? data.downloads : tab === 'mine' ? data.mine : []) : [];
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <BanglaBookHeader
-        title={t('libraryTitle')}
-        subtitle={t('librarySub')}
-        onOptionsPress={() => {}}
+      <AppHeader
+        title={t('tabLibrary')}
+        subtitle={tx('আপনার সংগ্রহ', 'Your collection')}
+        rightActionText={tab === 'playlists' ? tx('+ নতুন', '+ New') : undefined}
+        onRightAction={tab === 'playlists' ? () => setPlaylistSheet(true) : undefined}
       />
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={onRefresh}
-            tintColor={Colors.primary}
-            colors={[Colors.primary]}
-          />
-        }
-      >
-        {/* Subtabs Selector */}
-        <View style={styles.tabsRow}>
-          <Pressable
-            onPress={() => setActiveTab('saved')}
-            style={[styles.tabButton, activeTab === 'saved' && styles.tabButtonActive]}
-          >
-            <Text style={[styles.tabText, activeTab === 'saved' && styles.tabTextActive]}>
-              {isEnglish ? `Saved (${savedBooks.length})` : `সংরক্ষিত (${savedBooks.length})`}
-            </Text>
-          </Pressable>
+      <View style={styles.tabs}>
+        <ChipGroup
+          scrollable
+          value={tab}
+          onChange={setTab}
+          options={[
+            { value: 'saved', label: `${tx('সেভ করা', 'Saved')}${data ? ` · ${data.saved.length}` : ''}` },
+            { value: 'playlists', label: `${tx('প্লেলিস্ট', 'Playlists')}${data ? ` · ${data.playlists.length}` : ''}` },
+            { value: 'downloads', label: `${tx('ডাউনলোড', 'Downloads')}${data ? ` · ${data.downloads.length}` : ''}` },
+            { value: 'mine', label: `${tx('আমার তৈরি', 'My creations')}${data ? ` · ${data.mine.length}` : ''}` },
+          ]}
+        />
+      </View>
 
-          <Pressable
-            onPress={() => setActiveTab('playlists')}
-            style={[styles.tabButton, activeTab === 'playlists' && styles.tabButtonActive]}
-          >
-            <Text style={[styles.tabText, activeTab === 'playlists' && styles.tabTextActive]}>
-              {isEnglish ? `Playlists (${playlists.length})` : `প্লেলিস্ট (${playlists.length})`}
-            </Text>
-          </Pressable>
-
-          <Pressable
-            onPress={() => setActiveTab('offline')}
-            style={[styles.tabButton, activeTab === 'offline' && styles.tabButtonActive]}
-          >
-            <Text style={[styles.tabText, activeTab === 'offline' && styles.tabTextActive]}>
-              {isEnglish
-                ? `Downloaded (${offlineBooks.length})`
-                : `অফলাইন (${offlineBooks.length})`}
-            </Text>
-          </Pressable>
-        </View>
-
-        {/* Offline Notice if in Offline Tab */}
-        {activeTab === 'offline' && (
-          <View style={styles.offlineNotice}>
-            <Text style={styles.offlineTitle}>
-              {isEnglish ? 'Hardware-Backed Offline DRM' : 'অফলাইন মোড সক্রিয়'}
-            </Text>
-            <Text style={styles.offlineSub}>
-              {isEnglish
-                ? 'Downloaded audiobooks are encrypted and playable without an active internet connection.'
-                : 'ডাউনলোড করা বইগুলো এনক্রিপ্ট করা এবং ইন্টারনেট সংযোগ ছাড়াই সরাসরি শোনা যাবে।'}
-            </Text>
-          </View>
-        )}
-
-        {/* Content by Tab */}
-        {activeTab === 'playlists' ? (
-          <View style={styles.playlistContainer}>
-            <View style={styles.newPlaylistRow}>
-              <Text style={styles.sectionTitle}>{isEnglish ? 'Your Playlists' : 'আপনার প্লেলিস্ট'}</Text>
-              <Pressable
-                style={styles.addBtn}
-                onPress={() => setNewPlaylistModalVisible(true)}
-              >
-                <Text style={styles.addBtnText}>+ {isEnglish ? 'New' : 'নতুন'}</Text>
-              </Pressable>
-            </View>
-
-            {playlists.length === 0 ? (
-              <View style={styles.emptyCard}>
-                <Text style={styles.emptyTitle}>{isEnglish ? 'No playlists yet' : 'কোনো প্লেলিস্ট নেই'}</Text>
-                <Text style={styles.emptySub}>
-                  {isEnglish ? 'Create a playlist to group your favorite chapters and audiobooks.' : 'পছন্দের বইগুলো একত্রিত করতে নতুন প্লেলিস্ট তৈরি করুন।'}
-                </Text>
+      {library.isLoading ? (
+        <StateView kind="loading" />
+      ) : library.error && !data ? (
+        <StateView kind="error" message={library.error} actionLabel={tx('আবার চেষ্টা', 'Retry')} onAction={library.reload} />
+      ) : tab === 'playlists' ? (
+        <FlatList<Playlist>
+          data={data?.playlists ?? []}
+          keyExtractor={(p) => p.id}
+          contentContainerStyle={styles.list}
+          refreshControl={<RefreshControl refreshing={library.isRefreshing} onRefresh={library.refresh} tintColor={Colors.primary} />}
+          ListEmptyComponent={
+            <StateView kind="empty" title={empty.title} message={empty.message} actionLabel={empty.action} onAction={empty.onAction} />
+          }
+          renderItem={({ item }) => (
+            <Pressable
+              style={({ pressed }) => [styles.playlistRow, pressed && styles.pressed]}
+              onPress={() => navigation.navigate('PlaylistDetails', { playlistId: item.id, name: item.name })}
+            >
+              <View style={styles.playlistIcon}>
+                <Text style={styles.playlistIconText}>♫</Text>
               </View>
+              <Text style={styles.playlistName} numberOfLines={1}>
+                {item.name}
+              </Text>
+              <Text style={styles.chevron}>›</Text>
+            </Pressable>
+          )}
+        />
+      ) : (
+        <FlatList<Audiobook>
+          data={books}
+          keyExtractor={(b) => b.id}
+          contentContainerStyle={styles.list}
+          refreshControl={<RefreshControl refreshing={library.isRefreshing} onRefresh={library.refresh} tintColor={Colors.primary} />}
+          ListEmptyComponent={
+            <StateView kind="empty" title={empty.title} message={empty.message} actionLabel={empty.action} onAction={empty.onAction} />
+          }
+          renderItem={({ item }) =>
+            tab === 'mine' ? (
+              <AudiobookCard
+                audiobook={item}
+                meta={statusMeta(item)}
+                onPress={() =>
+                  item.status === 'COMPLETED' || !item.source_file_url
+                    ? openBook(item)
+                    : navigation.navigate('GenerationStatus', { audiobookId: item.id })
+                }
+                onPlayPress={() => play(item)}
+              />
             ) : (
-              playlists.map((pl) => (
-                <View key={pl.id} style={styles.playlistCard}>
-                  <Text style={styles.playlistTitle}>📁 {pl.name}</Text>
-                  <Text style={styles.playlistSub}>
-                    {isEnglish ? 'Private playlist' : 'ব্যক্তিগত প্লেলিস্ট'}
-                  </Text>
-                </View>
-              ))
-            )}
-          </View>
-        ) : (
-          <View style={styles.listContainer}>
-            {(activeTab === 'saved' ? savedBooks : offlineBooks).length === 0 ? (
-              <View style={styles.emptyCard}>
-                <Text style={styles.emptyTitle}>
-                  {activeTab === 'saved'
-                    ? (isEnglish ? 'No saved audiobooks' : 'কোনো সংরক্ষিত অডিওবুক নেই')
-                    : (isEnglish ? 'No offline downloads' : 'কোনো অফলাইন ডাউনলোড নেই')}
-                </Text>
-                <Text style={styles.emptySub}>
-                  {activeTab === 'saved'
-                    ? (isEnglish ? 'Tap "Save" on any audiobook detail page to add it here.' : 'যেকোনো অডিওবুক পেজে "সেভ" চাপলে তা এখানে প্রদর্শিত হবে।')
-                    : (isEnglish ? 'Tap "Offline" on any audiobook to download it for listening on the go.' : 'যেকোনো অডিওবুক পেজে "অফলাইন" চাপলে তা এখানে ডাউনলোড হবে।')}
-                </Text>
-              </View>
-            ) : (
-              (activeTab === 'saved' ? savedBooks : offlineBooks).map((book) => (
-                <AudiobookCard
-                  key={book.id}
-                  audiobook={book}
-                  onPress={() => handleBookPress(book.id)}
-                  onPlayPress={() => handlePlayBook(book)}
-                />
-              ))
-            )}
-          </View>
-        )}
-      </ScrollView>
+              <AudiobookCard
+                audiobook={item}
+                meta={tab === 'downloads' ? tx('অফলাইনে উপলব্ধ', 'Available offline') : undefined}
+                onPress={() => (tab === 'downloads' ? play(item, true) : openBook(item))}
+                onPlayPress={() => play(item, tab === 'downloads')}
+              />
+            )
+          }
+        />
+      )}
 
-      {/* New Playlist Modal */}
-      <ModalBottomSheet
-        visible={newPlaylistModalVisible}
-        onClose={() => setNewPlaylistModalVisible(false)}
-      >
-        <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>{isEnglish ? 'Create New Playlist' : 'নতুন প্লেলিস্ট তৈরি'}</Text>
+      <ModalBottomSheet visible={playlistSheet} onClose={() => setPlaylistSheet(false)}>
+        <View style={styles.sheet}>
+          <Text style={styles.sheetTitle}>{tx('নতুন প্লেলিস্ট', 'New playlist')}</Text>
           <TextInput
-            style={styles.textInput}
-            value={newPlaylistName}
-            onChangeText={setNewPlaylistName}
-            placeholder={isEnglish ? 'Playlist name (e.g. Bedtime Stories)' : 'প্লেলিস্টের নাম'}
+            style={styles.input}
+            value={playlistName}
+            onChangeText={setPlaylistName}
+            placeholder={tx('প্লেলিস্টের নাম', 'Playlist name')}
             placeholderTextColor={Colors.textMuted}
+            maxLength={150}
+            autoFocus
           />
-          <BanglaBookButton
-            label={isCreatingPlaylist ? (isEnglish ? 'Creating...' : 'তৈরি হচ্ছে...') : (isEnglish ? 'Create Playlist' : 'প্লেলিস্ট তৈরি করুন')}
-            onPress={handleCreatePlaylist}
-            variant="primary"
-            isLoading={isCreatingPlaylist}
-          />
+          <AppButton label={tx('তৈরি করুন', 'Create')} onPress={createPlaylist} isLoading={creating} disabled={!playlistName.trim()} />
         </View>
       </ModalBottomSheet>
     </SafeAreaView>
@@ -291,131 +227,56 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  scrollContent: {
+  tabs: {
     paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.xs,
+    marginBottom: Spacing.xs,
+  },
+  list: {
+    paddingHorizontal: Spacing.md,
     paddingBottom: Spacing.xl,
-    gap: Spacing.md,
+    flexGrow: 1,
   },
-  tabsRow: {
+  playlistRow: {
     flexDirection: 'row',
-    gap: Spacing.xs + 2,
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingVertical: Spacing.sm + 2,
+    paddingHorizontal: Spacing.md,
   },
-  tabButton: {
-    flex: 1,
-    paddingVertical: 10,
+  pressed: {
+    opacity: 0.7,
+  },
+  playlistIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.tintBlue,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: Radius.full,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.surfaceBorder,
   },
-  tabButtonActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  tabText: {
-    fontSize: FontSizes.xs,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-  },
-  tabTextActive: {
-    color: Colors.textOnPrimary,
-    fontWeight: '700',
-  },
-  offlineNotice: {
-    backgroundColor: Colors.tintBlue,
-    borderRadius: Radius.lg,
-    padding: Spacing.md,
-    borderWidth: 1,
-    borderColor: '#D4E2F4',
-    gap: 4,
-  },
-  offlineTitle: {
-    fontSize: FontSizes.sm,
-    fontWeight: '700',
+  playlistIconText: {
+    fontSize: 22,
     color: Colors.tintBlueText,
   },
-  offlineSub: {
-    fontSize: FontSizes.xs,
-    color: Colors.tintBlueText,
-    lineHeight: 18,
-  },
-  playlistContainer: {
-    gap: Spacing.sm,
-  },
-  newPlaylistRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  sectionTitle: {
+  playlistName: {
+    flex: 1,
     fontSize: FontSizes.base,
     fontWeight: '700',
     color: Colors.textPrimary,
   },
-  addBtn: {
-    backgroundColor: Colors.primary,
-    paddingVertical: 4,
-    paddingHorizontal: Spacing.sm,
-    borderRadius: Radius.full,
+  chevron: {
+    fontSize: 24,
+    color: Colors.textMuted,
   },
-  addBtnText: {
-    color: Colors.textOnPrimary,
-    fontSize: FontSizes.xs,
-    fontWeight: '700',
-  },
-  playlistCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.lg,
-    padding: Spacing.lg,
-    borderWidth: 1,
-    borderColor: Colors.surfaceBorder,
-    gap: 4,
-  },
-  playlistTitle: {
-    fontSize: FontSizes.base,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  playlistSub: {
-    fontSize: FontSizes.xs,
-    color: Colors.textSecondary,
-  },
-  emptyCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.lg,
-    padding: Spacing.xl,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Colors.surfaceBorder,
-    gap: 6,
-  },
-  emptyTitle: {
-    fontSize: FontSizes.base,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  emptySub: {
-    fontSize: FontSizes.xs,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-  listContainer: {
-    gap: Spacing.xs,
-  },
-  modalContent: {
+  sheet: {
     gap: Spacing.md,
-    paddingTop: Spacing.xs,
   },
-  modalTitle: {
+  sheetTitle: {
     fontSize: FontSizes.lg,
     fontWeight: '700',
     color: Colors.textPrimary,
   },
-  textInput: {
+  input: {
     height: 48,
     backgroundColor: Colors.surface,
     borderWidth: 1,

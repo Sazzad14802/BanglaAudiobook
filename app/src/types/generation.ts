@@ -13,6 +13,11 @@ export interface GenerationJob {
   created_at: string;
   started_at: string | null;
   completed_at: string | null;
+  total_pages: number;
+  completed_pages: number;
+  attempts: number;
+  cancelled: boolean;
+  priority: number;
 }
 
 export interface GenerationJobResponse {

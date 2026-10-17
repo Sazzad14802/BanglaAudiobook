@@ -1,153 +1,170 @@
 /**
- * UploadSourceScreen — Document Picker matching Figma design.
- * Supports PDF generation as well as direct MP3 uploads.
+ * UploadSourceScreen — step 2 of 3: provide the content.
+ *
+ * - PDF: uploaded, then an AI generation job is started immediately
+ *   (Gemini OCR → Gemini TTS, one chapter per page) and the user follows progress.
+ * - MP3 (active publishers only): uploaded as finished narration, no generation needed.
  */
 
 import React, { useState } from 'react';
-import {
-  Alert,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
-import * as DocumentPicker from 'expo-document-picker';
-
-import { CreateStackParamList } from '../../navigation/types';
-import { BanglaBookHeader } from '../../components/BanglaBookHeader';
-import { BanglaBookButton } from '../../components/BanglaBookButton';
-import { Colors, FontSizes, Radius, Spacing } from '../../theme';
+import { RouteProp, useRoute } from '@react-navigation/native';
+import { AppHeader } from '../../components/AppHeader';
+import { AppButton } from '../../components/AppButton';
+import { Segmented } from '../../components/Form';
+import { audiobooksApi } from '../../api/audiobooks';
+import { generationApi } from '../../api/generation';
+import { ApiError, errorMessage } from '../../api/client';
+import { PickedFile } from '../../api/upload';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { apiClient } from '../../api/client';
+import { useAuth } from '../../contexts/AuthContext';
+import { useAppNavigation } from '../../navigation/useAppNavigation';
+import { CreateStackParamList } from '../../navigation/types';
+import { isActivePublisher } from '../../types/auth';
+import { MAX_DOCUMENT_MB, pickDocument } from '../../utils/pickers';
+import { Colors, FontSizes, Radius, Spacing } from '../../theme';
 
-type Nav = NativeStackNavigationProp<CreateStackParamList, 'UploadSource'>;
-type Route = RouteProp<CreateStackParamList, 'UploadSource'>;
+type Source = 'pdf' | 'mp3';
+type Stage = 'idle' | 'uploading' | 'starting';
 
 export function UploadSourceScreen() {
-  const nav = useNavigation<Nav>();
-  const route = useRoute<Route>();
-  const audiobookId = route.params?.audiobookId ?? 'new-book';
-  const { t, isEnglish } = useLanguage();
+  const { navigation } = useAppNavigation();
+  const { audiobookId, title } = useRoute<RouteProp<CreateStackParamList, 'UploadSource'>>().params;
+  const { tx } = useLanguage();
+  const { user } = useAuth();
+  const canUploadAudio = isActivePublisher(user);
 
-  const [pickedFile, setPickedFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [source, setSource] = useState<Source>('pdf');
+  const [file, setFile] = useState<PickedFile | null>(null);
+  const [stage, setStage] = useState<Stage>('idle');
+  const [uploaded, setUploaded] = useState(false);
 
-  const handlePickFile = async (type = 'application/pdf') => {
+  const choose = async () => {
     try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: [type, 'audio/mpeg', 'audio/mp3', 'application/pdf'],
-        copyToCacheDirectory: true,
-        multiple: false,
-      });
-      if (!result.canceled && result.assets?.length > 0) {
-        setPickedFile(result.assets[0]);
-      }
-    } catch {
-      Alert.alert('Error', 'Failed to pick document.');
+      const picked = await pickDocument(source);
+      if (picked) setFile(picked);
+    } catch (error) {
+      Alert.alert(tx('ফাইল', 'File'), errorMessage(error));
     }
   };
 
-  const handleStartGeneration = async () => {
-    if (!pickedFile) {
-      Alert.alert(t('noticeTitle'), t('fileRequiredAlert'));
-      return;
-    }
-    setIsProcessing(true);
+  const startGeneration = async () => {
+    setStage('starting');
     try {
-      const form = new FormData();
-      if (Platform.OS === 'web') {
-        form.append('file', await (await fetch(pickedFile.uri)).blob(), pickedFile.name);
-      } else {
-        form.append('file', {
-          uri: pickedFile.uri,
-          name: pickedFile.name,
-          type: pickedFile.mimeType || (pickedFile.name.endsWith('.mp3') ? 'audio/mpeg' : 'application/pdf'),
-        } as any);
-      }
-
-      const isMp3 = pickedFile.name.toLowerCase().endsWith('.mp3') || pickedFile.mimeType === 'audio/mpeg';
-
-      if (isMp3) {
-        await apiClient.uploadFile(`/audiobooks/${audiobookId}/audio`, form);
-        Alert.alert(
-          isEnglish ? 'Upload Complete' : 'আপলোড সম্পন্ন',
-          isEnglish ? 'Audio uploaded and chapters indexed!' : 'অডিওবুক সফলভাবে আপলোড হয়েছে!'
-        );
-        nav.replace('AudiobookDetails', { audiobookId });
-      } else {
-        await apiClient.uploadFile(`/audiobooks/${audiobookId}/source`, form);
-        nav.replace('GenerationStatus', { audiobookId });
-      }
-    } catch (err: any) {
+      await generationApi.start(audiobookId);
+      navigation.replace('GenerationStatus', { audiobookId });
+    } catch (error) {
+      const quota = error instanceof ApiError && error.status === 429;
       Alert.alert(
-        isEnglish ? 'Upload Failed' : 'আপলোড ব্যর্থ',
-        err.detail || err.message || 'Could not upload file.'
+        quota ? tx('মাসিক কোটা শেষ', 'Monthly quota reached') : tx('শুরু করা যায়নি', 'Could not start'),
+        errorMessage(error),
       );
     } finally {
-      setIsProcessing(false);
+      setStage('idle');
     }
   };
+
+  const submit = async () => {
+    if (!file) return;
+    setStage('uploading');
+    try {
+      if (source === 'mp3') {
+        await audiobooksApi.uploadAudio(audiobookId, file);
+        Alert.alert(tx('আপলোড সম্পন্ন', 'Upload complete'), tx('অডিওবুক শোনার জন্য প্রস্তুত।', 'Your audiobook is ready to play.'));
+        navigation.replace('AudiobookDetails', { audiobookId });
+        return;
+      }
+      if (!uploaded) {
+        await audiobooksApi.uploadSource(audiobookId, file);
+        setUploaded(true);
+      }
+      await startGeneration();
+    } catch (error) {
+      Alert.alert(tx('আপলোড ব্যর্থ', 'Upload failed'), errorMessage(error));
+    } finally {
+      setStage('idle');
+    }
+  };
+
+  const busyLabel =
+    stage === 'uploading'
+      ? tx('আপলোড হচ্ছে…', 'Uploading…')
+      : stage === 'starting'
+        ? tx('অডিও তৈরি শুরু হচ্ছে…', 'Starting generation…')
+        : null;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <BanglaBookHeader
-        title={t('uploadPdfTitle')}
-        subtitle={isEnglish ? 'Select PDF or MP3 audio' : 'PDF বই বা অডিও ফাইল নির্বাচন করুন'}
-        onBack={() => nav.goBack()}
-        onOptionsPress={() => {}}
+      <AppHeader
+        title={tx('ফাইল আপলোড', 'Upload file')}
+        subtitle={tx(`ধাপ ২/৩ · ${title}`, `Step 2 of 3 · ${title}`)}
+        onBack={() => navigation.goBack()}
       />
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Upload Dropzone */}
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        {canUploadAudio ? (
+          <Segmented
+            label={tx('কী আপলোড করবেন?', 'What are you uploading?')}
+            value={source}
+            onChange={(value) => {
+              setSource(value);
+              setFile(null);
+            }}
+            options={[
+              { value: 'pdf', label: tx('📄 PDF → AI অডিও', '📄 PDF → AI audio') },
+              { value: 'mp3', label: tx('🎙 তৈরি MP3', '🎙 Finished MP3') },
+            ]}
+          />
+        ) : null}
+
         <Pressable
-          style={({ pressed }) => [styles.dropzone, pressed && styles.dropzonePressed]}
-          onPress={() => handlePickFile()}
+          style={({ pressed }) => [styles.dropZone, file && styles.dropZoneFilled, pressed && styles.pressed]}
+          onPress={choose}
+          disabled={stage !== 'idle'}
+          accessibilityRole="button"
         >
-          <View style={styles.iconCircle}>
-            <Text style={styles.pdfIcon}>
-              {pickedFile?.name.endsWith('.mp3') ? '🎵' : '📄'}
-            </Text>
-          </View>
-          <Text style={styles.dropzoneTitle}>
-            {pickedFile ? pickedFile.name : (isEnglish ? 'Tap to choose PDF or MP3' : 'PDF বা MP3 ফাইল নির্বাচন করুন')}
+          <Text style={styles.dropIcon}>{file ? '✓' : source === 'pdf' ? '📄' : '🎙'}</Text>
+          <Text style={styles.dropTitle} numberOfLines={2}>
+            {file ? file.name : source === 'pdf' ? tx('PDF ফাইল বেছে নিন', 'Choose a PDF') : tx('MP3 ফাইল বেছে নিন', 'Choose an MP3')}
           </Text>
-          <Text style={styles.dropzoneSub}>
-            {pickedFile
-              ? `${((pickedFile.size ?? 0) / 1024 / 1024).toFixed(1)} MB · ${t('tapToChange')}`
-              : (isEnglish ? 'Maximum 20 MB · OCR & Speech Synthesis' : 'সর্বোচ্চ ২০ মেগাবাইট · ওসিআর ও স্পিচ সিন্থেসিস')}
+          <Text style={styles.dropHint}>
+            {file
+              ? tx('বদলাতে আবার চাপুন', 'Tap to change')
+              : tx(`সর্বোচ্চ ${MAX_DOCUMENT_MB} MB`, `Up to ${MAX_DOCUMENT_MB} MB`)}
           </Text>
         </Pressable>
 
-        {/* Info card */}
-        <View style={styles.infoCard}>
-          <Text style={styles.infoTitle}>
-            {isEnglish ? 'Asynchronous Progressive Synthesis' : 'অগ্রাধিকার ভিত্তিক লাইভ জেনারেশন'}
-          </Text>
-          <Text style={styles.infoText}>
-            {isEnglish
-              ? 'Our worker extracts text page by page. As soon as page 1 is ready, you can start streaming while subsequent pages continue synthesizing in the background.'
-              : 'প্রথম পৃষ্ঠা তৈরি হওয়া মাত্রই আপনি শোনা শুরু করতে পারবেন, বাকি পৃষ্ঠাগুলো স্বয়ংক্রিয়ভাবে ব্যাকগ্রাউন্ডে তৈরি হতে থাকবে।'}
-          </Text>
-        </View>
+        {source === 'pdf' ? (
+          <View style={styles.infoCard}>
+            <Text style={styles.infoTitle}>{tx('কীভাবে কাজ করে', 'How it works')}</Text>
+            {[
+              tx('১. Gemini AI প্রতিটি পৃষ্ঠার লেখা পড়ে নেয় (স্ক্যান করা বইও)।', '1. Gemini AI reads the text on every page (scanned books too).'),
+              tx('২. প্রতিটি পৃষ্ঠা স্বাভাবিক কণ্ঠে বর্ণিত হয়ে একটি অধ্যায় হয়।', '2. Each page is narrated in a natural voice as one chapter.'),
+              tx('৩. প্রথম পৃষ্ঠা তৈরি হলেই শোনা শুরু করা যায়; শেষ হলে নোটিফিকেশন পাবেন।', '3. Start listening once the first page is ready; you are notified when it finishes.'),
+            ].map((line) => (
+              <Text key={line} style={styles.infoLine}>
+                {line}
+              </Text>
+            ))}
+            <Text style={styles.infoNote}>
+              {tx('১–১০০০ পৃষ্ঠার, পাসওয়ার্ড ছাড়া PDF দিন।', 'Use an unencrypted PDF with 1–1000 pages.')}
+            </Text>
+          </View>
+        ) : null}
 
-        {/* Start Button */}
-        <BanglaBookButton
+        <AppButton
           label={
-            isProcessing
-              ? (isEnglish ? 'Uploading file...' : 'ফাইল আপলোড হচ্ছে...')
-              : (isEnglish ? 'Start Audiobook Generation ⚡' : 'অডিওবুক তৈরি শুরু করুন ⚡')
+            busyLabel ??
+            (source === 'pdf'
+              ? uploaded
+                ? tx('অডিও তৈরি শুরু করুন', 'Start generating audio')
+                : tx('আপলোড করে অডিও তৈরি করুন', 'Upload & generate audio')
+              : tx('অডিও আপলোড করুন', 'Upload audio'))
           }
-          onPress={handleStartGeneration}
-          variant="primary"
-          isLoading={isProcessing}
+          onPress={submit}
+          isLoading={stage !== 'idle'}
+          disabled={!file}
         />
       </ScrollView>
     </SafeAreaView>
@@ -165,60 +182,57 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xl,
     gap: Spacing.md,
   },
-  dropzone: {
-    borderWidth: 2,
-    borderColor: '#E2DBD2',
+  dropZone: {
+    borderWidth: 1.5,
     borderStyle: 'dashed',
-    borderRadius: Radius.xl,
+    borderColor: Colors.textMuted,
+    borderRadius: Radius.lg,
     backgroundColor: Colors.surface,
-    padding: Spacing.xl,
+    paddingVertical: Spacing['2xl'],
+    paddingHorizontal: Spacing.lg,
     alignItems: 'center',
-    justifyContent: 'center',
     gap: Spacing.xs,
   },
-  dropzonePressed: {
-    backgroundColor: '#FDEAE4',
-    borderColor: Colors.primary,
+  dropZoneFilled: {
+    borderStyle: 'solid',
+    borderColor: Colors.success,
+    backgroundColor: Colors.tintGreen,
   },
-  iconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#F7E7CE',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.xs,
+  pressed: {
+    opacity: 0.8,
   },
-  pdfIcon: {
-    fontSize: 28,
+  dropIcon: {
+    fontSize: 30,
   },
-  dropzoneTitle: {
+  dropTitle: {
     fontSize: FontSizes.base,
     fontWeight: '700',
     color: Colors.textPrimary,
     textAlign: 'center',
   },
-  dropzoneSub: {
+  dropHint: {
     fontSize: FontSizes.xs,
     color: Colors.textSecondary,
-    textAlign: 'center',
   },
   infoCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: Colors.tintBlue,
     borderRadius: Radius.lg,
     padding: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.surfaceBorder,
-    gap: 4,
+    gap: 6,
   },
   infoTitle: {
     fontSize: FontSizes.sm,
     fontWeight: '700',
-    color: Colors.textPrimary,
+    color: Colors.tintBlueText,
   },
-  infoText: {
+  infoLine: {
+    fontSize: FontSizes.sm,
+    color: Colors.textPrimary,
+    lineHeight: 20,
+  },
+  infoNote: {
     fontSize: FontSizes.xs,
     color: Colors.textSecondary,
-    lineHeight: 18,
+    marginTop: 4,
   },
 });

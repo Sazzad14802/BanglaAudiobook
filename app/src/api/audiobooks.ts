@@ -1,5 +1,5 @@
 /**
- * Audiobook API functions.
+ * Audiobook repository: catalog discovery, owner CRUD, uploads and chapters.
  */
 
 import { apiClient } from './client';
@@ -7,59 +7,64 @@ import {
   Audiobook,
   AudiobookCreate,
   AudiobookListResponse,
+  AudiobookQuery,
   AudiobookUpdate,
-  AudiobookVisibilityUpdate,
+  AudiobookVisibility,
 } from '../types/audiobook';
 import { Chapter } from '../types/chapter';
+import { PickedFile, toFormData } from './upload';
+
+function queryString(params: Record<string, string | number | undefined>): string {
+  const parts = Object.entries(params)
+    .filter(([, value]) => value !== undefined && value !== '')
+    .map(([key, value]) => `${key}=${encodeURIComponent(String(value))}`);
+  return parts.length ? `?${parts.join('&')}` : '';
+}
 
 export const audiobooksApi = {
-  /** Create a new audiobook record */
-  create(data: AudiobookCreate): Promise<Audiobook> {
-    return apiClient.post<Audiobook>('/audiobooks', data);
+  /** Public, completed catalog (never returns private books). */
+  list(query: AudiobookQuery = {}): Promise<AudiobookListResponse> {
+    const { page = 1, size = 20, ...filters } = query;
+    return apiClient.get<AudiobookListResponse>(`/audiobooks${queryString({ page, size, ...filters })}`);
   },
 
-  /** List all public completed audiobooks (discovery) */
-  list(page = 1, size = 20): Promise<AudiobookListResponse> {
-    return apiClient.get<AudiobookListResponse>(`/audiobooks?page=${page}&size=${size}`);
-  },
-
-  /** Get a single audiobook by ID */
   get(id: string): Promise<Audiobook> {
     return apiClient.get<Audiobook>(`/audiobooks/${id}`);
   },
 
-  /** Update audiobook metadata (owner only) */
+  listMine(page = 1, size = 50): Promise<AudiobookListResponse> {
+    return apiClient.get<AudiobookListResponse>(`/audiobooks/my${queryString({ page, size })}`);
+  },
+
+  create(data: AudiobookCreate): Promise<Audiobook> {
+    return apiClient.post<Audiobook>('/audiobooks', data);
+  },
+
   update(id: string, data: AudiobookUpdate): Promise<Audiobook> {
     return apiClient.patch<Audiobook>(`/audiobooks/${id}`, data);
   },
 
-  /** Delete an audiobook (owner only) */
   delete(id: string): Promise<void> {
     return apiClient.delete<void>(`/audiobooks/${id}`);
   },
 
-  /** Change visibility (owner only) */
-  updateVisibility(id: string, data: AudiobookVisibilityUpdate): Promise<Audiobook> {
-    return apiClient.patch<Audiobook>(`/audiobooks/${id}/visibility`, data);
+  setVisibility(id: string, visibility: AudiobookVisibility): Promise<Audiobook> {
+    return apiClient.patch<Audiobook>(`/audiobooks/${id}/visibility`, { visibility });
   },
 
-  /** Upload the source PDF */
-  uploadSource(id: string, formData: FormData): Promise<Audiobook> {
-    return apiClient.uploadFile<Audiobook>(`/audiobooks/${id}/source`, formData);
+  uploadSource(id: string, file: PickedFile): Promise<Audiobook> {
+    return apiClient.uploadFile<Audiobook>(`/audiobooks/${id}/source`, toFormData(file, 'application/pdf'));
   },
 
-  /** List the authenticated user's own audiobooks (all statuses, all visibilities) */
-  listMine(page = 1, size = 50): Promise<AudiobookListResponse> {
-    return apiClient.get<AudiobookListResponse>(`/audiobooks/my?page=${page}&size=${size}`);
+  uploadAudio(id: string, file: PickedFile): Promise<{ id: string; duration_seconds: number }> {
+    return apiClient.uploadFile(`/audiobooks/${id}/audio`, toFormData(file, 'audio/mpeg'));
   },
 
-  /** List chapters of an audiobook */
-  listChapters(audiobookId: string): Promise<Chapter[]> {
-    return apiClient.get<Chapter[]>(`/audiobooks/${audiobookId}/chapters`);
+  uploadCover(id: string, file: PickedFile): Promise<Audiobook> {
+    return apiClient.uploadFile<Audiobook>(`/audiobooks/${id}/cover`, toFormData(file, 'image/jpeg'));
   },
 
-  /** Get a specific chapter */
-  getChapter(audiobookId: string, chapterId: string): Promise<Chapter> {
-    return apiClient.get<Chapter>(`/audiobooks/${audiobookId}/chapters/${chapterId}`);
+  chapters(id: string): Promise<Chapter[]> {
+    return apiClient.get<Chapter[]>(`/audiobooks/${id}/chapters`);
   },
 };

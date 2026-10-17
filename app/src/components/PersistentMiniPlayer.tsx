@@ -1,110 +1,110 @@
 /**
- * PersistentMiniPlayer — Docked mini player sitting above bottom navigation.
- * Exactly matches Figma Plate 3 and Plate 5.
- * Artwork · Title · Progress · Pause · Forward.
+ * PersistentMiniPlayer — docked above the tab bar while something is loaded.
+ * Artwork · title · chapter · play/pause · next chapter, with a hairline progress bar.
  */
 
 import React from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { usePlayer } from '../contexts/PlayerContext';
+import { useLanguage } from '../contexts/LanguageContext';
+import { BookCover } from './BookCover';
 import { Colors, FontSizes, Radius, Spacing } from '../theme';
 
 interface PersistentMiniPlayerProps {
-  onPress?: () => void;
+  onPress: () => void;
 }
 
 export function PersistentMiniPlayer({ onPress }: PersistentMiniPlayerProps) {
-  const { audiobook, chapters, currentChapterIndex, isPlaying, play, pause, nextChapter, positionSeconds, durationSeconds } = usePlayer();
-  const navigation = useNavigation<any>();
+  const {
+    audiobook,
+    chapters,
+    currentChapterIndex,
+    isPlaying,
+    isLoading,
+    error,
+    togglePlay,
+    nextChapter,
+    positionSeconds,
+    durationSeconds,
+    stop,
+  } = usePlayer();
+  const { tx } = useLanguage();
   if (!audiobook) return null;
 
-  // If no audiobook is active, show the default featured one from Figma (পথের পাঁচালী)
-  const displayTitle = audiobook?.title ?? 'পথের পাঁচালী';
-  const currentChapter = chapters[currentChapterIndex];
-  const displaySubtitle = currentChapter
-    ? `অধ্যায় ${currentChapter.chapter_number} · ${currentChapter.title}`
-    : 'অধ্যায় ৪ · নিশ্চিন্দিপুর';
-  const coverUrl = audiobook?.cover_image_url;
-
-  const progressPercent = durationSeconds > 0
-    ? Math.min(100, Math.max(0, (positionSeconds / durationSeconds) * 100))
-    : 34; // matches 34% in Figma
-
-  const handlePressBody = () => {
-    if (onPress) {
-      onPress();
-    } else {
-      // Navigate to player screen in current stack
-      navigation.navigate('Player', { audiobookId: audiobook?.id ?? 'pather-panchali' });
-    }
-  };
-
-  const handleTogglePlay = async () => {
-    if (isPlaying) {
-      await pause();
-    } else {
-      await play();
-    }
-  };
-
-  const handleForward = async () => {
-    await nextChapter();
-  };
+  const chapter = chapters[currentChapterIndex];
+  const subtitle = error
+    ? error
+    : chapter
+      ? `${tx('অধ্যায়', 'Chapter')} ${chapter.chapter_number} · ${chapter.title}`
+      : tx('লোড হচ্ছে…', 'Loading…');
+  const progress = durationSeconds > 0 ? Math.min(100, (positionSeconds / durationSeconds) * 100) : 0;
+  const hasNext = currentChapterIndex + 1 < chapters.length;
 
   return (
     <View style={styles.wrapper}>
-      {/* Hairline Progress Bar */}
       <View style={styles.progressBarTrack}>
-        <View style={[styles.progressBarFill, { width: `${progressPercent}%` }]} />
+        <View style={[styles.progressBarFill, { width: `${progress}%` }]} />
       </View>
 
       <Pressable
         style={styles.container}
-        onPress={handlePressBody}
+        onPress={onPress}
         accessibilityRole="button"
-        accessibilityLabel={`Now playing ${displayTitle}`}
+        accessibilityLabel={`${tx('এখন বাজছে', 'Now playing')} ${audiobook.title}`}
       >
-        {/* Artwork Thumbnail */}
         <View style={styles.thumbnailContainer}>
-          {coverUrl ? (
-            <Image source={{ uri: coverUrl }} style={styles.thumbnail} />
-          ) : (
-            <View style={styles.thumbnailPlaceholder}>
-              <Text style={styles.thumbnailEmoji}>🎧</Text>
-            </View>
-          )}
+          <BookCover title={audiobook.title} uri={audiobook.cover_image_url} size={42} radius={Radius.sm} />
         </View>
 
-        {/* Title and Subtitle */}
         <View style={styles.textContainer}>
           <Text style={styles.title} numberOfLines={1}>
-            {displayTitle}
+            {audiobook.title}
           </Text>
-          <Text style={styles.subtitle} numberOfLines={1}>
-            {displaySubtitle}
+          <Text style={[styles.subtitle, error ? styles.subtitleError : null]} numberOfLines={1}>
+            {subtitle}
           </Text>
         </View>
 
-        {/* Controls */}
         <View style={styles.controlsRow}>
-          <Pressable
-            onPress={handleTogglePlay}
-            style={({ pressed }) => [styles.controlButton, pressed && styles.controlPressed]}
-            hitSlop={8}
-            accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
-          >
-            <Text style={styles.playIcon}>{isPlaying ? '❚❚' : '▶'}</Text>
-          </Pressable>
-
-          <Pressable
-            onPress={handleForward}
-            style={({ pressed }) => [styles.controlButton, pressed && styles.controlPressed]}
-            hitSlop={8}
-            accessibilityLabel="Forward chapter"
-          >
-            <Text style={styles.forwardIcon}>›</Text>
-          </Pressable>
+          {error ? (
+            <Pressable
+              onPress={stop}
+              style={({ pressed }) => [styles.controlButton, pressed && styles.controlPressed]}
+              hitSlop={8}
+              accessibilityLabel={tx('বন্ধ করুন', 'Close player')}
+            >
+              <Text style={styles.forwardIcon}>×</Text>
+            </Pressable>
+          ) : (
+            <>
+              <Pressable
+                onPress={togglePlay}
+                disabled={!chapter}
+                style={({ pressed }) => [styles.controlButton, pressed && styles.controlPressed]}
+                hitSlop={8}
+                accessibilityLabel={isPlaying ? tx('বিরতি', 'Pause') : tx('চালু করুন', 'Play')}
+              >
+                {isLoading && !isPlaying ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.playIcon}>{isPlaying ? '❚❚' : '▶'}</Text>
+                )}
+              </Pressable>
+              <Pressable
+                onPress={() => nextChapter().catch(() => {})}
+                disabled={!hasNext}
+                style={({ pressed }) => [
+                  styles.controlButton,
+                  !hasNext && styles.controlDisabled,
+                  pressed && styles.controlPressed,
+                ]}
+                hitSlop={8}
+                accessibilityLabel={tx('পরের অধ্যায়', 'Next chapter')}
+              >
+                <Text style={styles.forwardIcon}>›</Text>
+              </Pressable>
+            </>
+          )}
         </View>
       </Pressable>
     </View>
@@ -118,12 +118,12 @@ const styles = StyleSheet.create({
   },
   progressBarTrack: {
     height: 2.5,
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    backgroundColor: Colors.onDarkHairline,
     width: '100%',
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.brandLight,
   },
   container: {
     height: 58,
@@ -134,22 +134,6 @@ const styles = StyleSheet.create({
   },
   thumbnailContainer: {
     marginRight: Spacing.md,
-  },
-  thumbnail: {
-    width: 42,
-    height: 42,
-    borderRadius: Radius.sm,
-  },
-  thumbnailPlaceholder: {
-    width: 42,
-    height: 42,
-    borderRadius: Radius.sm,
-    backgroundColor: '#2A292E',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  thumbnailEmoji: {
-    fontSize: 20,
   },
   textContainer: {
     flex: 1,
@@ -162,9 +146,12 @@ const styles = StyleSheet.create({
     letterSpacing: -0.1,
   },
   subtitle: {
-    color: '#A19E98',
+    color: Colors.textOnDarkSecondary,
     fontSize: FontSizes.xs,
     marginTop: 2,
+  },
+  subtitleError: {
+    color: Colors.textOnDarkAccent,
   },
   controlsRow: {
     flexDirection: 'row',
@@ -180,6 +167,9 @@ const styles = StyleSheet.create({
   },
   controlPressed: {
     opacity: 0.6,
+  },
+  controlDisabled: {
+    opacity: 0.3,
   },
   playIcon: {
     color: '#FFFFFF',

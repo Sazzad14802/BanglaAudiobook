@@ -5,25 +5,32 @@
 
 import React from 'react';
 import {
-  Image,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { Audiobook } from '../types/audiobook';
+import { BookCover } from './BookCover';
+import { formatDuration } from '../utils/format';
 import { Colors, FontSizes, Radius, Spacing } from '../theme';
 
 interface AudiobookCardProps {
-  audiobook: Audiobook & { progress_percent?: number; duration_label?: string };
+  audiobook: Audiobook;
   onPress: () => void;
   onPlayPress?: () => void;
+  /** Overall listening progress (0–100) when known. */
+  progressPercent?: number;
+  /** Replaces the default access/duration meta line (e.g. generation status). */
+  meta?: string;
 }
 
-export function AudiobookCard({ audiobook, onPress, onPlayPress }: AudiobookCardProps) {
-  const isPremium = audiobook.access_tier === 'premium' || audiobook.access_type === 'PREMIUM';
-  const progressText = audiobook.progress_percent ? ` · ${audiobook.progress_percent}%` : '';
-  const statusLabel = isPremium ? 'Premium' : `Free${progressText}`;
+export function AudiobookCard({ audiobook, onPress, onPlayPress, progressPercent, meta }: AudiobookCardProps) {
+  const isPremium = audiobook.access_tier === 'premium';
+  const duration = audiobook.duration_seconds ? ` · ${formatDuration(audiobook.duration_seconds)}` : '';
+  const progressText = progressPercent ? ` · ${Math.round(progressPercent)}%` : '';
+  const statusLabel = meta ?? `${isPremium ? 'Premium' : 'Free'}${duration}${progressText}`;
+  const playable = audiobook.status === 'COMPLETED';
 
   return (
     <Pressable
@@ -34,13 +41,7 @@ export function AudiobookCard({ audiobook, onPress, onPlayPress }: AudiobookCard
     >
       {/* Thumbnail */}
       <View style={styles.coverWrapper}>
-        {audiobook.cover_image_url ? (
-          <Image source={{ uri: audiobook.cover_image_url }} style={styles.coverImage} />
-        ) : (
-          <View style={styles.coverPlaceholder}>
-            <Text style={styles.coverEmoji}>📖</Text>
-          </View>
-        )}
+        <BookCover title={audiobook.title} uri={audiobook.cover_image_url} size={58} />
       </View>
 
       {/* Book Metadata */}
@@ -53,21 +54,36 @@ export function AudiobookCard({ audiobook, onPress, onPlayPress }: AudiobookCard
             {audiobook.author}
           </Text>
         ) : null}
-        <Text style={[styles.metaText, isPremium ? styles.premiumMeta : styles.freeMeta]}>
+        <Text
+          style={[
+            styles.metaText,
+            meta ? styles.neutralMeta : isPremium ? styles.premiumMeta : styles.freeMeta,
+          ]}
+          numberOfLines={1}
+        >
           {statusLabel}
         </Text>
+        {progressPercent ? (
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${Math.min(100, progressPercent)}%` }]} />
+          </View>
+        ) : null}
       </View>
 
-      {/* Circular Play Button */}
-      <Pressable
-        style={({ pressed }) => [styles.playButton, pressed && styles.playButtonPressed]}
-        onPress={onPlayPress ?? onPress}
-        hitSlop={10}
-        accessibilityRole="button"
-        accessibilityLabel={`Play ${audiobook.title}`}
-      >
-        <Text style={styles.playIcon}>▶</Text>
-      </Pressable>
+      {/* Circular Play Button — only for audio that is ready */}
+      {playable && onPlayPress ? (
+        <Pressable
+          style={({ pressed }) => [styles.playButton, pressed && styles.playButtonPressed]}
+          onPress={onPlayPress}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel={`Play ${audiobook.title}`}
+        >
+          <Text style={styles.playIcon}>▶</Text>
+        </Pressable>
+      ) : (
+        <Text style={styles.chevron}>›</Text>
+      )}
     </Pressable>
   );
 }
@@ -88,22 +104,25 @@ const styles = StyleSheet.create({
   coverWrapper: {
     marginRight: Spacing.md,
   },
-  coverImage: {
-    width: 58,
-    height: 58,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.surfaceElevated,
+  neutralMeta: {
+    color: Colors.textSecondary,
   },
-  coverPlaceholder: {
-    width: 58,
-    height: 58,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.surfaceElevated,
-    alignItems: 'center',
-    justifyContent: 'center',
+  progressTrack: {
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: Colors.surfaceBorder,
+    marginTop: 6,
+    overflow: 'hidden',
   },
-  coverEmoji: {
+  progressFill: {
+    height: '100%',
+    backgroundColor: Colors.brand,
+  },
+  chevron: {
     fontSize: 24,
+    color: Colors.textMuted,
+    marginLeft: Spacing.sm,
+    paddingHorizontal: Spacing.xs,
   },
   detailsColumn: {
     flex: 1,
@@ -135,13 +154,13 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#F8E0D9', // soft peach from Figma
+    backgroundColor: Colors.brandSoft,
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: Spacing.sm,
   },
   playButtonPressed: {
-    backgroundColor: '#F0C9BF',
+    backgroundColor: Colors.brandSoftPressed,
     transform: [{ scale: 0.96 }],
   },
   playIcon: {

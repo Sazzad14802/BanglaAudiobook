@@ -1,341 +1,282 @@
 /**
- * PlayerScreen — Now Playing matching Figma Plate 5 Screen 1.
- * Artwork · Title · Progress slider · Speed · Rewind · Play/Pause · Forward · Moon
- * ActionPillBar: `Chapters · Queue · Bookmark · Offline`.
+ * PlayerScreen — full-screen player for whatever the PlayerContext has loaded:
+ * artwork, chapter info, tap-to-seek progress, ±15s, previous/next chapter,
+ * playback speed, sleep timer and offline download.
  */
 
-import React, { useState } from 'react';
-import {
-  Alert,
-  Image,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, LayoutChangeEvent, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { HomeStackParamList } from '../../navigation/types';
-import { BanglaBookHeader } from '../../components/BanglaBookHeader';
+import { AppHeader } from '../../components/AppHeader';
 import { ActionItem, ActionPillBar } from '../../components/ActionPillBar';
 import { ModalBottomSheet } from '../../components/ModalBottomSheet';
-import { BanglaBookButton } from '../../components/BanglaBookButton';
-import { FIGMA_AUDIOBOOKS } from '../../data/mockAudiobooks';
+import { AppButton } from '../../components/AppButton';
+import { BookCover } from '../../components/BookCover';
+import { StateView } from '../../components/StateView';
+import { Chip } from '../../components/Chip';
+import { errorMessage } from '../../api/client';
 import { usePlayer } from '../../contexts/PlayerContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { Colors, FontSizes, Radius, Spacing } from '../../theme';
+import { useAppNavigation } from '../../navigation/useAppNavigation';
 import { offline } from '../../storage/offline';
+import { isPremium } from '../../types/auth';
+import { formatClock } from '../../utils/format';
+import { Colors, FontSizes, Radius, Spacing } from '../../theme';
 
-type Nav = NativeStackNavigationProp<HomeStackParamList, 'Player'>;
-type Route = RouteProp<HomeStackParamList, 'Player'>;
+const SPEEDS = [0.75, 1, 1.25, 1.5, 2];
+const SLEEP_OPTIONS = [0, 15, 30, 60];
 
 export function PlayerScreen() {
-  const nav = useNavigation<Nav>();
-  const route = useRoute<Route>();
-  const { t, isEnglish } = useLanguage();
+  const { navigation, goToTab } = useAppNavigation();
+  const { t, tx } = useLanguage();
+  const { user } = useAuth();
+  const player = usePlayer();
   const {
-    audiobook: activeAudiobook,
+    audiobook,
     chapters,
     currentChapterIndex,
     isPlaying,
-    play,
-    pause,
-    seek,
+    isLoading,
+    isOffline,
     positionSeconds,
     durationSeconds,
-    setSpeed,
-    setSleep,
-  } = usePlayer();
-  const { user } = useAuth();
+    playbackRate,
+    sleepEndsAt,
+    error,
+  } = player;
 
-  const audiobookId = route.params?.audiobookId ?? 'pather-panchali';
-  const audiobook = activeAudiobook ?? (FIGMA_AUDIOBOOKS.find((b) => b.id === audiobookId) ?? FIGMA_AUDIOBOOKS[0]);
+  const [settingsVisible, setSettingsVisible] = useState(false);
+  const [trackWidth, setTrackWidth] = useState(0);
+  const [downloaded, setDownloaded] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [now, setNow] = useState(Date.now());
 
-  const [playbackSpeed, setPlaybackSpeed] = useState('1.0x');
-  const [sleepTimer, setSleepTimer] = useState('Off');
-  const [settingsModalVisible, setSettingsModalVisible] = useState(false);
-  const [isBookmarked, setIsBookmarked] = useState(false);
-  const [isOfflineSaved, setIsOfflineSaved] = useState(false);
+  useEffect(() => {
+    if (!user || !audiobook) return;
+    offline.list(user.id).then((books) => setDownloaded(books.some((b) => b.id === audiobook.id))).catch(() => {});
+  }, [user, audiobook]);
 
-  const formatTime = (secs: number) => {
-    const m = Math.floor(secs / 60);
-    const s = Math.floor(secs % 60);
-    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  // Keep the sleep-timer countdown label current.
+  useEffect(() => {
+    if (!sleepEndsAt) return;
+    const timer = setInterval(() => setNow(Date.now()), 15_000);
+    return () => clearInterval(timer);
+  }, [sleepEndsAt]);
+
+  if (!audiobook) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+        <AppHeader title={t('playerNowPlaying')} onBack={() => navigation.goBack()} />
+        <StateView
+          kind="empty"
+          title={tx('কিছুই বাজছে না', 'Nothing is playing')}
+          message={tx('একটি অডিওবুক বেছে নিয়ে শুনতে শুরু করুন।', 'Pick an audiobook to start listening.')}
+          actionLabel={tx('ফিরে যান', 'Go back')}
+          onAction={() => navigation.goBack()}
+        />
+      </SafeAreaView>
+    );
+  }
+
+  const chapter = chapters[currentChapterIndex];
+  const progress = durationSeconds > 0 ? Math.min(1, positionSeconds / durationSeconds) : 0;
+  const sleepMinutesLeft = sleepEndsAt ? Math.max(1, Math.ceil((sleepEndsAt - now) / 60000)) : 0;
+
+  const seekFromTouch = (x: number) => {
+    if (trackWidth > 0 && durationSeconds > 0) player.seek((x / trackWidth) * durationSeconds);
   };
 
-  const currentChapter = chapters[currentChapterIndex] ?? {
-    chapter_number: 1,
-    title: isEnglish ? 'Chapter 1' : 'অধ্যায় ১',
-  };
+  const run = (action: () => Promise<void>) => action().catch((e) => Alert.alert(tx('ত্রুটি', 'Error'), errorMessage(e)));
 
-  const handleTogglePlay = async () => {
-    if (isPlaying) {
-      await pause();
-    } else {
-      await play();
+  const toggleOffline = async () => {
+    if (!user) return;
+    if (downloaded) {
+      await offline.remove(audiobook.id, user.id);
+      setDownloaded(false);
+      return;
     }
-  };
-
-  const handleRewind = () => {
-    seek(Math.max(0, positionSeconds - 15));
-  };
-
-  const handleForward = () => {
-    seek(Math.min(durationSeconds, positionSeconds + 15));
-  };
-
-  const handleProgressBarPress = (evt: any) => {
-    seek(Math.min(durationSeconds, Math.max(0, positionSeconds + 30)));
-  };
-
-  const handleSpeedSelect = (s: string) => {
-    setPlaybackSpeed(s);
-    const num = parseFloat(s);
-    if (!isNaN(num)) setSpeed(num);
-  };
-
-  const handleSleepSelect = (tStr: string) => {
-    setSleepTimer(tStr);
-    const mins = parseInt(tStr, 10);
-    setSleep(isNaN(mins) ? 0 : mins);
-  };
-
-  const handleToggleOffline = async () => {
-    if (!user?.id) return;
+    if (!isPremium(user)) {
+      Alert.alert(tx('প্রিমিয়াম প্রয়োজন', 'Premium required'), tx('অফলাইনে শুনতে প্রিমিয়াম নিন।', 'Get Premium to listen offline.'), [
+        { text: tx('বাতিল', 'Cancel'), style: 'cancel' },
+        { text: tx('প্রিমিয়াম নিন', 'Get Premium'), onPress: () => goToTab('ProfileTab', { screen: 'Subscription' }) },
+      ]);
+      return;
+    }
+    setDownloading(true);
     try {
-      if (isOfflineSaved) {
-        await offline.remove(audiobook.id, user.id);
-        setIsOfflineSaved(false);
-        Alert.alert(isEnglish ? 'Offline' : 'অফলাইন', isEnglish ? 'Removed from offline storage.' : 'অফলাইন থেকে মুছে ফেলা হয়েছে।');
-      } else {
-        await offline.download(audiobook, user.id);
-        setIsOfflineSaved(true);
-        Alert.alert(isEnglish ? 'Downloaded' : 'ডাউনলোডেড', isEnglish ? 'Audiobook downloaded for offline listening.' : 'অডিওবুকটি অফলাইনে সংরক্ষিত হয়েছে।');
-      }
-    } catch (e: any) {
-      Alert.alert(isEnglish ? 'Error' : 'ত্রুটি', e.message || 'Offline operation failed');
+      await offline.download(audiobook, user.id);
+      setDownloaded(true);
+      Alert.alert(tx('ডাউনলোড সম্পন্ন', 'Downloaded'), tx('এখন অফলাইনে শুনতে পারবেন।', 'Available offline now.'));
+    } catch (e) {
+      Alert.alert(tx('ডাউনলোড ব্যর্থ', 'Download failed'), errorMessage(e));
+    } finally {
+      setDownloading(false);
     }
   };
 
-  const actionItems: ActionItem[] = [
+  const actions: ActionItem[] = [
     {
       id: 'chapters',
-      label: isEnglish ? 'Chapters' : 'অধ্যায়',
-      onPress: () => nav.navigate('ChaptersQueue', { audiobookId: audiobook.id }),
+      label: tx(`অধ্যায় (${chapters.length})`, `Chapters (${chapters.length})`),
+      onPress: () => navigation.navigate('ChaptersQueue'),
     },
     {
-      id: 'queue',
-      label: isEnglish ? 'Queue' : 'কিউ',
-      onPress: () => nav.navigate('ChaptersQueue', { audiobookId: audiobook.id }),
-    },
-    {
-      id: 'bookmark',
-      label: isBookmarked
-        ? isEnglish ? 'Bookmarked' : 'বুকমার্কড'
-        : isEnglish ? 'Bookmark' : 'বুকমার্ক',
-      active: isBookmarked,
-      onPress: () => {
-        setIsBookmarked((prev) => !prev);
-        Alert.alert(
-          isEnglish ? 'Bookmark' : 'বুকমার্ক',
-          isEnglish
-            ? `Bookmark saved at ${formatTime(positionSeconds)}.`
-            : `${formatTime(positionSeconds)} সময়ে বুকমার্ক সংরক্ষণ করা হয়েছে।`
-        );
-      },
-    },
-    {
-      id: 'offline',
-      label: isOfflineSaved
-        ? isEnglish ? 'Downloaded' : 'ডাউনলোডেড'
-        : isEnglish ? 'Offline' : 'অফলাইন',
-      active: isOfflineSaved,
-      onPress: handleToggleOffline,
+      id: 'details',
+      label: tx('বিস্তারিত', 'Details'),
+      onPress: () => navigation.navigate('AudiobookDetails', { audiobookId: audiobook.id }),
     },
   ];
+  if (!isOffline) {
+    actions.push({
+      id: 'offline',
+      label: downloading ? tx('ডাউনলোড…', 'Saving…') : downloaded ? tx('ডাউনলোডেড', 'Downloaded') : tx('অফলাইন', 'Offline'),
+      active: downloaded,
+      onPress: toggleOffline,
+    });
+  }
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <BanglaBookHeader
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right', 'bottom']}>
+      <AppHeader
         title={t('playerNowPlaying')}
-        subtitle={audiobook.title}
+        subtitle={isOffline ? tx('অফলাইন', 'Offline') : audiobook.author ?? undefined}
         alignCenter
-        onBack={() => nav.goBack()}
-        onOptionsPress={() => setSettingsModalVisible(true)}
+        onBack={() => navigation.goBack()}
+        rightIcon="⚙︎"
+        rightIconLabel={tx('প্লেব্যাক সেটিংস', 'Playback settings')}
+        onRightIconPress={() => setSettingsVisible(true)}
       />
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Large Album Artwork */}
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.artworkContainer}>
-          <Image
-            source={{
-              uri:
-                audiobook.cover_image_url ??
-                'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?q=80&w=800',
-            }}
-            style={styles.artwork}
-            resizeMode="cover"
-          />
+          <BookCover title={audiobook.title} uri={audiobook.cover_image_url} fill radius={Radius.xl} />
         </View>
 
-        {/* Book Title */}
         <Text style={styles.bookTitle}>{audiobook.title}</Text>
+        <Text style={styles.chapterSubtitle} numberOfLines={1}>
+          {chapter
+            ? `${tx('অধ্যায়', 'Chapter')} ${chapter.chapter_number}/${chapters.length} · ${chapter.title}`
+            : tx('লোড হচ্ছে…', 'Loading…')}
+        </Text>
 
-        {/* Chapter Info & Timestamps */}
-        <View style={styles.infoRow}>
-          <Text style={styles.chapterSubtitle}>
-            {isEnglish ? 'Chapter' : 'অধ্যায়'} {currentChapter.chapter_number} · {currentChapter.title}
-          </Text>
-          <Text style={styles.timeCounter}>
-            {formatTime(positionSeconds)} / {formatTime(durationSeconds)}
-          </Text>
+        {error ? (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        ) : null}
+
+        <Pressable
+          style={styles.progressBarWrapper}
+          onLayout={(e: LayoutChangeEvent) => setTrackWidth(e.nativeEvent.layout.width)}
+          onPress={(e) => seekFromTouch(e.nativeEvent.locationX)}
+          accessibilityRole="adjustable"
+          accessibilityLabel={tx('অগ্রগতি', 'Progress')}
+        >
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
+          </View>
+          <View style={[styles.progressThumb, { left: Math.max(0, progress * trackWidth - 7) }]} />
+        </Pressable>
+        <View style={styles.timeRow}>
+          <Text style={styles.timeCounter}>{formatClock(positionSeconds)}</Text>
+          <Text style={styles.timeCounter}>-{formatClock(Math.max(0, durationSeconds - positionSeconds))}</Text>
         </View>
 
-        {/* Progress Bar */}
-        <Pressable style={styles.progressBarWrapper} onPress={handleProgressBarPress}>
-          <View style={styles.progressTrack}>
-            <View
-              style={[
-                styles.progressFill,
-                { width: `${(positionSeconds / durationSeconds) * 100}%` },
-              ]}
-            />
-          </View>
-        </Pressable>
-
-        {/* Control Bar: Speed · Rewind · Play/Pause · Forward · Sleep Timer */}
         <View style={styles.controlsRow}>
-          {/* Speed Toggle */}
           <Pressable
             style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}
-            onPress={() => setSettingsModalVisible(true)}
+            onPress={() => run(player.prevChapter)}
+            accessibilityLabel={tx('আগের অধ্যায়', 'Previous chapter')}
           >
-            <Text style={styles.speedText}>{playbackSpeed}</Text>
+            <Text style={styles.skipIcon}>⏮</Text>
           </Pressable>
-
-          {/* Rewind 15s */}
           <Pressable
             style={({ pressed }) => [styles.iconControlButton, pressed && styles.pressed]}
-            onPress={handleRewind}
+            onPress={() => run(() => player.skip(-15))}
+            accessibilityLabel={tx('১৫ সেকেন্ড পিছনে', 'Back 15 seconds')}
           >
             <Text style={styles.rewindIcon}>↺</Text>
             <Text style={styles.rewindSubText}>15</Text>
           </Pressable>
 
-          {/* Main Play/Pause Button */}
           <Pressable
             style={({ pressed }) => [styles.mainPlayButton, pressed && styles.mainPlayPressed]}
-            onPress={handleTogglePlay}
+            onPress={player.togglePlay}
+            disabled={!chapter}
+            accessibilityLabel={isPlaying ? tx('বিরতি', 'Pause') : tx('চালু করুন', 'Play')}
           >
-            <Text style={styles.mainPlayIcon}>{isPlaying ? '❚❚' : '▶'}</Text>
+            {isLoading && !isPlaying ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.mainPlayIcon}>{isPlaying ? '❚❚' : '▶'}</Text>
+            )}
           </Pressable>
 
-          {/* Forward 15s */}
           <Pressable
             style={({ pressed }) => [styles.iconControlButton, pressed && styles.pressed]}
-            onPress={handleForward}
+            onPress={() => run(() => player.skip(15))}
+            accessibilityLabel={tx('১৫ সেকেন্ড সামনে', 'Forward 15 seconds')}
           >
             <Text style={styles.forwardIcon}>↻</Text>
             <Text style={styles.forwardSubText}>15</Text>
           </Pressable>
-
-          {/* Sleep Timer Moon */}
           <Pressable
-            style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}
-            onPress={() => setSettingsModalVisible(true)}
+            style={({ pressed }) => [
+              styles.toolButton,
+              currentChapterIndex + 1 >= chapters.length && styles.disabled,
+              pressed && styles.pressed,
+            ]}
+            disabled={currentChapterIndex + 1 >= chapters.length}
+            onPress={() => run(player.nextChapter)}
+            accessibilityLabel={tx('পরের অধ্যায়', 'Next chapter')}
           >
-            <Text style={styles.moonIcon}>☾</Text>
+            <Text style={styles.skipIcon}>⏭</Text>
           </Pressable>
         </View>
 
-        {/* Bottom Action Bar: Chapters · Queue · Bookmark · Offline */}
+        <View style={styles.quickRow}>
+          <Pressable style={styles.quickButton} onPress={() => setSettingsVisible(true)}>
+            <Text style={styles.speedText}>{playbackRate}x</Text>
+          </Pressable>
+          <Pressable style={styles.quickButton} onPress={() => setSettingsVisible(true)}>
+            <Text style={styles.speedText}>☾ {sleepEndsAt ? tx(`${sleepMinutesLeft} মি.`, `${sleepMinutesLeft}m`) : tx('বন্ধ', 'Off')}</Text>
+          </Pressable>
+        </View>
+
         <View style={styles.actionPillWrapper}>
-          <ActionPillBar items={actionItems} />
+          <ActionPillBar items={actions} />
         </View>
       </ScrollView>
 
-      {/* Speed & Sleep Timer Modal Bottom Sheet (Plate 5 Screen 3) */}
-      <ModalBottomSheet
-        visible={settingsModalVisible}
-        onClose={() => setSettingsModalVisible(false)}
-      >
+      <ModalBottomSheet visible={settingsVisible} onClose={() => setSettingsVisible(false)}>
         <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>Playback settings</Text>
-
-          {/* Speed Section */}
-          <Text style={styles.settingsLabel}>Speed</Text>
+          <Text style={styles.modalTitle}>{tx('প্লেব্যাক সেটিংস', 'Playback settings')}</Text>
+          <Text style={styles.settingsLabel}>{tx('গতি', 'Speed')}</Text>
           <View style={styles.chipsRow}>
-            {['0.75x', '1.0x', '1.25x', '1.5x', '2.0x'].map((s) => {
-              const isSelected = playbackSpeed === s;
-              return (
-                <Pressable
-                  key={s}
-                  onPress={() => handleSpeedSelect(s)}
-                  style={[
-                    styles.settingChip,
-                    isSelected ? styles.chipSelected : styles.chipUnselected,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.settingChipText,
-                      isSelected ? styles.chipTextSelected : styles.chipTextUnselected,
-                    ]}
-                  >
-                    {isSelected ? `✓ ${s}` : s}
-                  </Text>
-                </Pressable>
-              );
-            })}
+            {SPEEDS.map((speed) => (
+              <Chip key={speed} label={`${speed}x`} selected={playbackRate === speed} onPress={() => player.setSpeed(speed)} />
+            ))}
           </View>
-
-          {/* Sleep Timer Section */}
-          <Text style={styles.settingsLabel}>Sleep timer</Text>
+          <Text style={styles.settingsLabel}>{tx('স্লিপ টাইমার', 'Sleep timer')}</Text>
           <View style={styles.chipsRow}>
-            {['Off', '15m', '30m', '60m'].map((t) => {
-              const isSelected = sleepTimer === t;
-              return (
-                <Pressable
-                  key={t}
-                  onPress={() => handleSleepSelect(t)}
-                  style={[
-                    styles.settingChip,
-                    isSelected ? styles.chipSelected : styles.chipUnselected,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.settingChipText,
-                      isSelected ? styles.chipTextSelected : styles.chipTextUnselected,
-                    ]}
-                  >
-                    {isSelected ? `✓ ${t}` : t}
-                  </Text>
-                </Pressable>
-              );
-            })}
+            {SLEEP_OPTIONS.map((minutes) => (
+              <Chip
+                key={minutes}
+                label={minutes ? tx(`${minutes} মিনিট`, `${minutes} min`) : tx('বন্ধ', 'Off')}
+                selected={minutes === 0 ? !sleepEndsAt : false}
+                onPress={() => player.setSleepTimer(minutes)}
+              />
+            ))}
           </View>
-
-          {/* Save Button */}
-          <BanglaBookButton
-            label="সংরক্ষণ"
-            onPress={() => setSettingsModalVisible(false)}
-            variant="primary"
-          />
+          {sleepEndsAt ? (
+            <Text style={styles.sleepNote}>
+              {tx(`${sleepMinutesLeft} মিনিট পর প্লেব্যাক থামবে।`, `Playback stops in ${sleepMinutesLeft} min.`)}
+            </Text>
+          ) : null}
+          <AppButton label={tx('ঠিক আছে', 'Done')} onPress={() => setSettingsVisible(false)} />
         </View>
       </ModalBottomSheet>
-
-      {/* Android edge-to-edge indicator bar */}
-      <View style={styles.bottomBarContainer}>
-        <View style={styles.homeIndicator} />
-      </View>
     </SafeAreaView>
   );
 }
@@ -346,13 +287,13 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   scrollContent: {
-    paddingHorizontal: Spacing.md,
+    paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.xs,
     paddingBottom: Spacing.xl,
     alignItems: 'center',
   },
   artworkContainer: {
-    width: '100%',
+    width: '86%',
     aspectRatio: 1,
     borderRadius: Radius.xl,
     overflow: 'hidden',
@@ -364,56 +305,74 @@ const styles = StyleSheet.create({
     elevation: 5,
     marginVertical: Spacing.sm,
   },
-  artwork: {
-    width: '100%',
-    height: '100%',
-  },
   bookTitle: {
     fontSize: FontSizes.xl + 2,
     fontWeight: '800',
     color: Colors.textPrimary,
     letterSpacing: -0.2,
-    marginTop: Spacing.sm,
+    marginTop: Spacing.md,
     textAlign: 'center',
-  },
-  infoRow: {
-    width: '100%',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: Spacing.xs + 2,
-    marginBottom: Spacing.xs,
   },
   chapterSubtitle: {
     fontSize: FontSizes.sm,
     color: Colors.textSecondary,
     fontWeight: '500',
+    marginTop: 4,
+    textAlign: 'center',
   },
-  timeCounter: {
-    fontSize: FontSizes.xs + 1,
-    color: Colors.textSecondary,
-    fontWeight: '600',
+  errorBanner: {
+    width: '100%',
+    backgroundColor: Colors.tintError,
+    borderRadius: Radius.md,
+    padding: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  errorText: {
+    color: Colors.tintErrorText,
+    fontSize: FontSizes.sm,
+    textAlign: 'center',
   },
   progressBarWrapper: {
     width: '100%',
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.md,
+    marginTop: Spacing.sm,
+    justifyContent: 'center',
   },
   progressTrack: {
     height: 4,
-    backgroundColor: '#E5DFD7',
+    backgroundColor: Colors.track,
     borderRadius: Radius.full,
     width: '100%',
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.brand,
+  },
+  progressThumb: {
+    position: 'absolute',
+    // Track is 4pt tall inside Spacing.md padding; centre the 14pt thumb on it.
+    top: Spacing.md - 5,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: Colors.brand,
+  },
+  timeRow: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  timeCounter: {
+    fontSize: FontSizes.xs + 1,
+    color: Colors.textSecondary,
+    fontWeight: '600',
   },
   controlsRow: {
     width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-around',
+    justifyContent: 'space-between',
     marginVertical: Spacing.md,
   },
   toolButton: {
@@ -422,17 +381,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  speedText: {
-    fontSize: FontSizes.base,
-    fontWeight: '700',
+  skipIcon: {
+    fontSize: 20,
     color: Colors.textPrimary,
+  },
+  disabled: {
+    opacity: 0.3,
   },
   iconControlButton: {
     width: 44,
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative',
   },
   rewindIcon: {
     fontSize: 26,
@@ -457,9 +417,9 @@ const styles = StyleSheet.create({
     top: 15,
   },
   mainPlayButton: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 68,
+    height: 68,
+    borderRadius: 34,
     backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
@@ -478,8 +438,21 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
   },
-  moonIcon: {
-    fontSize: 22,
+  quickRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  quickButton: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: Colors.surfaceBorder,
+  },
+  speedText: {
+    fontSize: FontSizes.sm,
+    fontWeight: '700',
     color: Colors.textPrimary,
   },
   pressed: {
@@ -487,7 +460,7 @@ const styles = StyleSheet.create({
   },
   actionPillWrapper: {
     width: '100%',
-    marginTop: Spacing.xs,
+    marginTop: Spacing.md,
   },
   modalContent: {
     gap: Spacing.md,
@@ -508,39 +481,8 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     flexWrap: 'wrap',
   },
-  settingChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: Radius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  chipSelected: {
-    backgroundColor: Colors.surfaceDark,
-  },
-  chipUnselected: {
-    backgroundColor: Colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: Colors.surfaceBorder,
-  },
-  settingChipText: {
-    fontSize: FontSizes.sm,
-    fontWeight: '600',
-  },
-  chipTextSelected: {
-    color: '#FFFFFF',
-  },
-  chipTextUnselected: {
-    color: Colors.textPrimary,
-  },
-  bottomBarContainer: {
-    alignItems: 'center',
-    paddingBottom: Spacing.xs,
-  },
-  homeIndicator: {
-    width: 120,
-    height: 4,
-    borderRadius: Radius.full,
-    backgroundColor: '#000000',
+  sleepNote: {
+    fontSize: FontSizes.xs,
+    color: Colors.textSecondary,
   },
 });

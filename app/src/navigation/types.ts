@@ -1,7 +1,12 @@
 /**
  * Navigation type definitions.
- * Centralized param lists for all navigators matching Figma architecture.
+ *
+ * Every tab hosts its own stack; the screens a user can reach from any tab
+ * (details, player, chapters, generation status, playlists) are shared so a
+ * flow never has to jump tabs to continue.
  */
+
+import { NavigatorScreenParams } from '@react-navigation/native';
 
 export type AuthStackParamList = {
   Splash: undefined;
@@ -9,51 +14,50 @@ export type AuthStackParamList = {
   LanguageSelect: undefined;
   NotificationsPrompt: undefined;
   Login: undefined;
-  Register: undefined;
   ForgotPassword: undefined;
 };
 
-export type HomeStackParamList = {
-  Home: undefined;
+/** Screens registered in every tab stack. */
+export type SharedStackParamList = {
   AudiobookDetails: { audiobookId: string };
-  Player: { audiobookId: string };
-  ChaptersQueue: { audiobookId: string };
-  DiscoveryStates: undefined;
-};
-
-export type ExploreStackParamList = {
-  Explore: undefined;
-  SearchResults: { query?: string };
-  AudiobookDetails: { audiobookId: string };
-  Player: { audiobookId: string };
-};
-
-export type LibraryStackParamList = {
-  Library: undefined;
-  AudiobookDetails: { audiobookId: string };
-  Player: { audiobookId: string };
-};
-
-export type CreateStackParamList = {
-  CreateAudiobook: undefined;
-  UploadSource: { audiobookId: string };
+  Player: undefined;
+  ChaptersQueue: undefined;
   GenerationStatus: { audiobookId: string };
-  AudiobookDetails: { audiobookId: string };
-  Player: { audiobookId: string };
+  PlaylistDetails: { playlistId: string; name: string };
+  Notifications: undefined;
 };
 
-export type ProfileStackParamList = {
+export type HomeStackParamList = SharedStackParamList & {
+  Home: undefined;
+};
+
+export type ExploreStackParamList = SharedStackParamList & {
+  Explore: undefined;
+  SearchResults: { query?: string; genre?: string };
+};
+
+export type LibraryStackParamList = SharedStackParamList & {
+  Library: undefined;
+};
+
+export type CreateStackParamList = SharedStackParamList & {
+  CreateAudiobook: undefined;
+  UploadSource: { audiobookId: string; title: string };
+};
+
+export type ProfileStackParamList = SharedStackParamList & {
   Profile: undefined;
-  PublisherApplication: undefined;
-  CopyrightReport: { audiobookId?: string };
-  AudiobookDetails: { audiobookId: string };
-  Player: { audiobookId: string };
+  Subscription: undefined;
+  PaymentCheckout: { orderId: string };
+  Publisher: undefined;
+  MyAudiobooks: undefined;
+  EditAudiobook: { audiobookId: string };
 };
 
 export type MainTabParamList = {
-  HomeTab: undefined;
-  ExploreTab: undefined;
-  LibraryTab: undefined;
-  CreateTab: undefined;
-  ProfileTab: undefined;
+  HomeTab: NavigatorScreenParams<HomeStackParamList>;
+  ExploreTab: NavigatorScreenParams<ExploreStackParamList>;
+  LibraryTab: NavigatorScreenParams<LibraryStackParamList>;
+  CreateTab: NavigatorScreenParams<CreateStackParamList>;
+  ProfileTab: NavigatorScreenParams<ProfileStackParamList>;
 };

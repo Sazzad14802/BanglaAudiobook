@@ -7,8 +7,7 @@
 
 import * as SecureStore from 'expo-secure-store';
 
-const LANGUAGE_KEY = 'banglabook_app_language';
-const LEGACY_LANGUAGE_KEY = 'shruti_app_language';
+const LANGUAGE_KEY = 'bornoverse_app_language';
 
 export type AppLanguage = 'bn' | 'en' | 'mixed';
 
@@ -23,10 +22,7 @@ export const languageStorage = {
 
   async getLanguage(): Promise<AppLanguage | null> {
     try {
-      let stored = await SecureStore.getItemAsync(LANGUAGE_KEY);
-      if (!stored) {
-        stored = await SecureStore.getItemAsync(LEGACY_LANGUAGE_KEY);
-      }
+      const stored = await SecureStore.getItemAsync(LANGUAGE_KEY);
       if (stored === 'bn' || stored === 'en' || stored === 'mixed') {
         return stored;
       }

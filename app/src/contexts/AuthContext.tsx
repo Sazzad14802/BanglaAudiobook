@@ -1,13 +1,17 @@
 /**
- * Authentication context.
- * Manages the authenticated session: token, current user, login/logout.
+ * Authentication context (Provider pattern).
+ *
+ * Owns the session: secure token persistence, restoring the session on launch,
+ * login/register/logout and keeping the cached user in sync with the server.
+ * The server is the authority for roles and entitlements; the cached user is
+ * only used to render UI while offline.
  */
 
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { authApi } from '../api/auth';
+import { ApiError, setUnauthorizedHandler } from '../api/client';
 import { authStorage } from '../storage/authStorage';
-import { LoginRequest, RegisterRequest, User, TokenResponse } from '../types/auth';
-import { ApiError } from '../api/client';
+import { LoginRequest, RegisterRequest, TokenResponse, User } from '../types/auth';
 
 interface AuthState {
   user: User | null;
@@ -22,111 +26,114 @@ interface AuthContextValue extends AuthState {
   register: (data: RegisterRequest) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  setUser: (user: User) => void;
 }
+
+const signedOut: AuthState = { user: null, token: null, isLoading: false, isAuthenticated: false };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<AuthState>({
-    user: null,
-    token: null,
-    isLoading: true,
-    isAuthenticated: false,
-  });
+  const [state, setState] = useState<AuthState>({ ...signedOut, isLoading: true });
 
-  // On mount: restore session if token exists
+  const clearLocalSession = useCallback(async () => {
+    await authStorage.deleteToken().catch(() => {});
+    setState(signedOut);
+  }, []);
+
+  // Restore a saved session on launch.
   useEffect(() => {
-    let isMounted = true;
+    let mounted = true;
     (async () => {
       try {
-        // Safe timeout for SecureStore read (avoid hanging on locked devices)
         const token = await Promise.race([
           authStorage.getToken(),
           new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
         ]);
-
-        if (token && isMounted) {
-          try {
-            const user = await authApi.me();
-            if (isMounted) {
-              setState({ user, token, isLoading: false, isAuthenticated: true });
-              return;
-            }
-          } catch (apiErr) {
-            if (apiErr instanceof ApiError && apiErr.status === 0) {
-              const cached = await authStorage.getUser();
-              if (cached && isMounted) {
-                setState({user:cached,token,isLoading:false,isAuthenticated:true});
-                return;
-              }
-            }
-            // Token is expired or invalid – clear it
-            await authStorage.deleteToken().catch(() => {});
+        if (!token) return;
+        try {
+          const user = await authApi.me();
+          await authStorage.saveUser(user);
+          if (mounted) setState({ user, token, isLoading: false, isAuthenticated: true });
+        } catch (error) {
+          // Offline: keep the cached session so downloads stay playable.
+          if (error instanceof ApiError && error.isNetworkError) {
+            const cached = await authStorage.getUser();
+            if (cached && mounted) setState({ user: cached, token, isLoading: false, isAuthenticated: true });
+            return;
           }
+          await authStorage.deleteToken().catch(() => {});
         }
-      } catch (err) {
-        console.warn('Session restoration failed:', err);
       } finally {
-        if (isMounted) {
-          setState((s) => ({ ...s, isLoading: false }));
-        }
+        if (mounted) setState((s) => ({ ...s, isLoading: false }));
       }
     })();
-
     return () => {
-      isMounted = false;
+      mounted = false;
     };
   }, []);
 
-  const login = useCallback(async (data: LoginRequest) => {
-    const response = await authApi.login(data);
-    await authStorage.saveToken(response.access_token);
-    await authStorage.saveUser(response.user);
-    setState({
-      user: response.user,
-      token: response.access_token,
-      isLoading: false,
-      isAuthenticated: true,
+  // A 401 on any authenticated request means the session was revoked or expired.
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      clearLocalSession();
     });
-  }, []);
+    return () => setUnauthorizedHandler(null);
+  }, [clearLocalSession]);
 
   const acceptSession = useCallback(async (response: TokenResponse) => {
     await authStorage.saveToken(response.access_token);
     await authStorage.saveUser(response.user);
-    setState({user:response.user,token:response.access_token,isLoading:false,isAuthenticated:true});
+    setState({ user: response.user, token: response.access_token, isLoading: false, isAuthenticated: true });
   }, []);
 
-  const register = useCallback(async (data: RegisterRequest) => {
-    await authApi.register(data);
-    const response = await authApi.login({username_or_email:data.email, password:data.password, account_type:data.account_type});
-    await authStorage.saveToken(response.access_token);
-    await authStorage.saveUser(response.user);
-    setState({user:response.user,token:response.access_token,isLoading:false,isAuthenticated:true});
-  }, []);
+  const login = useCallback(
+    async (data: LoginRequest) => {
+      await acceptSession(await authApi.login(data));
+    },
+    [acceptSession],
+  );
+
+  const register = useCallback(
+    async (data: RegisterRequest) => {
+      await authApi.register(data);
+      await acceptSession(
+        await authApi.login({
+          username_or_email: data.email,
+          password: data.password,
+          account_type: data.account_type,
+        }),
+      );
+    },
+    [acceptSession],
+  );
 
   const logout = useCallback(async () => {
     await authApi.logout().catch(() => {});
-    await authStorage.deleteToken();
-    setState({ user: null, token: null, isLoading: false, isAuthenticated: false });
-  }, []);
+    await clearLocalSession();
+  }, [clearLocalSession]);
 
   const refreshUser = useCallback(async () => {
     try {
       const user = await authApi.me();
       await authStorage.saveUser(user);
       setState((s) => ({ ...s, user }));
-    } catch (err) {
-      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
-        await logout();
-      }
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 403) await clearLocalSession();
     }
-  }, [logout]);
+  }, [clearLocalSession]);
 
-  return (
-    <AuthContext.Provider value={{ ...state, login, register, logout, refreshUser, acceptSession }}>
-      {children}
-    </AuthContext.Provider>
+  const setUser = useCallback((user: User) => {
+    authStorage.saveUser(user).catch(() => {});
+    setState((s) => ({ ...s, user }));
+  }, []);
+
+  const value = useMemo(
+    () => ({ ...state, acceptSession, login, register, logout, refreshUser, setUser }),
+    [state, acceptSession, login, register, logout, refreshUser, setUser],
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(): AuthContextValue {

@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { BanglaBookHeader } from '../../components/BanglaBookHeader';
+import { AppHeader } from '../../components/AppHeader';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
 import { useLanguage } from '../../contexts/LanguageContext';
 
@@ -31,11 +31,10 @@ export function NotificationsPromptScreen({
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <BanglaBookHeader
+      <AppHeader
         title={isEnglish ? 'Notifications' : 'নোটিফিকেশন'}
         subtitle={isEnglish ? 'Alerts & updates' : 'আপডেট ও নোটিফিকেশন'}
         onBack={onBack}
-        onOptionsPress={() => {}}
       />
 
       <View style={styles.content}>
@@ -60,8 +59,8 @@ export function NotificationsPromptScreen({
 
           <Text style={styles.dialogTitle}>
             {isEnglish
-              ? 'Allow Bangla Book to send you notifications?'
-              : 'বাংলা বুককে notification পাঠাতে দেবেন?'}
+              ? 'Allow BornoVerse to send you notifications?'
+              : 'BornoVerse-কে notification পাঠাতে দেবেন?'}
           </Text>
 
           <Text style={styles.dialogDescription}>
@@ -97,10 +96,6 @@ export function NotificationsPromptScreen({
         </View>
       </View>
 
-      {/* Android edge-to-edge indicator bar */}
-      <View style={styles.bottomBarContainer}>
-        <View style={styles.homeIndicator} />
-      </View>
     </SafeAreaView>
   );
 }
@@ -117,14 +112,14 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.sm,
   },
   contextCard: {
-    backgroundColor: Colors.tintCoral,
+    backgroundColor: Colors.tintBrand,
     borderRadius: Radius.lg,
     padding: Spacing.md + 2,
   },
   contextTitle: {
     fontSize: FontSizes.base,
     fontWeight: '700',
-    color: '#8B2C19',
+    color: Colors.primaryDark,
     marginBottom: 4,
   },
   contextSub: {
@@ -146,7 +141,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#FDEAE4',
+    backgroundColor: Colors.tintBrand,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.md,
@@ -205,15 +200,5 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
     fontWeight: '700',
     color: '#FFFFFF',
-  },
-  bottomBarContainer: {
-    alignItems: 'center',
-    paddingBottom: Spacing.xs,
-  },
-  homeIndicator: {
-    width: 120,
-    height: 4,
-    borderRadius: Radius.full,
-    backgroundColor: '#000000',
   },
 });
