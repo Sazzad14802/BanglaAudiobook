@@ -1,8 +1,27 @@
 @import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Libre+Baskerville:wght@400;700&display=swap");
 :root {
+  /* BornoVerse palette (from the logo: #13AD81 / #56DDA4) */
+  --brand: #13ad81;
+  --brand-light: #56dda4;
+  --primary: #0c7f5f; /* AA contrast with white text */
+  --primary-dark: #0a6b50;
+  --primary-surface: #e6f7f0;
+  --bg: #f5faf7;
+  --surface: #ffffff;
+  --surface-elevated: #edf5f1;
+  --surface-muted: #e3ede8;
+  --surface-dark: #0f2a22;
+  --border: #dce8e2;
+  --border-strong: #c6d8cf;
+  --text: #10231c;
+  --text-strong-2: #3f5149;
+  --text-secondary: #55675f;
+  --text-muted: #8a9a93;
+}
+:root {
   font-family: "DM Sans", system-ui, sans-serif;
-  color: #1c1917;
-  background: #faf6f0;
+  color: var(--text);
+  background: var(--bg);
   font-synthesis: none;
 }
 * {
@@ -19,8 +38,8 @@ textarea {
 }
 button {
   cursor: pointer;
-  border: 1px solid #ce5337;
-  background: #ce5337;
+  border: 1px solid var(--primary);
+  background: var(--primary);
   color: white;
   border-radius: 8px;
   padding: 11px 16px;
@@ -35,8 +54,8 @@ button:disabled {
 }
 button.secondary {
   background: white;
-  color: #514b45;
-  border-color: #e7e1d8;
+  color: var(--text-strong-2);
+  border-color: var(--border);
 }
 button:focus-visible,
 a:focus-visible {
@@ -48,10 +67,10 @@ select,
 textarea {
   width: 100%;
   padding: 12px;
-  border: 1px solid #d8d0c6;
+  border: 1px solid var(--border-strong);
   background: white;
   border-radius: 7px;
-  color: #1c1917;
+  color: var(--text);
 }
 textarea {
   min-height: 100px;
@@ -64,11 +83,11 @@ label {
   font-weight: 600;
 }
 p {
-  color: #6b665e;
+  color: var(--text-secondary);
   line-height: 1.65;
 }
 small {
-  color: #6b665e;
+  color: var(--text-secondary);
 }
 h1,
 h2 {
@@ -89,14 +108,14 @@ h2 {
 }
 aside {
   padding: 32px 20px;
-  border-right: 1px solid #e7e1d8;
+  border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  background: #fffdf9;
+  background: var(--surface);
 }
 .brand {
   text-decoration: none;
-  color: #1c1917;
+  color: var(--text);
   font-size: 22px;
   font-weight: 700;
   display: flex;
@@ -112,22 +131,20 @@ aside {
   margin-top: 4px;
 }
 .brand-mark {
-  background: #ce5337;
-  color: white;
-  border-radius: 12px;
-  padding: 3px 14px;
-  font-size: 34px;
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
 }
 .workspace {
   font-size: 11px;
   letter-spacing: 1.3px;
-  color: #9e988f;
+  color: var(--text-muted);
   text-transform: uppercase;
   margin: 36px 10px 18px;
 }
 .workspace span {
   display: block;
-  color: #514b45;
+  color: var(--text-strong-2);
   font-size: 12px;
   letter-spacing: 0;
   margin-top: 8px;
@@ -142,14 +159,14 @@ nav button {
   border: 0;
   background: none;
   text-align: left;
-  color: #6b665e;
+  color: var(--text-secondary);
   padding: 12px 10px;
   font-size: 13px;
   font-weight: 500;
 }
 nav button.selected {
-  background: #fbebe7;
-  color: #b8452b;
+  background: var(--primary-surface);
+  color: var(--primary-dark);
   font-weight: 700;
 }
 .nav-num {
@@ -166,8 +183,8 @@ nav button.selected {
 .account button {
   margin-top: 8px;
   background: none;
-  color: #6b665e;
-  border-color: #e7e1d8;
+  color: var(--text-secondary);
+  border-color: var(--border);
 }
 main {
   padding: 38px 46px;
@@ -187,8 +204,8 @@ header {
 }
 .intro {
   padding: 36px 40px;
-  background: #f1e9df;
-  border: 1px solid #e7e1d8;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border);
   border-radius: 14px;
   display: flex;
   align-items: center;
@@ -205,11 +222,10 @@ header {
   margin: 0;
 }
 .intro-art {
-  font-family: Georgia, serif;
-  font-size: 90px;
-  color: #b8452b;
-  transform: rotate(-10deg);
+  width: 120px;
+  height: 120px;
   margin-left: 30px;
+  flex-shrink: 0;
 }
 .metrics {
   display: grid;
@@ -219,7 +235,7 @@ header {
 }
 .metrics article {
   background: white;
-  border: 1px solid #e7e1d8;
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 24px;
   display: flex;
@@ -228,7 +244,7 @@ header {
 }
 .metrics article > span {
   font-size: 13px;
-  color: #6b665e;
+  color: var(--text-secondary);
 }
 .metrics strong {
   font-size: 30px;
@@ -240,7 +256,7 @@ header {
 .panel {
   background: white;
   padding: 28px;
-  border: 1px solid #e7e1d8;
+  border: 1px solid var(--border);
   border-radius: 10px;
   margin: 24px 0;
 }
@@ -267,7 +283,7 @@ header {
 }
 .table-wrap {
   overflow: auto;
-  border: 1px solid #e7e1d8;
+  border: 1px solid var(--border);
   border-radius: 10px;
   background: white;
   margin-top: 22px;
@@ -281,23 +297,23 @@ th {
   text-align: left;
   white-space: nowrap;
   padding: 16px;
-  background: #f4efea;
-  color: #6b665e;
+  background: var(--surface-elevated);
+  color: var(--text-secondary);
   font-weight: 500;
 }
 td {
   padding: 18px 16px;
-  border-top: 1px solid #eee8e0;
+  border-top: 1px solid var(--surface-muted);
   max-width: 320px;
   overflow-wrap: anywhere;
   line-height: 1.6;
 }
 tr:hover {
-  background: #fffdf9;
+  background: var(--surface);
 }
 .badge {
   display: inline-block;
-  background: #f4efea;
+  background: var(--surface-elevated);
   padding: 4px 9px;
   border-radius: 6px;
   font-size: 11px;
@@ -336,7 +352,7 @@ tr:hover {
 .empty {
   text-align: center;
   padding: 35px;
-  color: #9e988f;
+  color: var(--text-muted);
 }
 .error,
 .notice {
@@ -351,11 +367,11 @@ tr:hover {
   color: #18794e;
 }
 footer {
-  border-top: 1px solid #e7e1d8;
+  border-top: 1px solid var(--border);
   margin-top: 50px;
   padding-top: 22px;
   font-size: 11px;
-  color: #9e988f;
+  color: var(--text-muted);
   display: flex;
   justify-content: space-between;
 }
@@ -369,7 +385,7 @@ footer {
   padding: 24px;
 }
 .modal {
-  background: #faf6f0;
+  background: var(--bg);
   border-radius: 16px;
   padding: 30px;
   width: min(680px, 100%);
@@ -403,7 +419,8 @@ footer {
   grid-template-columns: 1fr 1fr;
 }
 .login-story {
-  background: #ede3d6;
+  background: var(--surface-dark);
+  color: #f2faf6;
   padding: 70px;
   display: flex;
   flex-direction: column;
@@ -418,6 +435,17 @@ footer {
 }
 .login-story p {
   max-width: 370px;
+  color: #a9c2b8;
+}
+.login-story .brand {
+  color: #f2faf6;
+}
+.login-story .brand-mark {
+  width: 56px;
+  height: 56px;
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 6px;
 }
 .login-form {
   align-self: center;
@@ -466,7 +494,7 @@ footer {
   aside {
     padding: 18px;
     border-right: 0;
-    border-bottom: 1px solid #e7e1d8;
+    border-bottom: 1px solid var(--border);
   }
   .workspace {
     display: none;

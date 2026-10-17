@@ -122,9 +122,9 @@ export function App() {
             setPage("summary");
           }}
         >
-          <span className="brand-mark">ব</span>
+          <img className="brand-mark" src="/logo.svg" alt="" />
           <span>
-            BanglaBook<small>ADMINISTRATION</small>
+            BornoVerse<small>ADMINISTRATION</small>
           </span>
         </a>
         <div className="workspace">
@@ -166,7 +166,7 @@ export function App() {
       <main>
         <header>
           <div>
-            <p className="eyebrow">BANGLABOOK / OPERATIONS</p>
+            <p className="eyebrow">BORNOVERSE / OPERATIONS</p>
             <h1>{title}</h1>
           </div>
           <button className="secondary" disabled={busy} onClick={load}>
@@ -183,9 +183,7 @@ export function App() {
                 experience running smoothly.
               </p>
             </div>
-            <span className="intro-art" aria-hidden="true">
-              বই
-            </span>
+            <img className="intro-art" src="/logo.svg" alt="" aria-hidden="true" />
           </div>
         )}
         {error && (
@@ -559,7 +557,7 @@ export function App() {
           </>
         )}
         <footer>
-          BanglaBook · Administration <span>All financial values in BDT</span>
+          BornoVerse · Administration <span>All financial values in BDT</span>
         </footer>
       </main>
       {decision && (
@@ -819,7 +817,10 @@ function Login({ onLogin }: { onLogin: (user: Row) => void }) {
   return (
     <div className="login">
       <div className="login-story">
-        <span className="brand">ব · BanglaBook</span>
+        <span className="brand">
+          <img className="brand-mark" src="/logo.svg" alt="" />
+          BornoVerse
+        </span>
         <h1>
           Good stories.
           <br />

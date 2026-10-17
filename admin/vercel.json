@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://banglabook-api.onrender.com/api/$1"
+      "destination": "https://bornoverse-api.onrender.com/api/$1"
     },
     {
       "source": "/(.*)",
