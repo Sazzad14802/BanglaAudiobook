@@ -24,8 +24,8 @@ def record(row):
 async def summary(db: DatabaseDep, admin: AdminDep):
     result = {}
     for name, model, conditions in [
-        ("listeners", User, [User.account_type == "listener"]),
-        ("publishers", User, [User.account_type == "publisher"]),
+        ("users", User, [User.account_type == "user"]),
+        ("verified_publishers", User, [User.account_type == "user", User.publisher_status == "active"]),
         ("pending_applications", PublisherApplication, [PublisherApplication.status == "pending"]),
         ("audiobooks", Audiobook, []), ("open_reports", Report, [Report.status == "open"]),
         ("queued_jobs", GenerationJob, [GenerationJob.status == "PENDING", GenerationJob.cancelled.is_(False)])]:
@@ -36,7 +36,10 @@ async def summary(db: DatabaseDep, admin: AdminDep):
 async def users(db: DatabaseDep, admin: AdminDep, q: str = "", account_type: str | None = None,
                 suspended: bool | None = None, page: int = Query(1, ge=1)):
     query = select(User).where(or_(User.email.ilike(f"%{q}%"), User.username.ilike(f"%{q}%")))
-    if account_type:
+    if account_type == "publisher":
+        # Publishers are users with an active publisher verification.
+        query = query.where(User.account_type == "user", User.publisher_status == "active")
+    elif account_type:
         query = query.where(User.account_type == account_type)
     if suspended is not None:
         query = query.where(User.suspended == suspended)
@@ -48,7 +51,7 @@ async def user_decision(id: UUID, data: Decision, db: DatabaseDep, admin: AdminD
     if not user:
         raise HTTPException(404, "User not found")
     if user.account_type == "admin" or data.action not in {"suspend", "unsuspend"}:
-        raise HTTPException(400, "Only listener/publisher suspension changes are supported")
+        raise HTTPException(400, "Only user suspension changes are supported")
     user.suspended = data.action == "suspend"
     user.token_version += 1
     audit(db, admin, "user." + data.action, id, reason=data.reason)

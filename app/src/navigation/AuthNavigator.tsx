@@ -1,13 +1,12 @@
 /**
- * AuthNavigator — first-run onboarding (intro → language → notification permission)
- * followed by sign-in. Returning users skip straight from the splash to sign-in.
+ * AuthNavigator — first-run setup (language → notification permission) followed
+ * by sign-in. Returning users skip straight from the splash to sign-in.
  */
 
 import React, { useEffect, useState } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { AuthStackParamList } from './types';
 import { SplashScreen } from '../screens/entry/SplashScreen';
-import { OnboardingScreen } from '../screens/entry/OnboardingScreen';
 import { LanguageSelectScreen } from '../screens/entry/LanguageSelectScreen';
 import { NotificationsPromptScreen } from '../screens/entry/NotificationsPromptScreen';
 import { LoginScreen } from '../screens/auth/LoginScreen';
@@ -44,23 +43,16 @@ export function AuthNavigator() {
         {({ navigation }) => (
           <SplashScreen
             onContinue={() =>
-              onboarded ? navigation.replace('Login') : navigation.replace('Onboarding')
+              onboarded ? navigation.replace('Login') : navigation.replace('LanguageSelect')
             }
             ready={onboarded !== null}
           />
         )}
       </Stack.Screen>
 
-      <Stack.Screen name="Onboarding">
-        {({ navigation }) => (
-          <OnboardingScreen onFinish={() => navigation.navigate('LanguageSelect')} />
-        )}
-      </Stack.Screen>
-
       <Stack.Screen name="LanguageSelect">
         {({ navigation }) => (
           <LanguageSelectScreen
-            onBack={() => navigation.goBack()}
             onContinue={() => navigation.navigate('NotificationsPrompt')}
           />
         )}

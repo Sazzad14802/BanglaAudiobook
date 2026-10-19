@@ -2,8 +2,8 @@
  * CreateAudiobookScreen — step 1 of 3: audiobook details.
  *
  * Rules mirrored from the server (which enforces them):
- * - Listeners create private, free audiobooks for themselves.
- * - Only active publishers may publish publicly, use channels or premium access.
+ * - Every user creates private audiobooks for themselves.
+ * - Verified publishers publish them later from one of their channels.
  * - A monthly generation quota applies per plan.
  */
 
@@ -15,10 +15,8 @@ import { AppButton } from '../../components/AppButton';
 import { BookCover } from '../../components/BookCover';
 import { ChipGroup } from '../../components/Chip';
 import { Field, FormCard, Segmented } from '../../components/Form';
-import { StateView } from '../../components/StateView';
 import { audiobooksApi } from '../../api/audiobooks';
 import { generationApi } from '../../api/generation';
-import { publisherApi } from '../../api/account';
 import { errorMessage } from '../../api/client';
 import { PickedFile } from '../../api/upload';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -26,34 +24,20 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useResource } from '../../hooks/useResource';
 import { useAppNavigation } from '../../navigation/useAppNavigation';
 import { GENRES } from '../../constants/genres';
-import { isActivePublisher } from '../../types/auth';
-import { AccessTier, AudiobookVisibility } from '../../types/audiobook';
 import { pickCoverImage } from '../../utils/pickers';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
 
 export function CreateAudiobookScreen() {
-  const { navigation, goToTab } = useAppNavigation();
+  const { navigation } = useAppNavigation();
   const { t, tx, isEnglish } = useLanguage();
   const { user } = useAuth();
-  const isPublisher = user?.account_type === 'publisher';
-  const canPublish = isActivePublisher(user);
-
-  const setup = useResource(async () => {
-    const [quota, channels] = await Promise.all([
-      generationApi.quota(),
-      canPublish ? publisherApi.channels() : Promise.resolve([]),
-    ]);
-    return { quota, channels: channels.filter((c) => !c.moderated) };
-  }, [canPublish]);
+  const setup = useResource(async () => ({ quota: await generationApi.quota() }), [user?.id]);
 
   const [title, setTitle] = useState('');
   const [author, setAuthor] = useState('');
   const [description, setDescription] = useState('');
   const [language, setLanguage] = useState<'bn' | 'en'>('bn');
   const [genre, setGenre] = useState('');
-  const [tier, setTier] = useState<AccessTier>('free');
-  const [visibility, setVisibility] = useState<AudiobookVisibility>('PUBLIC');
-  const [channelId, setChannelId] = useState('');
   const [cover, setCover] = useState<PickedFile | null>(null);
   const [titleError, setTitleError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -90,9 +74,7 @@ export function CreateAudiobookScreen() {
         description: description.trim() || undefined,
         language,
         genre: genre || undefined,
-        visibility: canPublish ? visibility : 'PRIVATE',
-        access_tier: canPublish ? tier : 'free',
-        channel_id: canPublish && channelId ? channelId : undefined,
+        visibility: 'PRIVATE',
       });
       if (cover) {
         // A failed cover upload should not lose the created audiobook.
@@ -111,27 +93,6 @@ export function CreateAudiobookScreen() {
       setSubmitting(false);
     }
   };
-
-  if (isPublisher && !canPublish) {
-    return (
-      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-        <AppHeader title={t('createTitle')} subtitle={tx('প্রকাশক অ্যাকাউন্ট', 'Publisher account')} />
-        <View style={styles.scrollContent}>
-          <StateView
-            kind="empty"
-            title={tx('প্রকাশক অ্যাকাউন্ট এখনো চালু হয়নি', 'Your publisher account is not active yet')}
-            message={
-              user?.publisher_status === 'approved_pending_payment'
-                ? tx('আবেদন অনুমোদিত হয়েছে। নিবন্ধন ফি পরিশোধ করলেই অডিওবুক প্রকাশ করতে পারবেন।', 'Your application is approved. Pay the registration fee to start publishing.')
-                : tx('যাচাইকরণ নথি জমা দিন। অনুমোদনের পর নিবন্ধন ফি দিয়ে অ্যাকাউন্ট চালু করুন।', 'Submit your verification document. After approval, pay the registration fee to activate.')
-            }
-            actionLabel={tx('প্রকাশক সেটআপ', 'Publisher setup')}
-            onAction={() => goToTab('ProfileTab', { screen: 'Publisher' })}
-          />
-        </View>
-      </SafeAreaView>
-    );
-  }
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
@@ -216,52 +177,12 @@ export function CreateAudiobookScreen() {
             </View>
           </FormCard>
 
-          {canPublish ? (
-            <FormCard>
-              <Segmented
-                label={tx('দৃশ্যমানতা', 'Visibility')}
-                value={visibility}
-                onChange={setVisibility}
-                options={[
-                  { value: 'PUBLIC', label: tx('🌐 পাবলিক', '🌐 Public') },
-                  { value: 'PRIVATE', label: tx('🔒 প্রাইভেট', '🔒 Private') },
-                ]}
-                hint={
-                  visibility === 'PUBLIC'
-                    ? tx('অডিও তৈরি শেষ হলেই সবার জন্য প্রকাশিত হবে।', 'Published to everyone as soon as audio is ready.')
-                    : tx('শুধু আপনি দেখতে পাবেন।', 'Only you can see it.')
-                }
-              />
-              <Segmented
-                label={tx('অ্যাক্সেস', 'Access')}
-                value={tier}
-                onChange={setTier}
-                options={[
-                  { value: 'free', label: tx('ফ্রি', 'Free') },
-                  { value: 'premium', label: tx('⭐ প্রিমিয়াম', '⭐ Premium') },
-                ]}
-                hint={tier === 'premium' ? tx('প্রিমিয়াম শ্রোতাদের যোগ্য শোনা থেকে আয় হয়।', 'Earns revenue from eligible premium listens.') : undefined}
-              />
-              {setup.data?.channels.length ? (
-                <View style={styles.field}>
-                  <Text style={styles.label}>{tx('চ্যানেল', 'Channel')}</Text>
-                  <ChipGroup
-                    scrollable
-                    value={channelId}
-                    onChange={setChannelId}
-                    options={[{ value: '', label: tx('কোনোটি নয়', 'None') }, ...setup.data.channels.map((c) => ({ value: c.id, label: c.name }))]}
-                  />
-                </View>
-              ) : null}
-            </FormCard>
-          ) : (
-            <Text style={styles.note}>
-              {tx(
-                'আপনার তৈরি অডিওবুক প্রাইভেট থাকবে — শুধু আপনি শুনতে পারবেন।',
-                'Audiobooks you create are private — only you can listen.',
-              )}
-            </Text>
-          )}
+          <Text style={styles.note}>
+            {tx(
+              'আপনার তৈরি অডিওবুক প্রাইভেট থাকে। যাচাইকৃত প্রকাশকরা চ্যানেল থেকে এটি প্রকাশ করতে পারেন।',
+              'Audiobooks you create are private. Verified publishers can publish them from a channel.',
+            )}
+          </Text>
 
           <AppButton
             label={tx('পরবর্তী: ফাইল আপলোড →', 'Next: upload file →')}

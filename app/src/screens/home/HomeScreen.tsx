@@ -48,12 +48,12 @@ export function HomeScreen() {
     await Promise.all([catalog.refresh(), recent.refresh(), refreshUnread()]);
   }, [catalog, recent, refreshUnread]);
 
-  const openBook = (book: Audiobook) => navigation.navigate('AudiobookDetails', { audiobookId: book.id });
+  const openBook = (book: Audiobook) => navigation.navigate('Player', { audiobookId: book.id });
 
   const playBook = async (book: Audiobook) => {
     try {
       await loadAudiobook(book);
-      navigation.navigate('Player');
+      navigation.navigate('Player', { audiobookId: book.id });
     } catch (error) {
       Alert.alert(tx('চালানো যায়নি', 'Could not play'), errorMessage(error));
     }
@@ -71,7 +71,7 @@ export function HomeScreen() {
         showLogo
         title={t(GREETING_KEYS[greetingPeriod()], { name: firstName })}
         subtitle={t('greetingQuestion')}
-        rightIcon="🔔"
+        rightIcon="notifications-outline"
         rightIconLabel={tx('নোটিফিকেশন', 'Notifications')}
         onRightIconPress={() => navigation.navigate('Notifications')}
         badgeCount={unreadCount}

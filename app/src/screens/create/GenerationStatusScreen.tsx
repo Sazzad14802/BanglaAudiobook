@@ -145,7 +145,7 @@ export function GenerationStatusScreen() {
     setBusy('listen');
     try {
       await loadAudiobook(book, { chapterIndex: 0, resume: state === 'COMPLETED' });
-      navigation.navigate('Player');
+      navigation.navigate('Player', { audiobookId: book.id });
     } catch (e) {
       Alert.alert(tx('চালানো যায়নি', 'Could not play'), errorMessage(e));
     } finally {
@@ -215,11 +215,6 @@ export function GenerationStatusScreen() {
         {state === 'COMPLETED' ? (
           <>
             <AppButton label={tx('▶ শুনুন', '▶ Listen now')} onPress={listen} isLoading={busy === 'listen'} />
-            <AppButton
-              label={tx('বিস্তারিত দেখুন', 'View details')}
-              variant="secondary"
-              onPress={() => navigation.replace('AudiobookDetails', { audiobookId })}
-            />
           </>
         ) : null}
 

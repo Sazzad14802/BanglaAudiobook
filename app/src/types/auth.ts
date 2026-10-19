@@ -3,8 +3,9 @@
  * Mirrors the Platform API auth/user schemas.
  */
 
-export type AccountType = 'listener' | 'publisher' | 'admin';
-export type PublisherStatus = 'pending_approval' | 'approved_pending_payment' | 'active' | 'rejected';
+/** Everyone is a "user"; publishing is a verification status on that user. */
+export type AccountType = 'user' | 'admin';
+export type PublisherStatus = 'none' | 'pending_approval' | 'approved_pending_payment' | 'active' | 'rejected';
 
 export interface User {
   id: string;
@@ -27,7 +28,6 @@ export interface TokenResponse {
 }
 
 export interface RegisterRequest {
-  account_type?: 'listener' | 'publisher';
   username: string;
   email: string;
   password: string;
@@ -35,7 +35,6 @@ export interface RegisterRequest {
 }
 
 export interface LoginRequest {
-  account_type?: 'listener' | 'publisher';
   username_or_email: string;
   password: string;
 }
@@ -44,7 +43,7 @@ export interface LoginRequest {
 export function isPremium(user: User | null | undefined): boolean {
   return Boolean(
     user &&
-      user.account_type === 'listener' &&
+      user.account_type === 'user' &&
       !user.suspended &&
       user.premium_until &&
       new Date(user.premium_until).getTime() > Date.now(),
@@ -52,5 +51,5 @@ export function isPremium(user: User | null | undefined): boolean {
 }
 
 export function isActivePublisher(user: User | null | undefined): boolean {
-  return Boolean(user && user.account_type === 'publisher' && user.publisher_status === 'active');
+  return Boolean(user && user.account_type === 'user' && !user.suspended && user.publisher_status === 'active');
 }

@@ -241,10 +241,7 @@ async def upload_source_pdf(
     from sqlalchemy import select
     from app.models import User, GenerationJob
     from fastapi import HTTPException
-    from app.services.policy import publishing
     await db.execute(select(User).where(User.id == current_user.id).with_for_update())
-    if current_user.account_type == "publisher":
-        publishing(current_user)
     audiobook = await audiobook_service.get_audiobook_raw(db, id)
     if not audiobook:
         from fastapi import HTTPException

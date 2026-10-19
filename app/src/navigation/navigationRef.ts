@@ -16,7 +16,7 @@ export function openNotificationTarget(data: Record<string, unknown> | undefined
 
   if (kind.startsWith('generation.') && audiobookId) {
     navigationRef.navigate('LibraryTab', {
-      screen: kind === 'generation.completed' ? 'AudiobookDetails' : 'GenerationStatus',
+      screen: kind === 'generation.completed' ? 'Player' : 'GenerationStatus',
       params: { audiobookId },
     } as any);
   } else if (kind.startsWith('payment.')) {

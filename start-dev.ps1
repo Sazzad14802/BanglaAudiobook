@@ -1,7 +1,9 @@
 param (
     [switch]$NoMobile,
     [switch]$BackendOnly,
-    [switch]$NoTunnel
+    [switch]$NoTunnel,
+    # Only the TTS/OCR service, e.g. alongside `docker compose up` (which runs the rest).
+    [switch]$TtsOnly
 )
 
 $RootDir = $PSScriptRoot
@@ -10,6 +12,13 @@ Write-Host "=========================================" -ForegroundColor Cyan
 Write-Host "  BornoVerse Full-Stack Launcher" -ForegroundColor Yellow
 Write-Host "=========================================" -ForegroundColor Cyan
 Write-Host "Root: $RootDir" -ForegroundColor Gray
+
+if ($TtsOnly) {
+    Write-Host "Starting Gemini OCR & TTS Service on http://localhost:8001..." -ForegroundColor Green
+    $ttsCmd = "Set-Location '$RootDir\tts-service'; if (Test-Path '.\.venv\Scripts\Activate.ps1') { .\.venv\Scripts\Activate.ps1 }; `$host.UI.RawUI.WindowTitle = 'BornoVerse TTS & OCR'; python -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload"
+    Start-Process powershell -ArgumentList "-NoExit", "-Command", $ttsCmd
+    return
+}
 
 # 1. Start FastAPI Backend
 Write-Host "[1/5] Starting FastAPI Backend on http://localhost:8000..." -ForegroundColor Green

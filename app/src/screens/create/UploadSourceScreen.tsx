@@ -1,9 +1,9 @@
 /**
  * UploadSourceScreen — step 2 of 3: provide the content.
  *
- * - PDF: uploaded, then an AI generation job is started immediately
- *   (Gemini OCR → Gemini TTS, one chapter per page) and the user follows progress.
- * - MP3 (active publishers only): uploaded as finished narration, no generation needed.
+ * The PDF is uploaded, then an AI generation job is started immediately
+ * (Gemini OCR → Gemini TTS, one chapter per page) and the user follows progress.
+ * Finished MP3 narration is uploaded by publishers from their channel instead.
  */
 
 import React, { useState } from 'react';
@@ -12,37 +12,29 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { AppHeader } from '../../components/AppHeader';
 import { AppButton } from '../../components/AppButton';
-import { Segmented } from '../../components/Form';
 import { audiobooksApi } from '../../api/audiobooks';
 import { generationApi } from '../../api/generation';
 import { ApiError, errorMessage } from '../../api/client';
 import { PickedFile } from '../../api/upload';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { useAuth } from '../../contexts/AuthContext';
 import { useAppNavigation } from '../../navigation/useAppNavigation';
 import { CreateStackParamList } from '../../navigation/types';
-import { isActivePublisher } from '../../types/auth';
 import { MAX_DOCUMENT_MB, pickDocument } from '../../utils/pickers';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
 
-type Source = 'pdf' | 'mp3';
 type Stage = 'idle' | 'uploading' | 'starting';
 
 export function UploadSourceScreen() {
   const { navigation } = useAppNavigation();
   const { audiobookId, title } = useRoute<RouteProp<CreateStackParamList, 'UploadSource'>>().params;
   const { tx } = useLanguage();
-  const { user } = useAuth();
-  const canUploadAudio = isActivePublisher(user);
-
-  const [source, setSource] = useState<Source>('pdf');
   const [file, setFile] = useState<PickedFile | null>(null);
   const [stage, setStage] = useState<Stage>('idle');
   const [uploaded, setUploaded] = useState(false);
 
   const choose = async () => {
     try {
-      const picked = await pickDocument(source);
+      const picked = await pickDocument('pdf');
       if (picked) setFile(picked);
     } catch (error) {
       Alert.alert(tx('ফাইল', 'File'), errorMessage(error));
@@ -69,12 +61,6 @@ export function UploadSourceScreen() {
     if (!file) return;
     setStage('uploading');
     try {
-      if (source === 'mp3') {
-        await audiobooksApi.uploadAudio(audiobookId, file);
-        Alert.alert(tx('আপলোড সম্পন্ন', 'Upload complete'), tx('অডিওবুক শোনার জন্য প্রস্তুত।', 'Your audiobook is ready to play.'));
-        navigation.replace('AudiobookDetails', { audiobookId });
-        return;
-      }
       if (!uploaded) {
         await audiobooksApi.uploadSource(audiobookId, file);
         setUploaded(true);
@@ -103,30 +89,15 @@ export function UploadSourceScreen() {
       />
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {canUploadAudio ? (
-          <Segmented
-            label={tx('কী আপলোড করবেন?', 'What are you uploading?')}
-            value={source}
-            onChange={(value) => {
-              setSource(value);
-              setFile(null);
-            }}
-            options={[
-              { value: 'pdf', label: tx('📄 PDF → AI অডিও', '📄 PDF → AI audio') },
-              { value: 'mp3', label: tx('🎙 তৈরি MP3', '🎙 Finished MP3') },
-            ]}
-          />
-        ) : null}
-
         <Pressable
           style={({ pressed }) => [styles.dropZone, file && styles.dropZoneFilled, pressed && styles.pressed]}
           onPress={choose}
           disabled={stage !== 'idle'}
           accessibilityRole="button"
         >
-          <Text style={styles.dropIcon}>{file ? '✓' : source === 'pdf' ? '📄' : '🎙'}</Text>
+          <Text style={styles.dropIcon}>{file ? '✓' : '📄'}</Text>
           <Text style={styles.dropTitle} numberOfLines={2}>
-            {file ? file.name : source === 'pdf' ? tx('PDF ফাইল বেছে নিন', 'Choose a PDF') : tx('MP3 ফাইল বেছে নিন', 'Choose an MP3')}
+            {file ? file.name : tx('PDF ফাইল বেছে নিন', 'Choose a PDF')}
           </Text>
           <Text style={styles.dropHint}>
             {file
@@ -135,8 +106,7 @@ export function UploadSourceScreen() {
           </Text>
         </Pressable>
 
-        {source === 'pdf' ? (
-          <View style={styles.infoCard}>
+        <View style={styles.infoCard}>
             <Text style={styles.infoTitle}>{tx('কীভাবে কাজ করে', 'How it works')}</Text>
             {[
               tx('১. Gemini AI প্রতিটি পৃষ্ঠার লেখা পড়ে নেয় (স্ক্যান করা বইও)।', '1. Gemini AI reads the text on every page (scanned books too).'),
@@ -151,16 +121,13 @@ export function UploadSourceScreen() {
               {tx('১–১০০০ পৃষ্ঠার, পাসওয়ার্ড ছাড়া PDF দিন।', 'Use an unencrypted PDF with 1–1000 pages.')}
             </Text>
           </View>
-        ) : null}
 
         <AppButton
           label={
             busyLabel ??
-            (source === 'pdf'
-              ? uploaded
-                ? tx('অডিও তৈরি শুরু করুন', 'Start generating audio')
-                : tx('আপলোড করে অডিও তৈরি করুন', 'Upload & generate audio')
-              : tx('অডিও আপলোড করুন', 'Upload audio'))
+            (uploaded
+              ? tx('অডিও তৈরি শুরু করুন', 'Start generating audio')
+              : tx('আপলোড করে অডিও তৈরি করুন', 'Upload & generate audio'))
           }
           onPress={submit}
           isLoading={stage !== 'idle'}

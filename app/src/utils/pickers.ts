@@ -26,6 +26,13 @@ export async function pickDocument(kind: 'pdf' | 'mp3' | 'any' = 'pdf'): Promise
   return fromDocument(result.assets[0], MAX_DOCUMENT_MB);
 }
 
+/** One or more MP3 files, in the order the user picked them. */
+export async function pickAudioFiles(): Promise<PickedFile[]> {
+  const result = await DocumentPicker.getDocumentAsync({ type: ['audio/mpeg', 'audio/mp3'], copyToCacheDirectory: true, multiple: true });
+  if (result.canceled || !result.assets?.length) return [];
+  return result.assets.map((asset) => fromDocument(asset, MAX_DOCUMENT_MB));
+}
+
 export function isMp3(file: PickedFile): boolean {
   return file.name.toLowerCase().endsWith('.mp3') || file.mimeType === 'audio/mpeg';
 }

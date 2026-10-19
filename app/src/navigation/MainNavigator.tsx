@@ -31,11 +31,10 @@ import { ProfileScreen } from '../screens/profile/ProfileScreen';
 import { SubscriptionScreen } from '../screens/profile/SubscriptionScreen';
 import { PaymentCheckoutScreen } from '../screens/profile/PaymentCheckoutScreen';
 import { PublisherScreen } from '../screens/profile/PublisherScreen';
+import { ChannelScreen } from '../screens/profile/ChannelScreen';
 import { MyAudiobooksScreen } from '../screens/profile/MyAudiobooksScreen';
 import { EditAudiobookScreen } from '../screens/profile/EditAudiobookScreen';
-import { AudiobookDetailsScreen } from '../screens/audiobook/AudiobookDetailsScreen';
 import { PlayerScreen } from '../screens/audiobook/PlayerScreen';
-import { ChaptersQueueScreen } from '../screens/audiobook/ChaptersQueueScreen';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
@@ -47,13 +46,11 @@ const stackScreenOptions = {
 function withSharedScreens(Stack: any) {
   return (
     <>
-      <Stack.Screen name="AudiobookDetails" component={AudiobookDetailsScreen} />
       <Stack.Screen
         name="Player"
         component={PlayerScreen}
         options={{ animation: 'slide_from_bottom' }}
       />
-      <Stack.Screen name="ChaptersQueue" component={ChaptersQueueScreen} />
       <Stack.Screen name="GenerationStatus" component={GenerationStatusScreen} />
       <Stack.Screen name="PlaylistDetails" component={PlaylistDetailsScreen} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
@@ -111,6 +108,7 @@ function ProfileStackNavigator() {
       <ProfileStack.Screen name="Subscription" component={SubscriptionScreen} />
       <ProfileStack.Screen name="PaymentCheckout" component={PaymentCheckoutScreen} />
       <ProfileStack.Screen name="Publisher" component={PublisherScreen} />
+      <ProfileStack.Screen name="Channel" component={ChannelScreen} />
       <ProfileStack.Screen name="MyAudiobooks" component={MyAudiobooksScreen} />
       <ProfileStack.Screen name="EditAudiobook" component={EditAudiobookScreen} />
       {withSharedScreens(ProfileStack)}

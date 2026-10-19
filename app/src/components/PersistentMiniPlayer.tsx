@@ -1,17 +1,78 @@
 /**
  * PersistentMiniPlayer — docked above the tab bar while something is loaded.
  * Artwork · title · chapter · play/pause · next chapter, with a hairline progress bar.
+ * Swipe it down to stop playback and dismiss it; the bar follows the finger and
+ * springs back on a short drag. Buttons only react to taps, never to swipes.
  */
 
-import React from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { ActivityIndicator, Animated, GestureResponderEvent, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import { usePlayer } from '../contexts/PlayerContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { BookCover } from './BookCover';
 import { Colors, FontSizes, Radius, Spacing } from '../theme';
 
 interface PersistentMiniPlayerProps {
-  onPress: () => void;
+  onPress: (audiobookId: string) => void;
+}
+
+/** How far (pt) a finger may move and still count as a tap. */
+const TAP_SLOP = 10;
+/** Drag distance (pt) or downward fling speed that dismisses the player. */
+const DISMISS_DISTANCE = 40;
+const DISMISS_VELOCITY = 0.8;
+/** Far enough to slide the bar fully behind the tab bar. */
+const HIDDEN_OFFSET = 100;
+
+/** Vertical drag-to-dismiss: follows the finger downward, then dismisses or springs back. */
+function useSwipeDownToDismiss(onDismiss: () => void) {
+  const offset = useRef(new Animated.Value(0)).current;
+  const dismissRef = useRef(onDismiss);
+  dismissRef.current = onDismiss;
+
+  const springBack = () => Animated.spring(offset, { toValue: 0, bounciness: 6, useNativeDriver: false }).start();
+
+  const responder = useRef(
+    PanResponder.create({
+      // Capture phase, so a drag that starts on a button still moves the bar.
+      onMoveShouldSetPanResponderCapture: (_, g) => g.dy > 6 && Math.abs(g.dy) > Math.abs(g.dx),
+      onPanResponderMove: (_, g) => offset.setValue(Math.max(0, g.dy)),
+      onPanResponderRelease: (_, g) => {
+        if (g.dy > DISMISS_DISTANCE || g.vy > DISMISS_VELOCITY) {
+          Animated.timing(offset, { toValue: HIDDEN_OFFSET, duration: 160, useNativeDriver: false }).start(() =>
+            dismissRef.current(),
+          );
+        } else {
+          springBack();
+        }
+      },
+      onPanResponderTerminate: springBack,
+      onPanResponderTerminationRequest: () => false,
+    }),
+  ).current;
+
+  const style = {
+    transform: [{ translateY: offset }],
+    opacity: offset.interpolate({ inputRange: [0, HIDDEN_OFFSET], outputRange: [1, 0], extrapolate: 'clamp' }),
+  };
+  return { offset, responder, style };
+}
+
+/**
+ * Pressable fires onPress on release even after the finger slid a little, so a
+ * swipe that starts on a button would trigger it. Only accept stationary taps.
+ */
+function useTapOnly() {
+  const start = useRef({ x: 0, y: 0 });
+  return (action: () => void) => ({
+    onPressIn: (e: GestureResponderEvent) => {
+      start.current = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY };
+    },
+    onPress: (e: GestureResponderEvent) => {
+      const moved = Math.hypot(e.nativeEvent.pageX - start.current.x, e.nativeEvent.pageY - start.current.y);
+      if (moved <= TAP_SLOP) action();
+    },
+  });
 }
 
 export function PersistentMiniPlayer({ onPress }: PersistentMiniPlayerProps) {
@@ -29,6 +90,16 @@ export function PersistentMiniPlayer({ onPress }: PersistentMiniPlayerProps) {
     stop,
   } = usePlayer();
   const { tx } = useLanguage();
+  const tap = useTapOnly();
+  const swipe = useSwipeDownToDismiss(() => {
+    stop().catch(() => {});
+  });
+
+  // A newly loaded audiobook shows the bar in place again after a dismissal.
+  useEffect(() => {
+    swipe.offset.setValue(0);
+  }, [audiobook?.id]);
+
   if (!audiobook) return null;
 
   const chapter = chapters[currentChapterIndex];
@@ -41,14 +112,14 @@ export function PersistentMiniPlayer({ onPress }: PersistentMiniPlayerProps) {
   const hasNext = currentChapterIndex + 1 < chapters.length;
 
   return (
-    <View style={styles.wrapper}>
+    <Animated.View style={[styles.wrapper, swipe.style]} {...swipe.responder.panHandlers}>
       <View style={styles.progressBarTrack}>
         <View style={[styles.progressBarFill, { width: `${progress}%` }]} />
       </View>
 
       <Pressable
         style={styles.container}
-        onPress={onPress}
+        {...tap(() => onPress(audiobook.id))}
         accessibilityRole="button"
         accessibilityLabel={`${tx('এখন বাজছে', 'Now playing')} ${audiobook.title}`}
       >
@@ -68,7 +139,7 @@ export function PersistentMiniPlayer({ onPress }: PersistentMiniPlayerProps) {
         <View style={styles.controlsRow}>
           {error ? (
             <Pressable
-              onPress={stop}
+              {...tap(stop)}
               style={({ pressed }) => [styles.controlButton, pressed && styles.controlPressed]}
               hitSlop={8}
               accessibilityLabel={tx('বন্ধ করুন', 'Close player')}
@@ -78,7 +149,7 @@ export function PersistentMiniPlayer({ onPress }: PersistentMiniPlayerProps) {
           ) : (
             <>
               <Pressable
-                onPress={togglePlay}
+                {...tap(togglePlay)}
                 disabled={!chapter}
                 style={({ pressed }) => [styles.controlButton, pressed && styles.controlPressed]}
                 hitSlop={8}
@@ -91,7 +162,7 @@ export function PersistentMiniPlayer({ onPress }: PersistentMiniPlayerProps) {
                 )}
               </Pressable>
               <Pressable
-                onPress={() => nextChapter().catch(() => {})}
+                {...tap(() => nextChapter().catch(() => {}))}
                 disabled={!hasNext}
                 style={({ pressed }) => [
                   styles.controlButton,
@@ -107,7 +178,7 @@ export function PersistentMiniPlayer({ onPress }: PersistentMiniPlayerProps) {
           )}
         </View>
       </Pressable>
-    </View>
+    </Animated.View>
   );
 }
 

@@ -23,9 +23,11 @@ interface AudiobookCardProps {
   progressPercent?: number;
   /** Replaces the default access/duration meta line (e.g. generation status). */
   meta?: string;
+  /** Custom control on the right (e.g. a Remove button); replaces the play button / chevron. */
+  trailing?: React.ReactNode;
 }
 
-export function AudiobookCard({ audiobook, onPress, onPlayPress, progressPercent, meta }: AudiobookCardProps) {
+export function AudiobookCard({ audiobook, onPress, onPlayPress, progressPercent, meta, trailing }: AudiobookCardProps) {
   const isPremium = audiobook.access_tier === 'premium';
   const duration = audiobook.duration_seconds ? ` · ${formatDuration(audiobook.duration_seconds)}` : '';
   const progressText = progressPercent ? ` · ${Math.round(progressPercent)}%` : '';
@@ -70,8 +72,10 @@ export function AudiobookCard({ audiobook, onPress, onPlayPress, progressPercent
         ) : null}
       </View>
 
-      {/* Circular Play Button — only for audio that is ready */}
-      {playable && onPlayPress ? (
+      {/* Custom trailing control, else a circular play button for ready audio, else a chevron */}
+      {trailing ? (
+        <View style={styles.trailing}>{trailing}</View>
+      ) : playable && onPlayPress ? (
         <Pressable
           style={({ pressed }) => [styles.playButton, pressed && styles.playButtonPressed]}
           onPress={onPlayPress}
@@ -117,6 +121,9 @@ const styles = StyleSheet.create({
   progressFill: {
     height: '100%',
     backgroundColor: Colors.brand,
+  },
+  trailing: {
+    marginLeft: Spacing.sm,
   },
   chevron: {
     fontSize: 24,

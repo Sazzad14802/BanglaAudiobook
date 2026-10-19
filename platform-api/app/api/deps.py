@@ -93,23 +93,17 @@ async def require_admin(user: CurrentUserDep) -> User:
         raise HTTPException(403, "Administrator access required")
     return user
 
-async def require_publisher(user: CurrentUserDep) -> User:
-    if user.account_type != "publisher":
-        raise HTTPException(403, "Publisher account required")
-    return user
-
-async def require_active_publisher(user: Annotated[User, Depends(require_publisher)]) -> User:
-    if user.publisher_status != "active":
-        raise HTTPException(403, "Publisher approval and registration payment required")
-    return user
-
-AdminDep = Annotated[User, Depends(require_admin)]
-PublisherDep = Annotated[User, Depends(require_publisher)]
-ActivePublisherDep = Annotated[User, Depends(require_active_publisher)]
-
 async def require_member(user: CurrentUserDep) -> User:
-    if user.account_type not in {"listener", "publisher"}:
-        raise HTTPException(403, "Use a listener or publisher account")
+    if user.account_type != "user":
+        raise HTTPException(403, "A user account is required")
     return user
 
 MemberDep = Annotated[User, Depends(require_member)]
+
+async def require_active_publisher(user: MemberDep) -> User:
+    if user.publisher_status != "active":
+        raise HTTPException(403, "Publisher verification and registration payment required")
+    return user
+
+AdminDep = Annotated[User, Depends(require_admin)]
+ActivePublisherDep = Annotated[User, Depends(require_active_publisher)]

@@ -1,24 +1,27 @@
 /**
- * CustomBottomTabBar — Bottom bar matching Figma navigation plates.
- * Sits at bottom with 5 tabs and hosts the persistent mini-player right above it.
- * Tabs: ● হোম, ○ খুঁজুন, ○ লাইব্রেরি, ✦ তৈরি, ○ প্রোফাইল
+ * CustomBottomTabBar — five tabs (Home, Search, Your Library, Create, Profile),
+ * each an icon above its label: filled when active, outlined otherwise.
+ * Hosts the persistent mini-player right above it.
  */
 
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PersistentMiniPlayer } from '../components/PersistentMiniPlayer';
-import { Colors, FontSizes, Radius, Spacing } from '../theme';
+import { Colors, Spacing } from '../theme';
 import { useLanguage } from '../contexts/LanguageContext';
 
-const TAB_ICONS: Record<string, { icon: string; activeIcon: string }> = {
-  HomeTab: { icon: '○', activeIcon: '●' },
-  ExploreTab: { icon: '○', activeIcon: '●' },
-  LibraryTab: { icon: '○', activeIcon: '●' },
-  CreateTab: { icon: '◇', activeIcon: '◆' },
-  ProfileTab: { icon: '○', activeIcon: '●' },
+type IconName = React.ComponentProps<typeof Ionicons>['name'];
+
+const TAB_ICONS: Record<string, { icon: IconName; activeIcon: IconName }> = {
+  HomeTab: { icon: 'home-outline', activeIcon: 'home' },
+  ExploreTab: { icon: 'search-outline', activeIcon: 'search' },
+  LibraryTab: { icon: 'library-outline', activeIcon: 'library' },
+  CreateTab: { icon: 'add-circle-outline', activeIcon: 'add-circle' },
+  ProfileTab: { icon: 'person-outline', activeIcon: 'person' },
 };
 
 export function CustomBottomTabBar({
@@ -55,7 +58,7 @@ export function CustomBottomTabBar({
       {/* Persistent Mini-Player Pinned Above Tabs */}
       {!hideMiniPlayer && (
         <PersistentMiniPlayer
-          onPress={() => navigation.navigate(currentRoute.name, { screen: 'Player' } as any)}
+          onPress={(audiobookId) => navigation.navigate(currentRoute.name, { screen: 'Player', params: { audiobookId } } as any)}
         />
       )}
 
@@ -63,7 +66,8 @@ export function CustomBottomTabBar({
       <View style={styles.tabBar}>
         {state.routes.map((route, index) => {
           const isFocused = state.index === index;
-          const icons = TAB_ICONS[route.name] ?? { icon: '○', activeIcon: '●' };
+          const icons = TAB_ICONS[route.name] ?? { icon: 'ellipse-outline', activeIcon: 'ellipse' };
+          const color = isFocused ? Colors.textPrimary : Colors.textSecondary;
           const label = getTabLabel(route.name);
 
           const onPress = () => {
@@ -90,24 +94,15 @@ export function CustomBottomTabBar({
               accessibilityState={{ selected: isFocused }}
               accessibilityLabel={label}
             >
-              <View style={styles.tabContent}>
-                <Text
-                  style={[
-                    styles.tabIndicator,
-                    isFocused ? styles.tabIndicatorActive : styles.tabIndicatorInactive,
-                  ]}
-                >
-                  {isFocused ? icons.activeIcon : icons.icon}
-                </Text>
-                <Text
-                  style={[
-                    styles.tabLabel,
-                    isFocused ? styles.tabLabelActive : styles.tabLabelInactive,
-                  ]}
-                >
-                  {label}
-                </Text>
-              </View>
+              <Ionicons name={isFocused ? icons.activeIcon : icons.icon} size={24} color={color} />
+              <Text
+                style={[styles.tabLabel, { color }, isFocused && styles.tabLabelActive]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.8}
+              >
+                {label}
+              </Text>
             </Pressable>
           );
         })}
@@ -122,49 +117,28 @@ const styles = StyleSheet.create({
   },
   tabBar: {
     flexDirection: 'row',
-    height: 54,
+    height: 58,
     backgroundColor: Colors.background,
     borderTopWidth: 1,
     borderTopColor: Colors.surfaceBorder,
-    alignItems: 'center',
-    justifyContent: 'space-around',
     paddingHorizontal: Spacing.xs,
   },
   tabItem: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    height: '100%',
+    gap: 3,
+    paddingHorizontal: 2,
   },
   tabItemPressed: {
-    opacity: 0.7,
-  },
-  tabContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-  },
-  tabIndicator: {
-    fontSize: 10,
-    lineHeight: 12,
-  },
-  tabIndicatorActive: {
-    color: Colors.textPrimary,
-  },
-  tabIndicatorInactive: {
-    color: Colors.textSecondary,
+    opacity: 0.6,
   },
   tabLabel: {
-    fontSize: FontSizes.xs,
-    letterSpacing: -0.2,
+    fontSize: 11,
+    fontWeight: '500',
+    letterSpacing: -0.1,
   },
   tabLabelActive: {
-    color: Colors.textPrimary,
     fontWeight: '700',
-  },
-  tabLabelInactive: {
-    color: Colors.textSecondary,
-    fontWeight: '500',
   },
 });

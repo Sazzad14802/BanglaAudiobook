@@ -60,7 +60,7 @@ export function MyAudiobooksScreen() {
   const play = async (book: Audiobook) => {
     try {
       await loadAudiobook(book);
-      navigation.navigate('Player');
+      navigation.navigate('Player', { audiobookId: book.id });
     } catch (error) {
       Alert.alert(tx('চালানো যায়নি', 'Could not play'), errorMessage(error));
     }
@@ -111,14 +111,16 @@ export function MyAudiobooksScreen() {
               audiobook={item}
               meta={meta(item)}
               onPress={() =>
-                item.status === 'COMPLETED' || !item.source_file_url
-                  ? navigation.navigate('AudiobookDetails', { audiobookId: item.id })
-                  : navigation.navigate('GenerationStatus', { audiobookId: item.id })
+                item.status === 'COMPLETED'
+                  ? navigation.navigate('Player', { audiobookId: item.id })
+                  : item.source_file_url
+                    ? navigation.navigate('GenerationStatus', { audiobookId: item.id })
+                    : goToTab('CreateTab', { screen: 'UploadSource', params: { audiobookId: item.id, title: item.title } })
               }
               onPlayPress={() => play(item)}
             />
             <View style={styles.actions}>
-              {canPublish && item.status === 'COMPLETED' && !item.moderated ? (
+              {canPublish && item.channel_id && item.status === 'COMPLETED' && !item.moderated ? (
                 <AppButton
                   label={item.visibility === 'PUBLIC' ? tx('প্রাইভেট করুন', 'Make private') : tx('প্রকাশ করুন', 'Publish')}
                   variant="outline"
@@ -139,7 +141,7 @@ export function MyAudiobooksScreen() {
         ListFooterComponent={
           !canPublish && (books.data?.length ?? 0) > 0 ? (
             <Text style={styles.note}>
-              {tx('শ্রোতা অ্যাকাউন্টের অডিওবুক প্রাইভেট থাকে।', 'Audiobooks on listener accounts stay private.')}
+              {tx('আপনার অডিওবুক প্রাইভেট থাকে। প্রকাশ করতে প্রকাশক হিসেবে যাচাই করুন।', 'Your audiobooks stay private. Get verified as a publisher to publish them.')}
             </Text>
           ) : null
         }

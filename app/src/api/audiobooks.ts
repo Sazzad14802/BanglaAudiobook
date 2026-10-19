@@ -12,7 +12,7 @@ import {
   AudiobookVisibility,
 } from '../types/audiobook';
 import { Chapter } from '../types/chapter';
-import { PickedFile, toFormData } from './upload';
+import { appendFile, PickedFile, toFormData } from './upload';
 
 function queryString(params: Record<string, string | number | undefined>): string {
   const parts = Object.entries(params)
@@ -56,8 +56,11 @@ export const audiobooksApi = {
     return apiClient.uploadFile<Audiobook>(`/audiobooks/${id}/source`, toFormData(file, 'application/pdf'));
   },
 
-  uploadAudio(id: string, file: PickedFile): Promise<{ id: string; duration_seconds: number }> {
-    return apiClient.uploadFile(`/audiobooks/${id}/audio`, toFormData(file, 'audio/mpeg'));
+  /** Finished narration (publishers): each MP3, in order, becomes one chapter. */
+  uploadAudio(id: string, files: PickedFile[]): Promise<{ id: string; duration_seconds: number; chapters: number }> {
+    const form = new FormData();
+    files.forEach((file) => appendFile(form, file, 'audio/mpeg', 'files'));
+    return apiClient.uploadFile(`/audiobooks/${id}/audio`, form);
   },
 
   uploadCover(id: string, file: PickedFile): Promise<Audiobook> {

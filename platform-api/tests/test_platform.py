@@ -8,7 +8,7 @@ from sqlalchemy import select, func
 from app.core.config import settings
 from app.core.security import hash_password, create_access_token
 from app.models import User, Audiobook, AudiobookStatus, AudiobookVisibility, Chapter, GenerationJob
-from app.models.platform import Setting, Plan, Order, Audit, EligibleView, Ledger, PlaySession, Withdrawal
+from app.models.platform import Channel, Setting, Plan, Order, Audit, EligibleView, Ledger, PlaySession, Withdrawal
 from app.services.auth_service import create_user_token
 from app.services.policy import DEFAULTS, month_now
 from app.services.billing import allocate
@@ -17,10 +17,14 @@ from app.services.scheduler import priority_key, claim
 def pdf():
     writer=PdfWriter();writer.add_blank_page(width=100,height=100);buffer=BytesIO();writer.write(buffer);return buffer.getvalue()
 
-async def account(client, role="listener", email="shared@example.com", password="Password123!"):
-    result=await client.post('/api/v1/auth/register',json={"username":"sameuser", "email":email,"password":password,"account_type":role})
+def mp3():
+    # 40 silent MPEG-1 Layer III frames (128 kbps, 44.1 kHz): about one second.
+    return (b'\xff\xfb\x90\x00'+b'\x00'*413)*40
+
+async def account(client, email="shared@example.com", password="Password123!", username="sameuser"):
+    result=await client.post('/api/v1/auth/register',json={"username":username,"email":email,"password":password})
     assert result.status_code==201,result.text
-    login=await client.post('/api/v1/auth/login',json={"username_or_email":email,"password":password,"account_type":role})
+    login=await client.post('/api/v1/auth/login',json={"username_or_email":email,"password":password})
     assert login.status_code==200,login.text
     return result.json(), {"Authorization":"Bearer "+login.json()['access_token']}
 
@@ -36,29 +40,34 @@ def mock_payments(monkeypatch):
     monkeypatch.setattr(settings,"ENVIRONMENT","development")
 
 async def public_book(db, publisher, tier="premium"):
+    channel=Channel(owner_id=UUID(publisher['id']),name="Stories");db.add(channel);await db.flush()
     book=Audiobook(owner_id=UUID(publisher['id']),title="Published story",language="bn",visibility=AudiobookVisibility.PUBLIC,
-        status=AudiobookStatus.COMPLETED,publication_status="published",access_tier=tier)
+        status=AudiobookStatus.COMPLETED,publication_status="published",access_tier=tier,channel_id=channel.id)
     db.add(book);await db.flush()
     db.add(Chapter(audiobook_id=book.id,title="Second",chapter_number=2,audio_url="/uploads/audio/second.wav",duration_seconds=80))
     db.add(Chapter(audiobook_id=book.id,title="First",chapter_number=1,audio_url="/uploads/audio/first.wav",duration_seconds=80))
     await db.commit();return book
 
-async def test_namespaces_and_admin_guards(client,db_session,admin):
-    listener,lh=await account(client)
-    publisher,ph=await account(client,'publisher',password='AnotherPassword!')
-    assert listener['id']!=publisher['id']
-    wrong=await client.post('/api/v1/auth/login',json={"username_or_email":"shared@example.com","password":"Password123!","account_type":"publisher"})
-    assert wrong.status_code==401
+async def test_single_account_and_admin_guards(client,db_session,admin):
+    user,lh=await account(client)
+    assert user['account_type']=='user' and user['publisher_status']=='none'
+    duplicate=await client.post('/api/v1/auth/register',json={"username":"otherName","email":"shared@example.com","password":"Password123!"})
+    assert duplicate.status_code==409
+    escalated=await client.post('/api/v1/auth/register',json={"username":"eviladmin","email":"evil@example.com","password":"Password123!","account_type":"admin"})
+    assert escalated.status_code==201 and escalated.json()['account_type']=='user'
+    assert (await client.post('/api/v1/auth/login',json={"username_or_email":"admin@example.com","password":"VeryStrongPassword!"})).status_code==401
     assert (await client.get('/api/v1/admin/users',headers=lh)).status_code==403
     assert (await client.get('/api/v1/admin/users')).status_code==401
     assert (await client.get('/api/v1/admin/users',headers=admin)).status_code==200
-    assert (await client.post('/api/v1/auth/register',json={"username":"eviladmin","email":"evil@example.com","password":"Password123!","account_type":"admin"})).status_code==422
+    # Every user can create privately; publishing needs verification.
+    assert (await client.post('/api/v1/audiobooks',headers=lh,json={"title":"Mine"})).status_code==201
     assert (await client.post('/api/v1/audiobooks',headers=lh,json={"title":"Private only","visibility":"PUBLIC"})).status_code==403
-    forged=create_access_token(listener['id'],extra_claims={"purpose":"access","ver":0,"role":"admin"})
+    assert (await client.post('/api/v1/publisher/channels',headers=lh,json={"name":"Channel"})).status_code==403
+    forged=create_access_token(user['id'],extra_claims={"purpose":"access","ver":0,"role":"admin"})
     assert (await client.get('/api/v1/admin/users',headers={"Authorization":"Bearer "+forged})).status_code==403
 
 async def test_publisher_workflow_payment_and_suspension(client,db_session,admin,mock_payments):
-    publisher,headers=await account(client,'publisher')
+    publisher,headers=await account(client)
     assert (await client.post('/api/v1/publisher/channels',headers=headers,json={"name":"Channel"})).status_code==403
     assert (await client.post('/api/v1/payments',headers=headers,json={"kind":"publisher_registration","idempotency_key":"registration"})).status_code==403
     submitted=await client.post('/api/v1/publisher/applications',headers=headers,data={"legal_name":"Test Publisher"},files={"file":("proof.pdf",pdf(),"application/pdf")})
@@ -132,6 +141,25 @@ async def test_quota_duplicate_cancel_and_private_isolation(client,db_session,ad
     await client.post(f"/api/v1/generation/{first.json()['job_id']}/cancel",headers=headers)
     assert (await client.post(f"/api/v1/audiobooks/{book['id']}/generate",headers=headers)).status_code==429
     assert (await client.post('/api/v1/audiobooks/generation-callback',json={"job_id":first.json()['job_id'],"audiobook_id":book['id'],"status":"COMPLETED"})).status_code==410
+
+async def test_channel_publishing_and_mp3_chapters(client,db_session,owner_tokens,other_tokens,tmp_path,monkeypatch):
+    monkeypatch.setattr(settings,"UPLOAD_DIR",str(tmp_path))
+    headers,channel=owner_tokens['headers'],owner_tokens['channel_id']
+    assert (await client.post('/api/v1/audiobooks',headers=headers,json={"title":"Loose","visibility":"PUBLIC"})).status_code==409
+    book=(await client.post('/api/v1/audiobooks',headers=headers,json={"title":"Narrated","channel_id":channel})).json()
+    files=[("files",(f"Part {n}.mp3",mp3(),"audio/mpeg")) for n in (1,2)]
+    other=(await client.post('/api/v1/audiobooks',headers=other_tokens['headers'],json={"title":"Not a publisher"})).json()
+    assert (await client.post(f"/api/v1/audiobooks/{other['id']}/audio",headers=other_tokens['headers'],files=files)).status_code==403
+    uploaded=await client.post(f"/api/v1/audiobooks/{book['id']}/audio",headers=headers,files=files)
+    assert uploaded.status_code==200,uploaded.text
+    assert uploaded.json()['chapters']==2
+    chapters=(await client.get(f"/api/v1/audiobooks/{book['id']}/chapters",headers=headers)).json()
+    assert [c['title'] for c in chapters]==['Part 1','Part 2']
+    assert (await client.patch(f"/api/v1/audiobooks/{book['id']}/visibility",headers=headers,json={"visibility":"PUBLIC"})).status_code==200
+    assert (await client.get('/api/v1/audiobooks')).json()['total']==1
+    # Leaving the channel takes the audiobook out of public listings.
+    assert (await client.patch(f"/api/v1/audiobooks/{book['id']}",headers=headers,json={"channel_id":None})).status_code==200
+    assert (await client.get('/api/v1/audiobooks')).json()['total']==0
 
 def test_priority_aging_and_rounding():
     now=datetime.now(timezone.utc)

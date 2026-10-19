@@ -23,7 +23,7 @@ async def fenced(db, id, token):
     if not job or job.lease_token != token or job.cancelled or job.status != AudiobookStatus.PROCESSING:
         raise asyncio.CancelledError()
     owner = await db.get(User, job.owner_id)
-    if owner.suspended or (owner.account_type == "publisher" and owner.publisher_status != "active"):
+    if owner.suspended:
         raise RuntimeError("Account no longer authorized for generation")
     return job
 

@@ -10,7 +10,6 @@ import { NavigatorScreenParams } from '@react-navigation/native';
 
 export type AuthStackParamList = {
   Splash: undefined;
-  Onboarding: undefined;
   LanguageSelect: undefined;
   NotificationsPrompt: undefined;
   Login: undefined;
@@ -19,9 +18,8 @@ export type AuthStackParamList = {
 
 /** Screens registered in every tab stack. */
 export type SharedStackParamList = {
-  AudiobookDetails: { audiobookId: string };
-  Player: undefined;
-  ChaptersQueue: undefined;
+  /** Opening a book plays it; without an id the player shows what is loaded. */
+  Player: { audiobookId?: string } | undefined;
   GenerationStatus: { audiobookId: string };
   PlaylistDetails: { playlistId: string; name: string };
   Notifications: undefined;
@@ -50,6 +48,7 @@ export type ProfileStackParamList = SharedStackParamList & {
   Subscription: undefined;
   PaymentCheckout: { orderId: string };
   Publisher: undefined;
+  Channel: { channelId: string };
   MyAudiobooks: undefined;
   EditAudiobook: { audiobookId: string };
 };

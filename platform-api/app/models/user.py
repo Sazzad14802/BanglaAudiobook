@@ -33,16 +33,19 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         String(255),
         nullable=False,
     )
-    account_type: Mapped[str] = mapped_column(String(20), default="listener", nullable=False)
-    publisher_status: Mapped[str] = mapped_column(String(40), default="pending_approval", nullable=False)
+    # "user" for everyone on the platform, "admin" for operators. Publishing is a
+    # verification status on a user, not a separate account.
+    account_type: Mapped[str] = mapped_column(String(20), default="user", nullable=False)
+    # none -> pending_approval -> approved_pending_payment -> active (or rejected)
+    publisher_status: Mapped[str] = mapped_column(String(40), default="none", nullable=False)
     suspended: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     token_version: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     full_name: Mapped[Optional[str]] = mapped_column(String(150))
     premium_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     subscription_cancelled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     __table_args__ = (
-        UniqueConstraint("email", "account_type", name="uq_users_email_namespace"),
-        UniqueConstraint("username", "account_type", name="uq_users_username_namespace"),
+        UniqueConstraint("email", name="uq_users_email"),
+        UniqueConstraint("username", name="uq_users_username"),
     )
 
     # Relationships

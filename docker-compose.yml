@@ -1,0 +1,99 @@
+# BornoVerse backend in Docker: PostgreSQL, Platform API, generation worker, admin portal.
+#
+# The TTS/OCR service and the Expo mobile app run on the host, outside Docker:
+#   - containers reach the TTS service at host.docker.internal:8001
+#   - the phone reaches the API at http://<your PC's LAN IP>:8000
+#
+# Secrets (JWT, TTS key, Supabase, SSLCommerz) come from platform-api/.env, which is
+# mounted with the source; the database and TTS addresses below override it.
+#
+#   docker compose up --build     start everything (first run builds the images)
+#   docker compose down           stop
+#   docker compose down -v        stop and delete the database (fresh start next time)
+
+x-api-environment: &api-environment
+  DATABASE_URL: postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:-bornoverse}@db:5432/audiobook_db
+  SYNC_DATABASE_URL: postgresql+psycopg://postgres:${POSTGRES_PASSWORD:-bornoverse}@db:5432/audiobook_db
+  MODEL_RUNNER_URL: http://host.docker.internal:8001/jobs
+  TTS_GENERATE_URL: http://host.docker.internal:8001/generate
+  TTS_EXTRACT_URL: http://host.docker.internal:8001/extract-page
+  # File change events do not cross Windows bind mounts; poll for --reload instead.
+  WATCHFILES_FORCE_POLLING: "true"
+
+services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bornoverse}
+      POSTGRES_DB: audiobook_db
+    volumes:
+      # PostgreSQL 18+ images keep their data under /var/lib/postgresql/<version>.
+      - pgdata:/var/lib/postgresql
+    ports:
+      # 5433 on the host so it never clashes with a locally installed PostgreSQL.
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d audiobook_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build: ./platform-api
+    restart: unless-stopped
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-dir", "app"]
+    environment:
+      <<: *api-environment
+      RUN_MIGRATIONS: "true"
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
+    volumes:
+      # Live code reload; uploads land in platform-api/uploads, shared with the worker.
+      - ./platform-api:/app
+    ports:
+      - "8000:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      start_period: 60s
+      retries: 10
+
+  worker:
+    build: ./platform-api
+    restart: unless-stopped
+    command: ["python", "-m", "app.worker"]
+    environment:
+      <<: *api-environment
+    volumes:
+      - ./platform-api:/app
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      # The API container applies migrations first.
+      api:
+        condition: service_healthy
+
+  admin:
+    build: ./admin
+    restart: unless-stopped
+    environment:
+      API_PROXY_TARGET: http://api:8000
+      CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      - ./admin:/app
+      # Keep the container's Linux node_modules instead of the host's.
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:

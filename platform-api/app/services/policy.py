@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from fastapi import HTTPException
-from sqlalchemy import select, and_, or_
+from sqlalchemy import select, and_
 from app.models import User, Audiobook, AudiobookStatus, AudiobookVisibility
 from app.models.platform import Channel, Setting, Audit
 
@@ -17,7 +17,7 @@ def month_now():
     return datetime.now(ZoneInfo("Asia/Dhaka")).strftime("%Y-%m")
 
 def premium(user):
-    return bool(user and not user.suspended and user.account_type == "listener" and
+    return bool(user and not user.suspended and user.account_type == "user" and
                 user.premium_until and utc(user.premium_until) > datetime.now(timezone.utc))
 
 async def configuration(db):
@@ -27,18 +27,21 @@ async def configuration(db):
 def audit(db, actor, action, target, **details):
     db.add(Audit(actor_id=actor.id if actor else None, action=action, target=str(target), details=details))
 
+def is_publisher(user):
+    return bool(user and user.account_type == "user" and user.publisher_status == "active" and not user.suspended)
+
 def publishing(user):
-    if user.account_type != "publisher" or user.publisher_status != "active" or user.suspended:
-        raise HTTPException(403, "An active publisher account is required")
+    if not is_publisher(user):
+        raise HTTPException(403, "Publisher verification is required")
 
 def public_conditions():
     return and_(Audiobook.visibility == AudiobookVisibility.PUBLIC,
                 Audiobook.status == AudiobookStatus.COMPLETED,
                 Audiobook.publication_status == "published", Audiobook.moderated.is_(False),
                 Audiobook.owner_id.in_(select(User.id).where(User.suspended.is_(False),
-                    User.account_type == "publisher", User.publisher_status == "active")),
-                or_(Audiobook.channel_id.is_(None), Audiobook.channel_id.in_(
-                    select(Channel.id).where(Channel.moderated.is_(False)))))
+                    User.account_type == "user", User.publisher_status == "active")),
+                # Public content is only ever published through a channel.
+                Audiobook.channel_id.in_(select(Channel.id).where(Channel.moderated.is_(False))))
 
 async def authorize_audio(db, book, user):
     if user and user.account_type == "admin":

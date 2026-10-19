@@ -1,35 +1,81 @@
 /**
- * PlayerScreen — full-screen player for whatever the PlayerContext has loaded:
- * artwork, chapter info, tap-to-seek progress, ±15s, previous/next chapter,
- * playback speed, sleep timer and offline download.
+ * PlayerScreen — opening any audiobook lands here (there is no separate details page).
+ *
+ * With an `audiobookId` param it loads and starts that book unless it is already
+ * playing; premium books the listener can't play show an unlock prompt instead.
+ * Without a param (mini player) it shows whatever the PlayerContext has loaded.
+ *
+ * Artwork, access/genre tags, tap-to-seek progress, ±15s, previous/next chapter,
+ * tap-to-cycle speed, then an icon row: Chapters (bottom sheet) · Save · Playlist · Offline · Report.
  */
 
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, LayoutChangeEvent, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  LayoutChangeEvent,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { RouteProp, useRoute } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { AppHeader } from '../../components/AppHeader';
-import { ActionItem, ActionPillBar } from '../../components/ActionPillBar';
-import { ModalBottomSheet } from '../../components/ModalBottomSheet';
 import { AppButton } from '../../components/AppButton';
 import { BookCover } from '../../components/BookCover';
+import { ModalBottomSheet, SheetScrollView } from '../../components/ModalBottomSheet';
 import { StateView } from '../../components/StateView';
-import { Chip } from '../../components/Chip';
+import { TagBadge } from '../../components/TagBadge';
+import { audiobooksApi } from '../../api/audiobooks';
+import { libraryApi, playlistsApi } from '../../api/library';
+import { reportsApi } from '../../api/account';
 import { errorMessage } from '../../api/client';
 import { usePlayer } from '../../contexts/PlayerContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useResource } from '../../hooks/useResource';
 import { useAppNavigation } from '../../navigation/useAppNavigation';
+import { SharedStackParamList } from '../../navigation/types';
+import { genreLabel } from '../../constants/genres';
 import { offline } from '../../storage/offline';
 import { isPremium } from '../../types/auth';
-import { formatClock } from '../../utils/format';
+import { Playlist } from '../../types/domain';
+import { formatClock, formatDuration } from '../../utils/format';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
 
 const SPEEDS = [0.75, 1, 1.25, 1.5, 2];
-const SLEEP_OPTIONS = [0, 15, 30, 60];
+
+const REPORT_REASONS = [
+  { bn: 'কপিরাইট লঙ্ঘন', en: 'Copyright infringement' },
+  { bn: 'অনুপযুক্ত কনটেন্ট', en: 'Inappropriate content' },
+  { bn: 'অডিওর মান খারাপ', en: 'Poor audio quality' },
+  { bn: 'ভুল তথ্য', en: 'Incorrect information' },
+];
+
+/** The speed after `current`, wrapping around; unknown speeds restart at 1x. */
+function nextSpeed(current: number): number {
+  const index = SPEEDS.indexOf(current);
+  return index === -1 ? 1 : SPEEDS[(index + 1) % SPEEDS.length];
+}
+
+type Sheet = 'chapters' | 'playlist' | 'report' | null;
+
+interface PlayerAction {
+  id: string;
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  label: string;
+  onPress: () => void;
+  active?: boolean;
+}
 
 export function PlayerScreen() {
   const { navigation, goToTab } = useAppNavigation();
-  const { t, tx } = useLanguage();
+  const requestedId = useRoute<RouteProp<SharedStackParamList, 'Player'>>().params?.audiobookId;
+  const { t, tx, isEnglish } = useLanguage();
   const { user } = useAuth();
   const player = usePlayer();
   const {
@@ -42,29 +88,52 @@ export function PlayerScreen() {
     positionSeconds,
     durationSeconds,
     playbackRate,
-    sleepEndsAt,
     error,
   } = player;
 
-  const [settingsVisible, setSettingsVisible] = useState(false);
+  const isMember = user?.account_type === 'user';
+  const bookId = requestedId ?? audiobook?.id;
+
+  // Server copy of the book (tags, access) plus this listener's saved/downloaded state.
+  const info = useResource(async () => {
+    if (!bookId) return null;
+    const [book, saved, downloads] = await Promise.all([
+      audiobooksApi.get(bookId),
+      isMember ? libraryApi.isSaved(bookId).catch(() => false) : Promise.resolve(false),
+      user ? offline.list(user.id).catch(() => []) : Promise.resolve([]),
+    ]);
+    return { book, saved, downloaded: downloads.some((b) => b.id === bookId) };
+  }, [bookId]);
+
   const [trackWidth, setTrackWidth] = useState(0);
-  const [downloaded, setDownloaded] = useState(false);
-  const [downloading, setDownloading] = useState(false);
-  const [now, setNow] = useState(Date.now());
+  const [sheet, setSheet] = useState<Sheet>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [openError, setOpenError] = useState<string | null>(null);
+  const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [newPlaylist, setNewPlaylist] = useState('');
+  const [reportReason, setReportReason] = useState(0);
+  const [reportDetails, setReportDetails] = useState('');
+  const startedFor = useRef<string | null>(null);
 
+  // Offline playback may have no server copy; fall back to the loaded book.
+  const book = info.data?.book ?? (audiobook?.id === bookId ? audiobook : null);
+  const isCurrent = !!audiobook && audiobook.id === bookId;
+  const isOwner = !!book && book.owner_id === user?.id;
+  const isFree = book?.access_tier !== 'premium';
+  const isLocked = !!book && !isFree && !isOwner && !isPremium(user);
+
+  // Opening a book starts it, unless it is already the one loaded or it is locked.
   useEffect(() => {
-    if (!user || !audiobook) return;
-    offline.list(user.id).then((books) => setDownloaded(books.some((b) => b.id === audiobook.id))).catch(() => {});
-  }, [user, audiobook]);
+    const target = info.data?.book;
+    if (!requestedId || !target || target.id !== requestedId) return;
+    if (audiobook?.id === requestedId || startedFor.current === requestedId) return;
+    if (isLocked || target.status !== 'COMPLETED') return;
+    startedFor.current = requestedId;
+    setOpenError(null);
+    player.loadAudiobook(target).catch((e) => setOpenError(errorMessage(e)));
+  }, [requestedId, info.data?.book?.id, isLocked]);
 
-  // Keep the sleep-timer countdown label current.
-  useEffect(() => {
-    if (!sleepEndsAt) return;
-    const timer = setInterval(() => setNow(Date.now()), 15_000);
-    return () => clearInterval(timer);
-  }, [sleepEndsAt]);
-
-  if (!audiobook) {
+  if (!bookId) {
     return (
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <AppHeader title={t('playerNowPlaying')} onBack={() => navigation.goBack()} />
@@ -79,202 +148,402 @@ export function PlayerScreen() {
     );
   }
 
-  const chapter = chapters[currentChapterIndex];
-  const progress = durationSeconds > 0 ? Math.min(1, positionSeconds / durationSeconds) : 0;
-  const sleepMinutesLeft = sleepEndsAt ? Math.max(1, Math.ceil((sleepEndsAt - now) / 60000)) : 0;
+  if (!book) {
+    return (
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+        <AppHeader title={t('playerNowPlaying')} onBack={() => navigation.goBack()} />
+        {info.error ? (
+          <StateView
+            kind="error"
+            title={tx('অডিওবুকটি পাওয়া যায়নি', 'Audiobook not available')}
+            message={info.error}
+            actionLabel={tx('আবার চেষ্টা', 'Retry')}
+            onAction={info.reload}
+          />
+        ) : (
+          <StateView kind="loading" />
+        )}
+      </SafeAreaView>
+    );
+  }
 
-  const seekFromTouch = (x: number) => {
-    if (trackWidth > 0 && durationSeconds > 0) player.seek((x / trackWidth) * durationSeconds);
+  const saved = info.data?.saved ?? false;
+  const downloaded = info.data?.downloaded ?? false;
+  const chapter = isCurrent ? chapters[currentChapterIndex] : undefined;
+  const position = isCurrent ? positionSeconds : 0;
+  const duration = isCurrent ? durationSeconds : book.duration_seconds;
+  const progress = duration > 0 ? Math.min(1, position / duration) : 0;
+  const shownError = openError ?? (isCurrent ? error : null);
+
+  const update = (patch: { saved?: boolean; downloaded?: boolean }) =>
+    info.setData((current) => (current ? { ...current, ...patch } : null));
+
+  const premiumPrompt = (message: string) =>
+    Alert.alert(tx('প্রিমিয়াম প্রয়োজন', 'Premium required'), message, [
+      { text: tx('বাতিল', 'Cancel'), style: 'cancel' },
+      { text: tx('প্রিমিয়াম নিন', 'Get Premium'), onPress: () => goToTab('ProfileTab', { screen: 'Subscription' }) },
+    ]);
+
+  const run = async (key: string, action: () => Promise<void>, title = tx('ত্রুটি', 'Error')) => {
+    setBusy(key);
+    try {
+      await action();
+    } catch (e) {
+      Alert.alert(title, errorMessage(e));
+    } finally {
+      setBusy(null);
+    }
   };
 
-  const run = (action: () => Promise<void>) => action().catch((e) => Alert.alert(tx('ত্রুটি', 'Error'), errorMessage(e)));
+  const seekFromTouch = (x: number) => {
+    if (isCurrent && trackWidth > 0 && duration > 0) player.seek((x / trackWidth) * duration);
+  };
+
+  const playChapter = (index: number) =>
+    run('chapter', async () => {
+      await player.selectChapter(index);
+      setSheet(null);
+    }, tx('চালানো যায়নি', 'Could not play'));
+
+  const toggleSave = () =>
+    run('save', async () => {
+      if (saved) await libraryApi.remove(book.id);
+      else await libraryApi.add(book.id);
+      update({ saved: !saved });
+    }, tx('লাইব্রেরি', 'Library'));
+
+  const openPlaylists = () => {
+    setSheet('playlist');
+    playlistsApi
+      .list()
+      .then(setPlaylists)
+      .catch((e) => Alert.alert(tx('প্লেলিস্ট', 'Playlists'), errorMessage(e)));
+  };
+
+  const addToPlaylist = (playlist: Playlist) =>
+    run('playlist', async () => {
+      await playlistsApi.addBook(playlist.id, book.id);
+      setSheet(null);
+      Alert.alert(tx('যোগ হয়েছে', 'Added'), tx(`«${playlist.name}»-এ যোগ করা হয়েছে।`, `Added to “${playlist.name}”.`));
+    }, tx('প্লেলিস্ট', 'Playlist'));
+
+  const createPlaylist = () =>
+    run('playlist', async () => {
+      const name = newPlaylist.trim();
+      if (!name) return;
+      const created = await playlistsApi.create(name);
+      setNewPlaylist('');
+      await playlistsApi.addBook(created.id, book.id);
+      setSheet(null);
+      Alert.alert(tx('যোগ হয়েছে', 'Added'), tx(`«${created.name}»-এ যোগ করা হয়েছে।`, `Added to “${created.name}”.`));
+    }, tx('প্লেলিস্ট', 'Playlist'));
 
   const toggleOffline = async () => {
     if (!user) return;
     if (downloaded) {
-      await offline.remove(audiobook.id, user.id);
-      setDownloaded(false);
+      await offline.remove(book.id, user.id);
+      update({ downloaded: false });
       return;
     }
     if (!isPremium(user)) {
-      Alert.alert(tx('প্রিমিয়াম প্রয়োজন', 'Premium required'), tx('অফলাইনে শুনতে প্রিমিয়াম নিন।', 'Get Premium to listen offline.'), [
-        { text: tx('বাতিল', 'Cancel'), style: 'cancel' },
-        { text: tx('প্রিমিয়াম নিন', 'Get Premium'), onPress: () => goToTab('ProfileTab', { screen: 'Subscription' }) },
-      ]);
+      premiumPrompt(tx('ডাউনলোড করে অফলাইনে শুনতে প্রিমিয়াম প্রয়োজন।', 'Downloading for offline listening needs Premium.'));
       return;
     }
-    setDownloading(true);
-    try {
-      await offline.download(audiobook, user.id);
-      setDownloaded(true);
-      Alert.alert(tx('ডাউনলোড সম্পন্ন', 'Downloaded'), tx('এখন অফলাইনে শুনতে পারবেন।', 'Available offline now.'));
-    } catch (e) {
-      Alert.alert(tx('ডাউনলোড ব্যর্থ', 'Download failed'), errorMessage(e));
-    } finally {
-      setDownloading(false);
-    }
+    await run('offline', async () => {
+      await offline.download(book, user.id);
+      update({ downloaded: true });
+      Alert.alert(tx('ডাউনলোড সম্পন্ন', 'Downloaded'), tx('লাইব্রেরি থেকে অফলাইনে শুনতে পারবেন।', 'Play it offline from your Library.'));
+    }, tx('ডাউনলোড ব্যর্থ', 'Download failed'));
   };
 
-  const actions: ActionItem[] = [
-    {
-      id: 'chapters',
-      label: tx(`অধ্যায় (${chapters.length})`, `Chapters (${chapters.length})`),
-      onPress: () => navigation.navigate('ChaptersQueue'),
-    },
-    {
-      id: 'details',
-      label: tx('বিস্তারিত', 'Details'),
-      onPress: () => navigation.navigate('AudiobookDetails', { audiobookId: audiobook.id }),
-    },
-  ];
-  if (!isOffline) {
-    actions.push({
-      id: 'offline',
-      label: downloading ? tx('ডাউনলোড…', 'Saving…') : downloaded ? tx('ডাউনলোডেড', 'Downloaded') : tx('অফলাইন', 'Offline'),
-      active: downloaded,
-      onPress: toggleOffline,
-    });
+  const submitReport = () =>
+    run('report', async () => {
+      const reason = REPORT_REASONS[reportReason];
+      await reportsApi.submit(book.id, `${reason.en}${reportDetails.trim() ? `: ${reportDetails.trim()}` : ''}`);
+      setSheet(null);
+      setReportDetails('');
+      Alert.alert(tx('রিপোর্ট জমা হয়েছে', 'Report submitted'), tx('আমাদের টিম এটি পর্যালোচনা করবে।', 'Our team will review it.'));
+    }, tx('রিপোর্ট', 'Report'));
+
+  const actions: PlayerAction[] = [];
+  if (isCurrent && chapters.length) {
+    actions.push({ id: 'chapters', icon: 'list', label: tx('অধ্যায়', 'Chapters'), onPress: () => setSheet('chapters') });
   }
+  if (isMember) {
+    actions.push({
+      id: 'save',
+      icon: saved ? 'bookmark' : 'bookmark-outline',
+      label: saved ? tx('সংরক্ষিত', 'Saved') : tx('সেভ', 'Save'),
+      active: saved,
+      onPress: toggleSave,
+    });
+    actions.push({ id: 'playlist', icon: 'albums-outline', label: tx('প্লেলিস্ট', 'Playlist'), onPress: openPlaylists });
+    if (!isOffline && book.status === 'COMPLETED' && !isLocked) {
+      actions.push({
+        id: 'offline',
+        icon: downloaded ? 'checkmark-circle' : 'arrow-down-circle-outline',
+        // The label stays "Offline"; the green check icon shows it is downloaded.
+        label: tx('অফলাইন', 'Offline'),
+        active: downloaded,
+        onPress: toggleOffline,
+      });
+    }
+    if (!isOwner) actions.push({ id: 'report', icon: 'flag-outline', label: tx('রিপোর্ট', 'Report'), onPress: () => setSheet('report') });
+  }
+
+  const remaining = chapters.slice(currentChapterIndex + 1).reduce((sum, c) => sum + (c.duration_seconds || 0), 0);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right', 'bottom']}>
       <AppHeader
         title={t('playerNowPlaying')}
-        subtitle={isOffline ? tx('অফলাইন', 'Offline') : audiobook.author ?? undefined}
+        subtitle={isOffline && isCurrent ? tx('অফলাইন', 'Offline') : book.author ?? undefined}
         alignCenter
+        backIcon="down"
         onBack={() => navigation.goBack()}
-        rightIcon="⚙︎"
-        rightIconLabel={tx('প্লেব্যাক সেটিংস', 'Playback settings')}
-        onRightIconPress={() => setSettingsVisible(true)}
       />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.artworkContainer}>
-          <BookCover title={audiobook.title} uri={audiobook.cover_image_url} fill radius={Radius.xl} />
+          <BookCover title={book.title} uri={book.cover_image_url} fill radius={Radius.xl} />
         </View>
 
-        <Text style={styles.bookTitle}>{audiobook.title}</Text>
+        <Text style={styles.bookTitle}>{book.title}</Text>
         <Text style={styles.chapterSubtitle} numberOfLines={1}>
           {chapter
             ? `${tx('অধ্যায়', 'Chapter')} ${chapter.chapter_number}/${chapters.length} · ${chapter.title}`
-            : tx('লোড হচ্ছে…', 'Loading…')}
+            : isLocked
+              ? tx('প্রিমিয়াম অডিওবুক', 'Premium audiobook')
+              : tx('লোড হচ্ছে…', 'Loading…')}
         </Text>
 
-        {error ? (
+        <View style={styles.badgeRow}>
+          <TagBadge
+            label={isFree ? tx('ফ্রি', 'FREE') : isLocked ? tx('প্রিমিয়াম · লকড', 'PREMIUM · LOCKED') : tx('প্রিমিয়াম', 'PREMIUM')}
+            variant={isFree ? 'free' : 'premium'}
+          />
+          {book.genre ? <TagBadge label={genreLabel(book.genre, isEnglish)} variant="genre" /> : null}
+        </View>
+
+        {shownError ? (
           <View style={styles.errorBanner}>
-            <Text style={styles.errorText}>{error}</Text>
+            <Text style={styles.errorText}>{shownError}</Text>
           </View>
         ) : null}
 
-        <Pressable
-          style={styles.progressBarWrapper}
-          onLayout={(e: LayoutChangeEvent) => setTrackWidth(e.nativeEvent.layout.width)}
-          onPress={(e) => seekFromTouch(e.nativeEvent.locationX)}
-          accessibilityRole="adjustable"
-          accessibilityLabel={tx('অগ্রগতি', 'Progress')}
-        >
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
+        {isLocked ? (
+          <View style={styles.lockedCard}>
+            <Text style={styles.lockedText}>
+              {tx('এটি শুনতে প্রিমিয়াম সাবস্ক্রিপশন প্রয়োজন।', 'A Premium subscription is required to listen.')}
+            </Text>
+            <AppButton
+              label={tx('🔒 প্রিমিয়াম নিয়ে শুনুন', '🔒 Unlock with Premium')}
+              onPress={() => goToTab('ProfileTab', { screen: 'Subscription' })}
+            />
           </View>
-          <View style={[styles.progressThumb, { left: Math.max(0, progress * trackWidth - 7) }]} />
-        </Pressable>
-        <View style={styles.timeRow}>
-          <Text style={styles.timeCounter}>{formatClock(positionSeconds)}</Text>
-          <Text style={styles.timeCounter}>-{formatClock(Math.max(0, durationSeconds - positionSeconds))}</Text>
-        </View>
+        ) : (
+          <>
+            <Pressable
+              style={styles.progressBarWrapper}
+              onLayout={(e: LayoutChangeEvent) => setTrackWidth(e.nativeEvent.layout.width)}
+              onPress={(e) => seekFromTouch(e.nativeEvent.locationX)}
+              accessibilityRole="adjustable"
+              accessibilityLabel={tx('অগ্রগতি', 'Progress')}
+            >
+              <View style={styles.progressTrack}>
+                <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
+              </View>
+              <View style={[styles.progressThumb, { left: Math.max(0, progress * trackWidth - 7) }]} />
+            </Pressable>
+            <View style={styles.timeRow}>
+              <Text style={styles.timeCounter}>{formatClock(position)}</Text>
+              <Text style={styles.timeCounter}>-{formatClock(Math.max(0, duration - position))}</Text>
+            </View>
 
-        <View style={styles.controlsRow}>
-          <Pressable
-            style={({ pressed }) => [styles.toolButton, pressed && styles.pressed]}
-            onPress={() => run(player.prevChapter)}
-            accessibilityLabel={tx('আগের অধ্যায়', 'Previous chapter')}
-          >
-            <Text style={styles.skipIcon}>⏮</Text>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.iconControlButton, pressed && styles.pressed]}
-            onPress={() => run(() => player.skip(-15))}
-            accessibilityLabel={tx('১৫ সেকেন্ড পিছনে', 'Back 15 seconds')}
-          >
-            <Text style={styles.rewindIcon}>↺</Text>
-            <Text style={styles.rewindSubText}>15</Text>
-          </Pressable>
+            <View style={styles.controlsRow}>
+              <Pressable
+                style={({ pressed }) => [styles.toolButton, !isCurrent && styles.disabled, pressed && styles.pressed]}
+                disabled={!isCurrent}
+                onPress={() => run('prev', player.prevChapter)}
+                accessibilityLabel={tx('আগের অধ্যায়', 'Previous chapter')}
+              >
+                <Text style={styles.skipIcon}>⏮</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.iconControlButton, pressed && styles.pressed]}
+                disabled={!isCurrent}
+                onPress={() => run('back', () => player.skip(-15))}
+                accessibilityLabel={tx('১৫ সেকেন্ড পিছনে', 'Back 15 seconds')}
+              >
+                <Text style={styles.rewindIcon}>↺</Text>
+                <Text style={styles.rewindSubText}>15</Text>
+              </Pressable>
 
-          <Pressable
-            style={({ pressed }) => [styles.mainPlayButton, pressed && styles.mainPlayPressed]}
-            onPress={player.togglePlay}
-            disabled={!chapter}
-            accessibilityLabel={isPlaying ? tx('বিরতি', 'Pause') : tx('চালু করুন', 'Play')}
-          >
-            {isLoading && !isPlaying ? (
-              <ActivityIndicator color="#FFFFFF" />
-            ) : (
-              <Text style={styles.mainPlayIcon}>{isPlaying ? '❚❚' : '▶'}</Text>
-            )}
-          </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.mainPlayButton, pressed && styles.mainPlayPressed]}
+                onPress={player.togglePlay}
+                disabled={!chapter}
+                accessibilityLabel={isPlaying && isCurrent ? tx('বিরতি', 'Pause') : tx('চালু করুন', 'Play')}
+              >
+                {!chapter || (isLoading && !isPlaying) ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.mainPlayIcon}>{isPlaying ? '❚❚' : '▶'}</Text>
+                )}
+              </Pressable>
 
-          <Pressable
-            style={({ pressed }) => [styles.iconControlButton, pressed && styles.pressed]}
-            onPress={() => run(() => player.skip(15))}
-            accessibilityLabel={tx('১৫ সেকেন্ড সামনে', 'Forward 15 seconds')}
-          >
-            <Text style={styles.forwardIcon}>↻</Text>
-            <Text style={styles.forwardSubText}>15</Text>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [
-              styles.toolButton,
-              currentChapterIndex + 1 >= chapters.length && styles.disabled,
-              pressed && styles.pressed,
-            ]}
-            disabled={currentChapterIndex + 1 >= chapters.length}
-            onPress={() => run(player.nextChapter)}
-            accessibilityLabel={tx('পরের অধ্যায়', 'Next chapter')}
-          >
-            <Text style={styles.skipIcon}>⏭</Text>
-          </Pressable>
-        </View>
+              <Pressable
+                style={({ pressed }) => [styles.iconControlButton, pressed && styles.pressed]}
+                disabled={!isCurrent}
+                onPress={() => run('forward', () => player.skip(15))}
+                accessibilityLabel={tx('১৫ সেকেন্ড সামনে', 'Forward 15 seconds')}
+              >
+                <Text style={styles.forwardIcon}>↻</Text>
+                <Text style={styles.forwardSubText}>15</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.toolButton,
+                  (!isCurrent || currentChapterIndex + 1 >= chapters.length) && styles.disabled,
+                  pressed && styles.pressed,
+                ]}
+                disabled={!isCurrent || currentChapterIndex + 1 >= chapters.length}
+                onPress={() => run('next', player.nextChapter)}
+                accessibilityLabel={tx('পরের অধ্যায়', 'Next chapter')}
+              >
+                <Text style={styles.skipIcon}>⏭</Text>
+              </Pressable>
+            </View>
 
-        <View style={styles.quickRow}>
-          <Pressable style={styles.quickButton} onPress={() => setSettingsVisible(true)}>
-            <Text style={styles.speedText}>{playbackRate}x</Text>
-          </Pressable>
-          <Pressable style={styles.quickButton} onPress={() => setSettingsVisible(true)}>
-            <Text style={styles.speedText}>☾ {sleepEndsAt ? tx(`${sleepMinutesLeft} মি.`, `${sleepMinutesLeft}m`) : tx('বন্ধ', 'Off')}</Text>
-          </Pressable>
-        </View>
+            <Pressable
+              style={({ pressed }) => [styles.speedButton, pressed && styles.pressed]}
+              onPress={() => player.setSpeed(nextSpeed(playbackRate))}
+              accessibilityRole="button"
+              accessibilityLabel={tx(`গতি ${playbackRate}x, বদলাতে চাপুন`, `Speed ${playbackRate}x, tap to change`)}
+            >
+              <Text style={styles.speedText}>{playbackRate}x</Text>
+            </Pressable>
+          </>
+        )}
 
-        <View style={styles.actionPillWrapper}>
-          <ActionPillBar items={actions} />
-        </View>
+        {actions.length ? (
+          <View style={styles.actionRow}>
+            {actions.map((action) => {
+              const color = action.active ? Colors.primary : Colors.textPrimary;
+              return (
+                <Pressable
+                  key={action.id}
+                  onPress={action.onPress}
+                  style={({ pressed }) => [styles.actionButton, pressed && styles.pressed]}
+                  hitSlop={6}
+                  accessibilityRole="button"
+                  accessibilityLabel={action.label}
+                  accessibilityState={{ selected: !!action.active }}
+                >
+                  <Ionicons name={action.icon} size={24} color={color} />
+                  <Text style={[styles.actionLabel, { color }]} numberOfLines={1}>
+                    {action.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
       </ScrollView>
 
-      <ModalBottomSheet visible={settingsVisible} onClose={() => setSettingsVisible(false)}>
+      <ModalBottomSheet visible={sheet === 'chapters'} onClose={() => setSheet(null)}>
         <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>{tx('প্লেব্যাক সেটিংস', 'Playback settings')}</Text>
-          <Text style={styles.settingsLabel}>{tx('গতি', 'Speed')}</Text>
-          <View style={styles.chipsRow}>
-            {SPEEDS.map((speed) => (
-              <Chip key={speed} label={`${speed}x`} selected={playbackRate === speed} onPress={() => player.setSpeed(speed)} />
-            ))}
+          <Text style={styles.modalTitle}>{tx(`অধ্যায় (${chapters.length})`, `Chapters (${chapters.length})`)}</Text>
+          <Text style={styles.sheetHint}>
+            {tx(`এরপর বাকি ${formatDuration(remaining)}`, `${formatDuration(remaining)} left after this chapter`)}
+          </Text>
+          <SheetScrollView maxHeight={420}>
+            {chapters.map((c, index) => {
+              const current = index === currentChapterIndex;
+              const played = index < currentChapterIndex;
+              return (
+                <Pressable
+                  key={c.id}
+                  onPress={() => playChapter(index)}
+                  disabled={busy === 'chapter'}
+                  style={({ pressed }) => [styles.chapterRow, current && styles.chapterRowCurrent, pressed && styles.pressed]}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: current }}
+                >
+                  <Text style={[styles.chapterNumber, current && styles.chapterNumberCurrent]}>
+                    {current ? (isPlaying ? '▶' : '❚❚') : c.chapter_number}
+                  </Text>
+                  <Text style={[styles.chapterTitle, played && styles.chapterTitlePlayed]} numberOfLines={1}>
+                    {c.title}
+                  </Text>
+                  <Text style={styles.chapterDuration}>{formatDuration(c.duration_seconds)}</Text>
+                </Pressable>
+              );
+            })}
+          </SheetScrollView>
+        </View>
+      </ModalBottomSheet>
+
+      <ModalBottomSheet visible={sheet === 'playlist'} onClose={() => setSheet(null)}>
+        <View style={styles.modalContent}>
+          <Text style={styles.modalTitle}>{tx('প্লেলিস্টে যোগ করুন', 'Add to playlist')}</Text>
+          <View style={styles.inlineRow}>
+            <TextInput
+              style={styles.textInput}
+              value={newPlaylist}
+              onChangeText={setNewPlaylist}
+              placeholder={tx('নতুন প্লেলিস্টের নাম', 'New playlist name')}
+              placeholderTextColor={Colors.textMuted}
+              maxLength={150}
+            />
+            <AppButton
+              label={tx('তৈরি', 'Create')}
+              onPress={createPlaylist}
+              variant="compact"
+              fullWidth={false}
+              disabled={!newPlaylist.trim() || busy === 'playlist'}
+            />
           </View>
-          <Text style={styles.settingsLabel}>{tx('স্লিপ টাইমার', 'Sleep timer')}</Text>
-          <View style={styles.chipsRow}>
-            {SLEEP_OPTIONS.map((minutes) => (
-              <Chip
-                key={minutes}
-                label={minutes ? tx(`${minutes} মিনিট`, `${minutes} min`) : tx('বন্ধ', 'Off')}
-                selected={minutes === 0 ? !sleepEndsAt : false}
-                onPress={() => player.setSleepTimer(minutes)}
-              />
-            ))}
-          </View>
-          {sleepEndsAt ? (
-            <Text style={styles.sleepNote}>
-              {tx(`${sleepMinutesLeft} মিনিট পর প্লেব্যাক থামবে।`, `Playback stops in ${sleepMinutesLeft} min.`)}
-            </Text>
+          {playlists.map((p) => (
+            <Pressable
+              key={p.id}
+              style={({ pressed }) => [styles.option, pressed && styles.pressed]}
+              onPress={() => addToPlaylist(p)}
+              disabled={busy === 'playlist'}
+            >
+              <Text style={styles.optionText}>{p.name}</Text>
+            </Pressable>
+          ))}
+          {playlists.length === 0 ? (
+            <Text style={styles.emptyNotice}>{tx('এখনো কোনো প্লেলিস্ট নেই।', 'No playlists yet.')}</Text>
           ) : null}
-          <AppButton label={tx('ঠিক আছে', 'Done')} onPress={() => setSettingsVisible(false)} />
+        </View>
+      </ModalBottomSheet>
+
+      <ModalBottomSheet visible={sheet === 'report'} onClose={() => setSheet(null)}>
+        <View style={styles.modalContent}>
+          <Text style={styles.modalTitle}>{tx('অডিওবুক রিপোর্ট করুন', 'Report audiobook')}</Text>
+          {REPORT_REASONS.map((reason, index) => (
+            <Pressable
+              key={reason.en}
+              style={[styles.option, reportReason === index && styles.optionActive]}
+              onPress={() => setReportReason(index)}
+            >
+              <Text style={[styles.optionText, reportReason === index && styles.optionTextActive]}>
+                {isEnglish ? reason.en : reason.bn}
+              </Text>
+            </Pressable>
+          ))}
+          <TextInput
+            style={[styles.textInput, styles.multiline]}
+            value={reportDetails}
+            onChangeText={setReportDetails}
+            placeholder={tx('বিস্তারিত (ঐচ্ছিক)', 'Details (optional)')}
+            placeholderTextColor={Colors.textMuted}
+            multiline
+            maxLength={1000}
+          />
+          <AppButton label={tx('রিপোর্ট জমা দিন', 'Submit report')} onPress={submitReport} isLoading={busy === 'report'} />
         </View>
       </ModalBottomSheet>
     </SafeAreaView>
@@ -320,6 +589,13 @@ const styles = StyleSheet.create({
     marginTop: 4,
     textAlign: 'center',
   },
+  badgeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+    marginTop: Spacing.sm,
+  },
   errorBanner: {
     width: '100%',
     backgroundColor: Colors.tintError,
@@ -330,6 +606,16 @@ const styles = StyleSheet.create({
   errorText: {
     color: Colors.tintErrorText,
     fontSize: FontSizes.sm,
+    textAlign: 'center',
+  },
+  lockedCard: {
+    width: '100%',
+    gap: Spacing.sm,
+    marginTop: Spacing.md,
+  },
+  lockedText: {
+    fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
     textAlign: 'center',
   },
   progressBarWrapper: {
@@ -438,11 +724,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
   },
-  quickRow: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-  },
-  quickButton: {
+  speedButton: {
     paddingHorizontal: Spacing.md,
     paddingVertical: 6,
     borderRadius: Radius.full,
@@ -458,12 +740,24 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.6,
   },
-  actionPillWrapper: {
+  actionRow: {
     width: '100%',
-    marginTop: Spacing.md,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: Spacing.lg,
+  },
+  actionButton: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: Spacing.xs,
+  },
+  actionLabel: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   modalContent: {
-    gap: Spacing.md,
+    gap: Spacing.sm,
     paddingTop: Spacing.xs,
   },
   modalTitle: {
@@ -471,18 +765,88 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.textPrimary,
   },
-  settingsLabel: {
-    fontSize: FontSizes.xs + 1,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-  },
-  chipsRow: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    flexWrap: 'wrap',
-  },
-  sleepNote: {
+  sheetHint: {
     fontSize: FontSizes.xs,
     color: Colors.textSecondary,
+  },
+  chapterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingVertical: Spacing.sm + 2,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: Radius.md,
+  },
+  chapterRowCurrent: {
+    backgroundColor: Colors.primarySurface,
+  },
+  chapterNumber: {
+    width: 24,
+    fontSize: FontSizes.sm,
+    fontWeight: '700',
+    color: Colors.textMuted,
+    textAlign: 'center',
+  },
+  chapterNumberCurrent: {
+    color: Colors.primary,
+  },
+  chapterTitle: {
+    flex: 1,
+    fontSize: FontSizes.sm,
+    color: Colors.textPrimary,
+  },
+  chapterTitlePlayed: {
+    color: Colors.textSecondary,
+  },
+  chapterDuration: {
+    fontSize: FontSizes.xs,
+    color: Colors.textSecondary,
+  },
+  inlineRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    alignItems: 'center',
+  },
+  textInput: {
+    flex: 1,
+    minHeight: 46,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.surfaceBorder,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    fontSize: FontSizes.sm,
+    color: Colors.textPrimary,
+  },
+  multiline: {
+    minHeight: 80,
+    paddingTop: Spacing.sm,
+    textAlignVertical: 'top',
+    flex: 0,
+  },
+  option: {
+    backgroundColor: Colors.surfaceElevated,
+    padding: Spacing.md,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.surfaceBorder,
+  },
+  optionActive: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primarySurface,
+  },
+  optionText: {
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+    color: Colors.textPrimary,
+  },
+  optionTextActive: {
+    color: Colors.primary,
+  },
+  emptyNotice: {
+    fontSize: FontSizes.xs,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    paddingVertical: Spacing.sm,
   },
 });

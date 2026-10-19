@@ -21,6 +21,8 @@ async def validate_channel(db, user, channel_id):
         channel = await db.get(Channel, channel_id)
         if not channel or channel.owner_id != user.id:
             raise HTTPException(403, "Channel must belong to the publisher")
+        if channel.moderated:
+            raise HTTPException(409, "This channel is restricted by an administrator")
 
 
 async def create_audiobook(
@@ -31,10 +33,11 @@ async def create_audiobook(
     """Create a new audiobook record owned by the current user."""
     if user.account_type == "admin":
         raise HTTPException(403, "Administrators cannot create audiobooks")
-    if user.account_type == "publisher":
-        publishing(user)
+    # Anyone can create and generate privately; publishing goes through a verified channel.
     if data.visibility == AudiobookVisibility.PUBLIC or data.channel_id or data.access_tier == "premium":
         publishing(user)
+    if data.visibility == AudiobookVisibility.PUBLIC and not data.channel_id:
+        raise HTTPException(409, "Public audiobooks must be published in one of your channels")
     await validate_channel(db, user, data.channel_id)
     audiobook = Audiobook(
         owner_id=user.id,
@@ -226,14 +229,16 @@ async def update_audiobook(
         audiobook.language = data.language.strip().lower()
     if data.cover_image_url is not None:
         audiobook.cover_image_url = data.cover_image_url.strip()
-    if user.account_type == "publisher":
-        publishing(user)
     if data.channel_id or data.access_tier == "premium":
         publishing(user)
     await validate_channel(db, user, data.channel_id)
     for key in ("genre", "channel_id", "access_tier"):
         if key in data.model_fields_set:
             setattr(audiobook, key, getattr(data, key))
+    if audiobook.channel_id is None and audiobook.visibility == AudiobookVisibility.PUBLIC:
+        # Leaving its channel takes the audiobook out of public listings.
+        audiobook.visibility = AudiobookVisibility.PRIVATE
+        audiobook.publication_status = "draft"
 
     await db.commit()
     await db.refresh(audiobook)
@@ -265,6 +270,8 @@ async def update_visibility(
 
     if new_visibility == AudiobookVisibility.PUBLIC:
         publishing(user)
+        if not audiobook.channel_id:
+            raise HTTPException(409, "Add the audiobook to one of your channels to publish it")
         if audiobook.moderated or audiobook.status != AudiobookStatus.COMPLETED:
             raise HTTPException(409, "Only completed, unrestricted audiobooks can be published")
     audiobook.visibility = new_visibility

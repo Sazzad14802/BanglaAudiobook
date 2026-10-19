@@ -29,6 +29,7 @@ async def test_library_operations(
             "title": "Public Book",
             "author": "Public Author",
             "visibility": "PUBLIC",
+            "channel_id": owner_tokens["channel_id"],
         },
     )
     public_book_id = book_res.json()["id"]

@@ -50,11 +50,9 @@ async def request_audiobook_generation(
         )
 
     from app.models.platform import Quota
-    from app.services.policy import configuration, month_now, premium, publishing
+    from app.services.policy import configuration, is_publisher, month_now, premium
     if user.account_type == "admin":
         raise HTTPException(403, "Administrator accounts cannot generate audio")
-    if user.account_type == "publisher":
-        publishing(user)
     # All submissions for an account serialize on its row in PostgreSQL.
     await db.execute(select(User).where(User.id == user.id).with_for_update())
     existing = await db.scalar(select(GenerationJob).where(
@@ -64,7 +62,7 @@ async def request_audiobook_generation(
     if audiobook.status == AudiobookStatus.COMPLETED:
         raise HTTPException(409, "Create a new audiobook to generate a different version")
     policy = await configuration(db)
-    tier = "publisher" if user.account_type == "publisher" else "premium" if premium(user) else "free"
+    tier = "publisher" if is_publisher(user) else "premium" if premium(user) else "free"
     quota = await db.get(Quota, (user.id, month_now()))
     if not quota:
         quota = Quota(user_id=user.id, month=month_now(), used=0)

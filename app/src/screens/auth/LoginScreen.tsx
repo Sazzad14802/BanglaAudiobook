@@ -41,7 +41,6 @@ export function LoginScreen() {
   const { t, isEnglish } = useLanguage();
 
   const [isSignUp, setIsSignUp] = useState(false);
-  const [accountType, setAccountType] = useState<'listener' | 'publisher'>('listener');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -90,14 +89,12 @@ export function LoginScreen() {
           email: cleanEmail,
           password: cleanPassword,
           full_name: name.trim() || undefined,
-          account_type: accountType,
         });
         setSuccessMessage('অ্যাকাউন্ট সফলভাবে তৈরি হয়েছে!');
       } else {
         await login({
           username_or_email: cleanEmail,
           password: cleanPassword,
-          account_type: accountType,
         });
         setSuccessMessage('সফলভাবে সাইন ইন হয়েছে!');
       }
@@ -155,7 +152,7 @@ export function LoginScreen() {
     }
     setIsSubmitting(true);
     try {
-      await acceptSession(await signInWithGoogle(accountType));
+      await acceptSession(await signInWithGoogle());
     } catch (err) {
       if (!(err instanceof GoogleSignInCancelled)) setValidationError(errorMessage(err));
     } finally {
@@ -188,33 +185,6 @@ export function LoginScreen() {
             />
             <Text style={styles.brandTitle}>{t('appName')}</Text>
             <Text style={styles.brandTagline}>{t('appTagline')}</Text>
-          </View>
-
-          {/* Account Namespace Selector (Listener vs Publisher) */}
-          <View style={styles.accountTypeWrapper}>
-            <View style={styles.accountTypeRow}>
-              <Pressable
-                onPress={() => setAccountType('listener')}
-                style={[styles.accountTypeChip, accountType === 'listener' && styles.accountTypeChipActive]}
-              >
-                <Text style={[styles.accountTypeText, accountType === 'listener' && styles.accountTypeTextActive]}>
-                  🎧 {isEnglish ? 'Listener Account' : 'শ্রোতা অ্যাকাউন্ট'}
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => setAccountType('publisher')}
-                style={[styles.accountTypeChip, accountType === 'publisher' && styles.accountTypeChipActive]}
-              >
-                <Text style={[styles.accountTypeText, accountType === 'publisher' && styles.accountTypeTextActive]}>
-                  🎙️ {isEnglish ? 'Publisher Account' : 'প্রকাশক অ্যাকাউন্ট'}
-                </Text>
-              </Pressable>
-            </View>
-            <Text style={styles.accountTypeHint}>
-              {isEnglish
-                ? 'Listener and Publisher accounts are independent, even with the same email.'
-                : 'শ্রোতা ও প্রকাশক অ্যাকাউন্টের সম্পূর্ণ পৃথক ক্রেডেনশিয়াল থাকে।'}
-            </Text>
           </View>
 
           {/* Tab Selector for Sign In vs Sign Up */}
@@ -510,47 +480,5 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
     color: Colors.primary,
     fontWeight: '600',
-  },
-  accountTypeWrapper: {
-    marginBottom: Spacing.sm,
-    gap: 6,
-  },
-  accountTypeRow: {
-    flexDirection: 'row',
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.full,
-    padding: 4,
-    borderWidth: 1,
-    borderColor: Colors.surfaceBorder,
-  },
-  accountTypeChip: {
-    flex: 1,
-    paddingVertical: Spacing.xs + 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: Radius.full,
-  },
-  accountTypeChipActive: {
-    backgroundColor: Colors.primary,
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  accountTypeText: {
-    fontSize: FontSizes.xs + 1,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-  },
-  accountTypeTextActive: {
-    color: Colors.textOnPrimary,
-    fontWeight: '700',
-  },
-  accountTypeHint: {
-    fontSize: 11,
-    color: Colors.textMuted,
-    textAlign: 'center',
-    paddingHorizontal: Spacing.xs,
   },
 });

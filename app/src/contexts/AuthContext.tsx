@@ -101,7 +101,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await authApi.login({
           username_or_email: data.email,
           password: data.password,
-          account_type: data.account_type,
         }),
       );
     },

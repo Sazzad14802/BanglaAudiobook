@@ -6,12 +6,13 @@
  * - Keep one listening session per book: chapter changes renew grants on the same
  *   session so the server's listening-time accounting is not reset.
  * - Sync position to the server and send listening heartbeats while playing.
- * - Auto-advance chapters, playback speed, sleep timer, lock-screen controls.
+ * - Auto-advance chapters, playback speed, lock-screen controls.
  * Errors are surfaced through `error` so screens can show them.
  */
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AudioPlayer, AudioStatus, createAudioPlayer, setAudioModeAsync } from 'expo-audio';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { ApiError, errorMessage } from '../api/client';
 import { playbackApi } from '../api/playback';
 import { MEDIA_GRANT_REFRESH_MS, PLAYBACK_SYNC_INTERVAL_MS, resolveMediaUrl } from '../config';
@@ -34,7 +35,6 @@ interface PlayerState {
   positionSeconds: number;
   durationSeconds: number;
   playbackRate: number;
-  sleepEndsAt: number | null;
   isOffline: boolean;
   error: string | null;
 }
@@ -58,7 +58,6 @@ interface PlayerContextValue extends PlayerState {
   nextChapter: () => Promise<void>;
   prevChapter: () => Promise<void>;
   setSpeed: (rate: number) => void;
-  setSleepTimer: (minutes: number) => void;
   stop: () => Promise<void>;
   clearError: () => void;
 }
@@ -72,12 +71,15 @@ const initialState: PlayerState = {
   positionSeconds: 0,
   durationSeconds: 0,
   playbackRate: 1,
-  sleepEndsAt: null,
   isOffline: false,
   error: null,
 };
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
+
+// Expo Go ignores the expo-audio config plugin, so it has no background playback
+// service and lock screen controls would only log a native error there.
+const lockScreenSupported = Constants.executionEnvironment !== ExecutionEnvironment.StoreClient;
 
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -90,7 +92,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const sessionId = useRef<string | undefined>(undefined);
   const grantIssuedAt = useRef(0);
   const finished = useRef(false);
-  const sleepTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadEpoch = useRef(0);
   const advanceRef = useRef<() => void>(() => {});
 
@@ -98,7 +99,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     subscription.current?.remove();
     subscription.current = null;
     try {
-      player.current?.setActiveForLockScreen(false);
+      if (lockScreenSupported) player.current?.setActiveForLockScreen(false);
+    } catch {}
+    // remove() only frees the JS handle; the native player can keep sounding until
+    // it is collected, so silence it explicitly first.
+    try {
+      player.current?.pause();
     } catch {}
     player.current?.remove();
     player.current = null;
@@ -112,8 +118,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     loadEpoch.current++;
     disposePlayer();
     sessionId.current = undefined;
-    if (sleepTimer.current) clearTimeout(sleepTimer.current);
-    sleepTimer.current = null;
     setState(initialState);
     offline.clearPlayback();
   }, [disposePlayer]);
@@ -127,7 +131,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     return () => {
       disposePlayer();
       offline.clearPlayback();
-      if (sleepTimer.current) clearTimeout(sleepTimer.current);
     };
   }, [disposePlayer]);
 
@@ -186,17 +189,19 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         }
       });
 
-      try {
-        instance.setActiveForLockScreen(
-          true,
-          {
-            title: `${book.title} · ${chapter.title}`,
-            artist: book.author ?? 'BornoVerse',
-            artworkUrl: resolveMediaUrl(book.cover_image_url),
-          },
-          { showSeekForward: true, showSeekBackward: true },
-        );
-      } catch {}
+      if (lockScreenSupported) {
+        try {
+          instance.setActiveForLockScreen(
+            true,
+            {
+              title: `${book.title} · ${chapter.title}`,
+              artist: book.author ?? 'BornoVerse',
+              artworkUrl: resolveMediaUrl(book.cover_image_url),
+            },
+            { showSeekForward: true, showSeekBackward: true },
+          );
+        } catch {}
+      }
 
       if (rate !== 1) instance.setPlaybackRate(rate);
       if (position > 0) instance.seekTo(position).catch(() => {});
@@ -368,24 +373,6 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setState((s) => ({ ...s, playbackRate: rate }));
   }, []);
 
-  const setSleepTimer = useCallback(
-    (minutes: number) => {
-      if (sleepTimer.current) clearTimeout(sleepTimer.current);
-      sleepTimer.current = null;
-      if (minutes <= 0) {
-        setState((s) => ({ ...s, sleepEndsAt: null }));
-        return;
-      }
-      const ms = minutes * 60_000;
-      sleepTimer.current = setTimeout(() => {
-        pause();
-        setState((s) => ({ ...s, sleepEndsAt: null }));
-      }, ms);
-      setState((s) => ({ ...s, sleepEndsAt: Date.now() + ms }));
-    },
-    [pause],
-  );
-
   const value = useMemo<PlayerContextValue>(
     () => ({
       ...state,
@@ -403,11 +390,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           ? seek(0)
           : selectChapter(Math.max(0, stateRef.current.currentChapterIndex - 1)),
       setSpeed,
-      setSleepTimer,
       stop,
       clearError: () => setState((s) => ({ ...s, error: null })),
     }),
-    [state, loadAudiobook, loadOffline, play, pause, togglePlay, seek, skip, selectChapter, setSpeed, setSleepTimer, stop],
+    [state, loadAudiobook, loadOffline, play, pause, togglePlay, seek, skip, selectChapter, setSpeed, stop],
   );
 
   return <PlayerContext.Provider value={value}>{children}</PlayerContext.Provider>;

@@ -32,7 +32,7 @@ async def test_postgres_atomic_quota_and_payment(tmp_path,monkeypatch):
         async with isolated.begin() as connection:
             await connection.run_sync(Base.metadata.create_all)
         async with sessions() as db:
-            user=User(username='concurrent',email='concurrent@example.com',password_hash='not-used',account_type='listener')
+            user=User(username='concurrent',email='concurrent@example.com',password_hash='not-used',account_type='user')
             db.add(user);db.add(Setting(key='policy',value=DEFAULTS|{'free_quota':1}));await db.flush()
             books=[]
             for i in range(2):

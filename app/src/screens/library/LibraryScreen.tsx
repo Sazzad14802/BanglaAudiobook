@@ -49,13 +49,13 @@ export function LibraryScreen() {
 
   const data = library.data;
 
-  const openBook = (book: Audiobook) => navigation.navigate('AudiobookDetails', { audiobookId: book.id });
+  const openBook = (book: Audiobook) => navigation.navigate('Player', { audiobookId: book.id });
 
   const play = async (book: Audiobook, fromDownload = false) => {
     try {
       if (fromDownload && user) await loadOffline(book, await offline.open(book.id, user.id));
       else await loadAudiobook(book);
-      navigation.navigate('Player');
+      navigation.navigate('Player', { audiobookId: book.id });
     } catch (error) {
       Alert.alert(tx('চালানো যায়নি', 'Could not play'), errorMessage(error));
     }

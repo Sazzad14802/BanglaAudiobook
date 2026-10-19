@@ -220,10 +220,10 @@ export function App() {
                   setNumber(1);
                 }}
               >
-                <option value="">All account types</option>
-                <option>listener</option>
-                <option>publisher</option>
-                <option>admin</option>
+                <option value="">All accounts</option>
+                <option value="user">Users</option>
+                <option value="publisher">Verified publishers</option>
+                <option value="admin">Administrators</option>
               </select>
             )}
           </div>
@@ -243,8 +243,9 @@ export function App() {
             <section className="panel">
               <h2>Review queue</h2>
               <p>
-                Publisher activation requires document approval and a confirmed
-                registration payment.
+                Any user can apply to become a publisher. Activation requires
+                document approval and a confirmed registration payment; only then
+                can they open channels and publish.
               </p>
               <button onClick={() => setPage("applications")}>
                 Review publisher applications →

@@ -86,11 +86,10 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
 
 @pytest.fixture
 async def owner_tokens(client: AsyncClient, db_session: AsyncSession) -> dict:
-    """Register and log in an owner user."""
+    """Register and log in an owner user who is a verified publisher with one channel."""
     reg = await client.post(
         "/api/v1/auth/register",
         json={
-            "account_type": "publisher",
             "username": "owneruser",
             "email": "owner@example.com",
             "password": "Password123!",
@@ -99,19 +98,23 @@ async def owner_tokens(client: AsyncClient, db_session: AsyncSession) -> dict:
     assert reg.status_code == 201
 
     from app.models import User
+    from app.models.platform import Channel
     import uuid
     owner = await db_session.get(User, uuid.UUID(reg.json()["id"]))
     owner.publisher_status = "active"
+    channel = Channel(owner_id=owner.id, name="Owner channel")
+    db_session.add(channel)
     await db_session.commit()
     login = await client.post(
         "/api/v1/auth/login",
-        json={"account_type": "publisher", "username_or_email": "owner@example.com", "password": "Password123!"},
+        json={"username_or_email": "owner@example.com", "password": "Password123!"},
     )
     assert login.status_code == 200
     token = login.json()["access_token"]
     return {
         "headers": {"Authorization": f"Bearer {token}"},
         "user": reg.json(),
+        "channel_id": str(channel.id),
     }
 
 

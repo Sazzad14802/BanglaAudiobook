@@ -3,12 +3,10 @@ Authentication Pydantic schemas.
 """
 
 from pydantic import BaseModel, Field, field_validator
-from typing import Literal
 from app.schemas.user import UserRead
 
 
 class RegisterRequest(BaseModel):
-    account_type: Literal["listener", "publisher"] = "listener"
     full_name: str = Field(default="", max_length=150)
     username: str = Field(min_length=3, max_length=50, description="Unique username")
     email: str = Field(min_length=5, max_length=255, description="Unique user email address")
@@ -40,7 +38,6 @@ class RegisterRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    account_type: Literal["listener", "publisher", "admin"] = "listener"
     username_or_email: str = Field(description="Username or email address")
     password: str = Field(description="Account password")
 

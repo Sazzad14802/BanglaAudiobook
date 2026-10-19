@@ -1,7 +1,8 @@
 /**
- * PublisherScreen — the publisher lifecycle in one place:
+ * PublisherScreen — any user can become a publisher here:
  * 1. submit verification (legal name + PDF) → 2. admin review →
- * 3. pay the registration fee → 4. dashboard: earnings, channels, withdrawals.
+ * 3. pay the registration fee → 4. studio: channels, earnings, withdrawals.
+ * Publishing itself happens inside a channel (see ChannelScreen).
  */
 
 import React, { useState } from 'react';
@@ -32,7 +33,7 @@ export function PublisherScreen() {
   const { navigation } = useAppNavigation();
   const { user, refreshUser } = useAuth();
   const { tx, isEnglish } = useLanguage();
-  const status = user?.publisher_status ?? 'pending_approval';
+  const status = user?.publisher_status ?? 'none';
   const active = status === 'active';
 
   const data = useResource(async () => {
@@ -49,25 +50,16 @@ export function PublisherScreen() {
   const [legalName, setLegalName] = useState(user?.full_name ?? '');
   const [document, setDocument] = useState<PickedFile | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [channelSheet, setChannelSheet] = useState<Channel | 'new' | null>(null);
+  const [channelSheet, setChannelSheet] = useState(false);
   const [channelName, setChannelName] = useState('');
   const [channelDescription, setChannelDescription] = useState('');
   const [withdrawSheet, setWithdrawSheet] = useState(false);
   const [amount, setAmount] = useState('');
   const [destination, setDestination] = useState('');
 
-  if (user?.account_type !== 'publisher') {
-    return (
-      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-        <AppHeader title={tx('প্রকাশক', 'Publisher')} onBack={() => navigation.goBack()} />
-        <StateView kind="empty" title={tx('এটি প্রকাশক অ্যাকাউন্টের জন্য', 'This is for publisher accounts')} />
-      </SafeAreaView>
-    );
-  }
-
   const latest = data.data?.applications[0];
   const awaitingReview = latest?.status === 'pending';
-  const canApply = (status === 'pending_approval' && !awaitingReview) || status === 'rejected';
+  const canApply = ((status === 'none' || status === 'pending_approval') && !awaitingReview) || status === 'rejected';
   const stepIndex = STEPS.indexOf(status as (typeof STEPS)[number]);
 
   const run = async (name: string, action: () => Promise<void>) => {
@@ -102,19 +94,21 @@ export function PublisherScreen() {
       navigation.navigate('PaymentCheckout', { orderId: order.id });
     });
 
-  const openChannel = (channel: Channel | 'new') => {
-    setChannelName(channel === 'new' ? '' : channel.name);
-    setChannelDescription(channel === 'new' ? '' : channel.description);
-    setChannelSheet(channel);
+  const openChannel = (channel: Channel) => navigation.navigate('Channel', { channelId: channel.id });
+
+  const newChannel = () => {
+    setChannelName('');
+    setChannelDescription('');
+    setChannelSheet(true);
   };
 
-  const saveChannel = () =>
+  const createChannel = () =>
     run('channel', async () => {
       if (!channelName.trim()) throw new Error(tx('চ্যানেলের নাম দিন।', 'Enter a channel name.'));
-      if (channelSheet === 'new') await publisherApi.createChannel(channelName.trim(), channelDescription.trim());
-      else if (channelSheet) await publisherApi.updateChannel(channelSheet.id, channelName.trim(), channelDescription.trim());
-      setChannelSheet(null);
+      const channel = await publisherApi.createChannel(channelName.trim(), channelDescription.trim());
+      setChannelSheet(false);
       await data.reload();
+      openChannel(channel);
     });
 
   const withdraw = () =>
@@ -133,7 +127,7 @@ export function PublisherScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <AppHeader title={tx('প্রকাশক ওয়ার্কস্পেস', 'Publisher workspace')} onBack={() => navigation.goBack()} />
+      <AppHeader title={tx('প্রকাশক স্টুডিও', 'Publisher studio')} onBack={() => navigation.goBack()} />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={data.isRefreshing} onRefresh={data.refresh} tintColor={Colors.primary} />}
@@ -169,9 +163,12 @@ export function PublisherScreen() {
 
         {canApply ? (
           <FormCard>
-            <Text style={styles.cardTitle}>{tx('প্রকাশক যাচাইকরণ', 'Publisher verification')}</Text>
+            <Text style={styles.cardTitle}>{tx('প্রকাশক হোন', 'Become a publisher')}</Text>
             <Text style={styles.cardText}>
-              {tx('আইনি নাম ও পরিচয়/প্রতিষ্ঠানের প্রমাণপত্র (PDF) জমা দিন।', 'Submit your legal name and an identity or organisation document (PDF).')}
+              {tx(
+                'যাচাইয়ের পর নিবন্ধন ফি দিয়ে চ্যানেল খুলুন, MP3 আপলোড করুন বা আপনার তৈরি অডিওবুক প্রকাশ করুন। শুরু করতে আইনি নাম ও পরিচয়/প্রতিষ্ঠানের প্রমাণপত্র (PDF) জমা দিন।',
+                'Once verified and the registration fee is paid, you can open channels, upload MP3s and publish your generated audiobooks. Start by submitting your legal name and an identity or organisation document (PDF).',
+              )}
             </Text>
             <Field label={tx('আইনি নাম', 'Legal name')} required value={legalName} onChangeText={setLegalName} maxLength={150} />
             <AppButton
@@ -222,7 +219,7 @@ export function PublisherScreen() {
             <FormCard style={styles.list}>
               <View style={styles.listHeader}>
                 <Text style={styles.cardTitle}>{tx('চ্যানেল', 'Channels')}</Text>
-                <AppButton label={tx('+ নতুন', '+ New')} variant="compact" fullWidth={false} onPress={() => openChannel('new')} />
+                <AppButton label={tx('+ নতুন', '+ New')} variant="compact" fullWidth={false} onPress={newChannel} />
               </View>
               {data.data?.channels.length ? (
                 data.data.channels.map((c, i, all) => (
@@ -235,7 +232,7 @@ export function PublisherScreen() {
                   />
                 ))
               ) : (
-                <Text style={styles.cardText}>{tx('অডিওবুক সাজাতে একটি চ্যানেল খুলুন।', 'Create a channel to group your audiobooks.')}</Text>
+                <Text style={styles.cardText}>{tx('প্রকাশ করতে প্রথমে একটি চ্যানেল খুলুন।', 'Create a channel to start publishing.')}</Text>
               )}
             </FormCard>
 
@@ -266,12 +263,12 @@ export function PublisherScreen() {
         <Text style={styles.fine}>{isEnglish ? 'Payouts are reviewed by administrators.' : 'উত্তোলন অ্যাডমিন যাচাই করে সম্পন্ন করেন।'}</Text>
       </ScrollView>
 
-      <ModalBottomSheet visible={channelSheet !== null} onClose={() => setChannelSheet(null)}>
+      <ModalBottomSheet visible={channelSheet} onClose={() => setChannelSheet(false)}>
         <View style={styles.sheet}>
-          <Text style={styles.cardTitle}>{channelSheet === 'new' ? tx('নতুন চ্যানেল', 'New channel') : tx('চ্যানেল সম্পাদনা', 'Edit channel')}</Text>
+          <Text style={styles.cardTitle}>{tx('নতুন চ্যানেল', 'New channel')}</Text>
           <Field label={tx('নাম', 'Name')} required value={channelName} onChangeText={setChannelName} maxLength={150} />
           <Field label={tx('বিবরণ', 'Description')} value={channelDescription} onChangeText={setChannelDescription} multiline maxLength={5000} />
-          <AppButton label={tx('সংরক্ষণ', 'Save')} onPress={saveChannel} isLoading={busy === 'channel'} />
+          <AppButton label={tx('চ্যানেল খুলুন', 'Create channel')} onPress={createChannel} isLoading={busy === 'channel'} />
         </View>
       </ModalBottomSheet>
 

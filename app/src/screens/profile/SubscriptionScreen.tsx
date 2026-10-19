@@ -33,7 +33,6 @@ export function SubscriptionScreen() {
   const { user, refreshUser } = useAuth();
   const { tx, isEnglish } = useLanguage();
   const premium = isPremium(user);
-  const isListener = user?.account_type === 'listener';
 
   const data = useResource(async () => {
     const [plans, payments] = await Promise.all([subscriptionApi.plans(), paymentsApi.list()]);
@@ -111,9 +110,7 @@ export function SubscriptionScreen() {
           </View>
         )}
 
-        {!isListener ? (
-          <StateView kind="empty" compact title={tx('প্রিমিয়াম শুধু শ্রোতা অ্যাকাউন্টের জন্য', 'Premium is for listener accounts')} />
-        ) : data.isLoading ? (
+        {data.isLoading ? (
           <StateView kind="loading" />
         ) : data.error && !data.data ? (
           <StateView kind="error" message={data.error} actionLabel={tx('আবার চেষ্টা', 'Retry')} onAction={data.reload} />

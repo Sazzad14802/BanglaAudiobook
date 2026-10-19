@@ -2,8 +2,8 @@
 Seed comprehensive platform dummy data for every user role in BornoVerse.
 Creates:
 - Admin user
-- Free & Premium Listeners
-- Active & Pending Publishers
+- Free & Premium users
+- Verified, pending and approved-unpaid publishers (users with publisher status)
 - Publisher channels
 - Public Free & Premium Audiobooks with Chapters
 - User Library collections & Playlists
@@ -58,8 +58,10 @@ async def seed():
         # 1.1 Admin
         admin = await db.scalar(select(User).where(User.email == "admin@bornoverse.com", User.account_type == "admin"))
         if not admin:
+            # Usernames are platform-wide; don't collide with an operator created by bootstrap_admin.
+            taken = await db.scalar(select(User.id).where(User.username == "admin"))
             admin = User(
-                username="admin",
+                username="platform_admin" if taken else "admin",
                 email="admin@bornoverse.com",
                 password_hash=admin_pw,
                 account_type="admin",
@@ -69,26 +71,26 @@ async def seed():
             await db.flush()
 
         # 1.2 Free Listener
-        listener_free = await db.scalar(select(User).where(User.email == "listener@bornoverse.com", User.account_type == "listener"))
+        listener_free = await db.scalar(select(User).where(User.email == "listener@bornoverse.com", User.account_type == "user"))
         if not listener_free:
             listener_free = User(
                 username="shohan_listener",
                 email="listener@bornoverse.com",
                 password_hash=default_pw,
-                account_type="listener",
+                account_type="user",
                 full_name="Shohanur Rahman",
             )
             db.add(listener_free)
             await db.flush()
 
         # 1.3 Premium Listener
-        listener_premium = await db.scalar(select(User).where(User.email == "premium@bornoverse.com", User.account_type == "listener"))
+        listener_premium = await db.scalar(select(User).where(User.email == "premium@bornoverse.com", User.account_type == "user"))
         if not listener_premium:
             listener_premium = User(
                 username="tanvir_premium",
                 email="premium@bornoverse.com",
                 password_hash=default_pw,
-                account_type="listener",
+                account_type="user",
                 full_name="Tanvir Ahmed",
                 premium_until=utc_now() + timedelta(days=180),
             )
@@ -98,13 +100,13 @@ async def seed():
             listener_premium.premium_until = utc_now() + timedelta(days=180)
 
         # 1.4 Active Verified Publisher
-        pub_active = await db.scalar(select(User).where(User.email == "publisher@bornoverse.com", User.account_type == "publisher"))
+        pub_active = await db.scalar(select(User).where(User.email == "publisher@bornoverse.com", User.account_type == "user"))
         if not pub_active:
             pub_active = User(
                 username="bengal_heritage",
                 email="publisher@bornoverse.com",
                 password_hash=default_pw,
-                account_type="publisher",
+                account_type="user",
                 publisher_status="active",
                 full_name="Bengal Heritage Audio Media",
             )
@@ -114,13 +116,13 @@ async def seed():
             pub_active.publisher_status = "active"
 
         # 1.5 Pending Approval Publisher
-        pub_pending = await db.scalar(select(User).where(User.email == "publisher.pending@bornoverse.com", User.account_type == "publisher"))
+        pub_pending = await db.scalar(select(User).where(User.email == "publisher.pending@bornoverse.com", User.account_type == "user"))
         if not pub_pending:
             pub_pending = User(
                 username="dhaka_books",
                 email="publisher.pending@bornoverse.com",
                 password_hash=default_pw,
-                account_type="publisher",
+                account_type="user",
                 publisher_status="pending_approval",
                 full_name="Dhaka Book House Ltd.",
             )
@@ -128,31 +130,17 @@ async def seed():
             await db.flush()
 
         # 1.6 Approved Pending Payment Publisher
-        pub_approved = await db.scalar(select(User).where(User.email == "publisher.approved@bornoverse.com", User.account_type == "publisher"))
+        pub_approved = await db.scalar(select(User).where(User.email == "publisher.approved@bornoverse.com", User.account_type == "user"))
         if not pub_approved:
             pub_approved = User(
                 username="ctg_press",
                 email="publisher.approved@bornoverse.com",
                 password_hash=default_pw,
-                account_type="publisher",
+                account_type="user",
                 publisher_status="approved_pending_payment",
                 full_name="Chittagong Audio Press",
             )
             db.add(pub_approved)
-            await db.flush()
-
-        # 1.7 Dual Identity: Listener who also has a Publisher account on SAME EMAIL
-        dual_publisher = await db.scalar(select(User).where(User.email == "listener@bornoverse.com", User.account_type == "publisher"))
-        if not dual_publisher:
-            dual_publisher = User(
-                username="shohan_publisher",
-                email="listener@bornoverse.com",
-                password_hash=hash_password("PublisherPass123!"),
-                account_type="publisher",
-                publisher_status="active",
-                full_name="Shohan Media House",
-            )
-            db.add(dual_publisher)
             await db.flush()
 
         # ── 2. Publisher Channels ──────────────────────────────────────────────

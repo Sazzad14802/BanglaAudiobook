@@ -20,15 +20,15 @@ async def get_user_by_id(db: AsyncSession, user_id: uuid.UUID) -> Optional[User]
     return result.scalar_one_or_none()
 
 
-async def get_user_by_email(db: AsyncSession, email: str, account_type: str = "listener") -> Optional[User]:
+async def get_user_by_email(db: AsyncSession, email: str) -> Optional[User]:
     """Retrieve a user by their email address."""
-    result = await db.execute(select(User).where(User.email == email.lower(), User.account_type == account_type))
+    result = await db.execute(select(User).where(User.email == email.lower()))
     return result.scalar_one_or_none()
 
 
-async def get_user_by_username(db: AsyncSession, username: str, account_type: str = "listener") -> Optional[User]:
+async def get_user_by_username(db: AsyncSession, username: str) -> Optional[User]:
     """Retrieve a user by their username."""
-    result = await db.execute(select(User).where(User.username == username, User.account_type == account_type))
+    result = await db.execute(select(User).where(User.username == username))
     return result.scalar_one_or_none()
 
 
@@ -39,7 +39,7 @@ async def register_user(db: AsyncSession, data: RegisterRequest) -> User:
     Hashes the password securely with bcrypt.
     """
     # Check for existing email
-    existing_email = await get_user_by_email(db, data.email, data.account_type)
+    existing_email = await get_user_by_email(db, data.email)
     if existing_email:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -47,7 +47,7 @@ async def register_user(db: AsyncSession, data: RegisterRequest) -> User:
         )
 
     # Check for existing username
-    existing_username = await get_user_by_username(db, data.username, data.account_type)
+    existing_username = await get_user_by_username(db, data.username)
     if existing_username:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -59,7 +59,7 @@ async def register_user(db: AsyncSession, data: RegisterRequest) -> User:
         username=data.username.strip(),
         email=data.email.strip().lower(),
         password_hash=hash_password(data.password),
-        account_type=data.account_type,
+        account_type="user",
         full_name=data.full_name,
     )
     db.add(user)
@@ -68,7 +68,7 @@ async def register_user(db: AsyncSession, data: RegisterRequest) -> User:
         await db.commit()
     except IntegrityError:
         await db.rollback()
-        raise HTTPException(409, "Account already exists in this namespace")
+        raise HTTPException(409, "An account with this email or username already exists")
     await db.refresh(user)
     return user
 
@@ -77,7 +77,7 @@ async def authenticate_user(
     db: AsyncSession,
     username_or_email: str,
     password: str,
-    account_type: str = "listener",
+    account_type: str = "user",
 ) -> User:
     """
     Authenticate a user by username or email and password.

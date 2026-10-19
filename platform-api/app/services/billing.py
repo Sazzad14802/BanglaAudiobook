@@ -138,14 +138,14 @@ async def initiate(db, user, data):
         return existing
     months = 0
     if data.kind == "subscription":
-        if user.account_type != "listener":
-            raise HTTPException(403, "Listener account required")
+        if user.account_type != "user":
+            raise HTTPException(403, "A user account is required")
         plan = await db.get(Plan, data.plan_id) if data.plan_id else None
         if not plan or not plan.active:
             raise HTTPException(404, "Active subscription plan not found")
         amount, months = plan.price, plan.months
     else:
-        if data.plan_id or user.account_type != "publisher" or user.publisher_status != "approved_pending_payment":
+        if data.plan_id or user.account_type != "user" or user.publisher_status != "approved_pending_payment":
             raise HTTPException(403, "Publisher approval required before payment")
         amount = Decimal(str((await configuration(db))["publisher_fee"]))
     order = Order(user_id=user.id, kind=data.kind, plan_id=data.plan_id, months=months,

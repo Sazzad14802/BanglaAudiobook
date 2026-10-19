@@ -10,6 +10,9 @@ BornoVerse/
 └── tts-service/      # FastAPI OCR & TTS service (Gemini today; replaceable)
 ```
 
+> **Just cloned?** Run `setup-dev.bat` once (details in [SETUP.md](SETUP.md)), then `start-dev.bat`.
+> Prefer Docker? `docker compose up --build -d` runs the database, API, worker and admin portal (see SETUP.md).
+
 ---
 
 ## Architecture

@@ -15,9 +15,9 @@ from app.models.audiobook import Audiobook, AudiobookStatus
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
 
 
-async def public_book(client: AsyncClient, headers: dict, db: AsyncSession, chapters=(100.0, 50.0)) -> str:
-    response = await client.post("/api/v1/audiobooks", headers=headers,
-                                 json={"title": "Public Book", "visibility": "PUBLIC"})
+async def public_book(client: AsyncClient, owner: dict, db: AsyncSession, chapters=(100.0, 50.0)) -> str:
+    response = await client.post("/api/v1/audiobooks", headers=owner["headers"],
+                                 json={"title": "Public Book", "visibility": "PUBLIC", "channel_id": owner["channel_id"]})
     book_id = response.json()["id"]
     await db.execute(update(Audiobook).where(Audiobook.id == uuid.UUID(book_id))
                      .values(status=AudiobookStatus.COMPLETED))
@@ -29,7 +29,7 @@ async def public_book(client: AsyncClient, headers: dict, db: AsyncSession, chap
 
 
 async def test_library_status_reflects_save_and_remove(client, owner_tokens, other_tokens, db_session):
-    book_id = await public_book(client, owner_tokens["headers"], db_session)
+    book_id = await public_book(client, owner_tokens, db_session)
     headers = other_tokens["headers"]
 
     assert (await client.get(f"/api/v1/library/{book_id}", headers=headers)).json() == {"saved": False}
@@ -47,7 +47,7 @@ async def test_library_status_hides_private_books(client, owner_tokens, other_to
 
 
 async def test_recent_playback_reports_overall_progress(client, owner_tokens, other_tokens, db_session):
-    book_id = await public_book(client, owner_tokens["headers"], db_session)
+    book_id = await public_book(client, owner_tokens, db_session)
     headers = other_tokens["headers"]
     chapters = (await client.get(f"/api/v1/audiobooks/{book_id}/chapters", headers=headers)).json()
 

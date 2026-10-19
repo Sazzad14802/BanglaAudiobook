@@ -34,7 +34,6 @@ export function ForgotPasswordScreen() {
   const { t, isEnglish } = useLanguage();
 
   const [email, setEmail] = useState('');
-  const [accountType, setAccountType] = useState<'listener' | 'publisher'>('listener');
   const [verificationCode, setVerificationCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -54,7 +53,6 @@ export function ForgotPasswordScreen() {
     try {
       await apiClient.post('/auth/recovery', {
         email: email.trim().toLowerCase(),
-        account_type: accountType,
       });
       setInfoMessage(
         isEnglish
@@ -131,28 +129,6 @@ export function ForgotPasswordScreen() {
               <Text style={[styles.stepText, step === 3 && styles.stepTextActive]}>{t('forgotStepSuccess')}</Text>
             </View>
           </View>
-
-          {/* Account Namespace Selector */}
-          {step === 1 && (
-            <View style={styles.accountTypeRow}>
-              <Pressable
-                onPress={() => setAccountType('listener')}
-                style={[styles.accountTypeChip, accountType === 'listener' && styles.accountTypeChipActive]}
-              >
-                <Text style={[styles.accountTypeText, accountType === 'listener' && styles.accountTypeTextActive]}>
-                  🎧 {isEnglish ? 'Listener' : 'শ্রোতা'}
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => setAccountType('publisher')}
-                style={[styles.accountTypeChip, accountType === 'publisher' && styles.accountTypeChipActive]}
-              >
-                <Text style={[styles.accountTypeText, accountType === 'publisher' && styles.accountTypeTextActive]}>
-                  🎙️ {isEnglish ? 'Publisher' : 'প্রকাশক'}
-                </Text>
-              </Pressable>
-            </View>
-          )}
 
           {/* Form Fields */}
           <View style={styles.fieldsContainer}>
@@ -301,33 +277,6 @@ const styles = StyleSheet.create({
   },
   stepTextActive: {
     color: Colors.primary,
-    fontWeight: '700',
-  },
-  accountTypeRow: {
-    flexDirection: 'row',
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.full,
-    padding: 4,
-    borderWidth: 1,
-    borderColor: Colors.surfaceBorder,
-  },
-  accountTypeChip: {
-    flex: 1,
-    paddingVertical: Spacing.xs + 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: Radius.full,
-  },
-  accountTypeChipActive: {
-    backgroundColor: Colors.primary,
-  },
-  accountTypeText: {
-    fontSize: FontSizes.xs + 1,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-  },
-  accountTypeTextActive: {
-    color: Colors.textOnPrimary,
     fontWeight: '700',
   },
   fieldsContainer: {

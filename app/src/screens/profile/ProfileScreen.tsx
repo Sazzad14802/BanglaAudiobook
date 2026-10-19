@@ -24,7 +24,7 @@ import { useNotifications } from '../../contexts/NotificationsContext';
 import { usePlayer } from '../../contexts/PlayerContext';
 import { useAppNavigation } from '../../navigation/useAppNavigation';
 import { AppLanguage } from '../../storage/languageStorage';
-import { isPremium } from '../../types/auth';
+import { isActivePublisher, isPremium } from '../../types/auth';
 import { formatDate } from '../../utils/format';
 import { Colors, FontSizes, Radius, Spacing } from '../../theme';
 
@@ -41,11 +41,12 @@ export function ProfileScreen() {
   const [saving, setSaving] = useState(false);
 
   if (!user) return null;
-  const isPublisher = user.account_type === 'publisher';
+  const isPublisher = isActivePublisher(user);
   const premium = isPremium(user);
   const displayName = user.full_name || user.username;
 
   const publisherStatus: Record<string, string> = {
+    none: tx('প্রকাশক হোন', 'Become a publisher'),
     pending_approval: tx('যাচাই অপেক্ষমাণ', 'Verification pending'),
     approved_pending_payment: tx('ফি পরিশোধ বাকি', 'Fee payment pending'),
     active: tx('সক্রিয়', 'Active'),
@@ -98,7 +99,7 @@ export function ProfileScreen() {
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <AppHeader
         title={t('profileTitle')}
-        subtitle={isPublisher ? tx('প্রকাশক অ্যাকাউন্ট', 'Publisher account') : tx('শ্রোতা অ্যাকাউন্ট', 'Listener account')}
+        subtitle={isPublisher ? tx('যাচাইকৃত প্রকাশক', 'Verified publisher') : tx('সদস্য', 'Member')}
       />
 
       <ScrollView
@@ -114,29 +115,13 @@ export function ProfileScreen() {
             <Text style={styles.userName}>{displayName}</Text>
             <Text style={styles.userEmail}>{user.email}</Text>
             <View style={styles.badgeRow}>
-              {isPublisher ? (
-                <TagBadge label={publisherStatus[user.publisher_status] ?? user.publisher_status} variant={user.publisher_status === 'active' ? 'free' : 'genre'} />
-              ) : (
-                <TagBadge label={premium ? tx('প্রিমিয়াম', 'PREMIUM') : tx('ফ্রি', 'FREE')} variant={premium ? 'premium' : 'free'} />
-              )}
+              <TagBadge label={premium ? tx('প্রিমিয়াম', 'PREMIUM') : tx('ফ্রি', 'FREE')} variant={premium ? 'premium' : 'free'} />
+              {isPublisher ? <TagBadge label={tx('🎙 প্রকাশক', '🎙 PUBLISHER')} variant="genre" /> : null}
             </View>
           </View>
         </View>
 
-        {isPublisher ? (
-          <View style={styles.highlightCard}>
-            <Text style={styles.highlightTitle}>{tx('প্রকাশক ওয়ার্কস্পেস', 'Publisher workspace')}</Text>
-            <Text style={styles.highlightText}>
-              {user.publisher_status === 'active'
-                ? tx('আয়, চ্যানেল ও উত্তোলন পরিচালনা করুন।', 'Manage earnings, channels and withdrawals.')
-                : user.publisher_status === 'approved_pending_payment'
-                  ? tx('অনুমোদিত! নিবন্ধন ফি দিয়ে প্রকাশনা শুরু করুন।', 'Approved! Pay the registration fee to start publishing.')
-                  : tx('যাচাইকরণ নথি জমা দিয়ে প্রকাশক হন।', 'Submit verification to become a publisher.')}
-            </Text>
-            <AppButton label={tx('খুলুন', 'Open')} onPress={() => navigation.navigate('Publisher')} variant="compact" fullWidth={false} />
-          </View>
-        ) : (
-          <View style={[styles.highlightCard, premium && styles.premiumCard]}>
+        <View style={[styles.highlightCard, premium && styles.premiumCard]}>
             <Text style={styles.highlightTitle}>{premium ? tx('প্রিমিয়াম সক্রিয় ✨', 'Premium is active ✨') : tx('প্রিমিয়ামে আপগ্রেড করুন', 'Upgrade to Premium')}</Text>
             <Text style={styles.highlightText}>
               {premium
@@ -150,19 +135,28 @@ export function ProfileScreen() {
               fullWidth={false}
             />
           </View>
-        )}
 
         <FormCard style={styles.menu}>
-          <ListRow icon="🎧" title={tx('আমার অডিওবুক', 'My audiobooks')} subtitle={tx('তৈরি, সম্পাদনা ও প্রকাশ', 'Created, edit & publish')} onPress={() => navigation.navigate('MyAudiobooks')} />
+          <ListRow icon="🎧" title={tx('আমার অডিওবুক', 'My audiobooks')} subtitle={tx('তৈরি ও সম্পাদনা', 'Created & edit')} onPress={() => navigation.navigate('MyAudiobooks')} />
+          <ListRow
+            icon="🎙"
+            title={isPublisher ? tx('প্রকাশক স্টুডিও', 'Publisher studio') : tx('প্রকাশক হোন', 'Become a publisher')}
+            subtitle={
+              isPublisher
+                ? tx('চ্যানেল, আয় ও উত্তোলন', 'Channels, earnings & withdrawals')
+                : user.publisher_status === 'none'
+                  ? tx('চ্যানেল খুলে অডিওবুক প্রকাশ করুন', 'Open a channel and publish audiobooks')
+                  : publisherStatus[user.publisher_status] ?? user.publisher_status
+            }
+            onPress={() => navigation.navigate('Publisher')}
+          />
           <ListRow
             icon="🔔"
             title={tx('নোটিফিকেশন', 'Notifications')}
             value={unreadCount ? tx(`${unreadCount}টি নতুন`, `${unreadCount} new`) : undefined}
             onPress={() => navigation.navigate('Notifications')}
           />
-          {!isPublisher ? (
-            <ListRow icon="🧾" title={tx('পেমেন্ট ইতিহাস', 'Payment history')} onPress={() => navigation.navigate('Subscription')} />
-          ) : null}
+          <ListRow icon="🧾" title={tx('পেমেন্ট ইতিহাস', 'Payment history')} onPress={() => navigation.navigate('Subscription')} />
           <ListRow icon="✏️" title={tx('নাম পরিবর্তন', 'Edit name')} value={displayName} onPress={() => setEditingName(true)} last />
         </FormCard>
 

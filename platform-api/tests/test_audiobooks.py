@@ -124,6 +124,17 @@ async def test_visibility_and_public_discovery(
     assert disc_1.status_code == 200
     assert not any(item["id"] == book_id for item in disc_1.json()["items"])
 
+    # Publishing requires a channel
+    no_channel = await client.patch(
+        f"/api/v1/audiobooks/{book_id}/visibility",
+        headers=owner_headers,
+        json={"visibility": "PUBLIC"},
+    )
+    assert no_channel.status_code == 409
+    moved = await client.patch(f"/api/v1/audiobooks/{book_id}", headers=owner_headers,
+                               json={"channel_id": owner_tokens["channel_id"]})
+    assert moved.status_code == 200
+
     # Make book PUBLIC, but status is still PENDING
     await client.patch(
         f"/api/v1/audiobooks/{book_id}/visibility",

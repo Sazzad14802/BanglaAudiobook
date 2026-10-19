@@ -91,6 +91,7 @@ async def test_chapter_access_and_visibility(
             visibility=AudiobookVisibility.PUBLIC,
             publication_status="published",
             status=AudiobookStatus.COMPLETED,
+            channel_id=uuid.UUID(owner_tokens["channel_id"]),
         )
     )
     await db_session.commit()

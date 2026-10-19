@@ -221,9 +221,9 @@ class GeminiService:
             "gemini-3.1-flash-tts-preview",
         ]
 
-        prompt = (
-            f"Please read the following text aloud with authentic, expressive, and clear pronunciation:\n\n{text}"
-        )
+        # Send only the text to narrate: TTS models speak the whole prompt, so any
+        # instruction placed here would be read aloud at the start of the audio.
+        prompt = text
 
         for model in candidate_models:
             try:

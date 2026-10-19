@@ -15,21 +15,12 @@ export const enTranslations = {
 
   // Bottom Navigation Tabs
   tabHome: 'Home',
-  tabExplore: 'Explore',
-  tabLibrary: 'Library',
+  tabExplore: 'Search',
+  tabLibrary: 'Your Library',
   tabCreate: 'Create',
   tabProfile: 'Profile',
 
   // Onboarding
-  onboardingStep1Title: 'Return to Stories',
-  onboardingStep1Sub: 'Discover · 1/3',
-  onboardingStep1Desc: 'Discover thousands of classic and contemporary Bangla & English audiobooks.',
-  onboardingStep2Title: 'A World of Listening',
-  onboardingStep2Sub: 'Listen · 2/3',
-  onboardingStep2Desc: 'Save, offline playback, and private playlists—personalized for your journey.',
-  onboardingStep3Title: 'From Text to Voice',
-  onboardingStep3Sub: 'Create · 3/3',
-  onboardingStep3Desc: 'Upload PDFs and create your own narrated audiobooks using AI speech.',
   btnNext: 'Next',
   btnGetStarted: 'Get Started',
   btnContinue: 'Continue',
@@ -112,7 +103,6 @@ export const enTranslations = {
   playerNowPlaying: 'Now Playing',
   playerQueue: 'Chapters Queue',
   speedLabel: 'Speed',
-  timerLabel: 'Sleep Timer',
   addToLibrary: 'Add to Library',
   inLibrary: 'In Library',
 
@@ -186,7 +176,6 @@ export const enTranslations = {
   forgotSuccessSub: 'Password updated · other sessions signed out',
 
   // Chapters & Queue Screen
-  chaptersQueueTitle: 'Chapters & Queue',
   chaptersQueueSub: '{count} chapters · {next} up next',
   upNextSection: 'Up next',
   reorderClearQueue: 'Reorder / Clear Queue',
@@ -269,15 +258,6 @@ export const bnTranslations: Record<TranslationKey, string> = {
   tabProfile: 'প্রোফাইল',
 
   // Onboarding
-  onboardingStep1Title: 'গল্পের কাছে ফিরুন',
-  onboardingStep1Sub: 'Discover · ১/৩',
-  onboardingStep1Desc: 'হাজারো বাংলা ও ইংরেজি ক্লাসিক ও সমকালীন অডিওবুক খুঁজে নিন।',
-  onboardingStep2Title: 'শোনার জগৎ, আপনার মতো',
-  onboardingStep2Sub: 'Listen · ২/৩',
-  onboardingStep2Desc: 'সেভ, অফলাইন লিসেনিং এবং প্রাইভেট প্লেলিস্ট—নিজের সুবিধামতো।',
-  onboardingStep3Title: 'লেখা থেকে কণ্ঠে',
-  onboardingStep3Sub: 'Create · ৩/৩',
-  onboardingStep3Desc: 'পিডিএফ আপলোড করে কৃত্রিম বুদ্ধিমত্তার মাধ্যমে নিজের অডিওবুক তৈরি করুন।',
   btnNext: 'পরবর্তী',
   btnGetStarted: 'শুরু করুন',
   btnContinue: 'চালিয়ে যান',
@@ -360,7 +340,6 @@ export const bnTranslations: Record<TranslationKey, string> = {
   playerNowPlaying: 'এখন বাজছে',
   playerQueue: 'অধ্যায় তালিকা',
   speedLabel: 'গতি',
-  timerLabel: 'স্লিপ টাইমার',
   addToLibrary: 'লাইব্রেরিতে যুক্ত করুন',
   inLibrary: 'লাইব্রেরিতে আছে',
 
@@ -434,7 +413,6 @@ export const bnTranslations: Record<TranslationKey, string> = {
   forgotSuccessSub: 'পাসওয়ার্ড আপডেট হয়েছে · অন্যান্য সেশন লগআউট',
 
   // Chapters & Queue Screen
-  chaptersQueueTitle: 'অধ্যায় ও কিউ',
   chaptersQueueSub: '{count}টি অধ্যায় · {next}টি কিউতে',
   upNextSection: 'পরবর্তীতে বাজবে',
   reorderClearQueue: 'সারিবদ্ধ তালিকা সাজান / খালি করুন',
@@ -506,7 +484,7 @@ export const bnTranslations: Record<TranslationKey, string> = {
 export const mixedTranslations: Record<TranslationKey, string> = {
   ...bnTranslations,
   tabHome: 'Home (হোম)',
-  tabExplore: 'Explore (খুঁজুন)',
+  tabExplore: 'Search (খুঁজুন)',
   tabLibrary: 'Library (লাইব্রেরি)',
   tabCreate: 'Create (তৈরি)',
   tabProfile: 'Profile (প্রোফাইল)',

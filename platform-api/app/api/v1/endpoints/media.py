@@ -113,9 +113,39 @@ async def heartbeat(id: UUID, data: HeartbeatInput, db: DatabaseDep, user: Curre
     await db.commit()
     return {"listened_seconds": row.seconds}
 
-@router.post("/audiobooks/{id}/audio")
-async def upload_audio(id: UUID, db: DatabaseDep, user: ActivePublisherDep, file: UploadFile = File(...)):
+MAX_AUDIO_FILES = 100
+
+
+async def save_mp3(file: UploadFile) -> tuple[str, float]:
+    """Store one uploaded MP3 and return its media key and duration."""
     from mutagen.mp3 import MP3
+    if Path(file.filename or "").suffix.lower() != ".mp3":
+        raise HTTPException(400, f"Only MP3 files are accepted: {file.filename}")
+    folder = Path(settings.UPLOAD_DIR) / "audio"
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / f"{uuid.uuid4()}.mp3"
+    size = 0
+    try:
+        with path.open("wb") as output:
+            while chunk := await file.read(65536):
+                size += len(chunk)
+                if size > settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
+                    raise HTTPException(413, f"Audio exceeds upload limit: {file.filename}")
+                output.write(chunk)
+        duration = MP3(path).info.length
+        if duration <= 0:
+            raise ValueError("Empty audio")
+    except Exception as exc:
+        path.unlink(missing_ok=True)
+        if isinstance(exc, HTTPException):
+            raise
+        raise HTTPException(400, f"Invalid MP3 audio: {file.filename}")
+    return f"/uploads/audio/{path.name}", duration
+
+
+@router.post("/audiobooks/{id}/audio")
+async def upload_audio(id: UUID, db: DatabaseDep, user: ActivePublisherDep, files: list[UploadFile] = File(...)):
+    """Finished narration from a publisher: each MP3, in order, becomes one chapter."""
     from app.models import GenerationJob
     await db.execute(select(User).where(User.id == user.id).with_for_update())
     book = await db.get(Audiobook, id)
@@ -126,34 +156,28 @@ async def upload_audio(id: UUID, db: DatabaseDep, user: ActivePublisherDep, file
     if await db.scalar(select(GenerationJob.id).where(GenerationJob.audiobook_id == id,
             GenerationJob.status.in_([AudiobookStatus.PENDING, AudiobookStatus.PROCESSING]), GenerationJob.cancelled.is_(False))):
         raise HTTPException(409, "Cancel active generation before uploading audio")
-    if Path(file.filename or "").suffix.lower() != ".mp3":
-        raise HTTPException(400, "An MP3 file is required")
-    folder = Path(settings.UPLOAD_DIR) / "audio"
-    folder.mkdir(parents=True, exist_ok=True)
-    path = folder / f"{uuid.uuid4()}.mp3"
-    size = 0
+    if not 0 < len(files) <= MAX_AUDIO_FILES:
+        raise HTTPException(400, f"Upload between 1 and {MAX_AUDIO_FILES} MP3 files")
+
+    saved: list[tuple[str, float, str]] = []
     try:
-        with path.open("wb") as output:
-            while chunk := await file.read(65536):
-                size += len(chunk)
-                if size > settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
-                    raise HTTPException(413, "Audio exceeds upload limit")
-                output.write(chunk)
-        metadata = MP3(path)
-        duration = metadata.info.length
-        if duration <= 0:
-            raise ValueError("Empty audio")
-    except Exception as exc:
-        path.unlink(missing_ok=True)
-        if isinstance(exc, HTTPException):
-            raise
-        raise HTTPException(400, "Invalid MP3 audio")
-    key = f"/uploads/audio/{path.name}"
-    chapter = await db.scalar(select(Chapter).where(Chapter.audiobook_id == id, Chapter.chapter_number == 1))
-    if not chapter:
-        chapter = Chapter(audiobook_id=id, title=book.title, chapter_number=1)
-        db.add(chapter)
-    chapter.audio_url, chapter.duration_seconds = key, duration
-    book.audio_url, book.duration_seconds, book.status = key, duration, AudiobookStatus.COMPLETED
+        for file in files:
+            key, duration = await save_mp3(file)
+            saved.append((key, duration, Path(file.filename or "").stem.strip()))
+    except HTTPException:
+        for key, _, _ in saved:
+            (Path(settings.UPLOAD_DIR) / "audio" / Path(key).name).unlink(missing_ok=True)
+        raise
+
+    existing = (await db.scalars(select(Chapter).where(Chapter.audiobook_id == id))).all()
+    for chapter in existing:
+        await db.delete(chapter)
+    await db.flush()
+    single = len(saved) == 1
+    for number, (key, duration, name) in enumerate(saved, start=1):
+        title = book.title if single else (name or f"Chapter {number}")[:255]
+        db.add(Chapter(audiobook_id=id, title=title, chapter_number=number, audio_url=key, duration_seconds=duration))
+    total = sum(duration for _, duration, _ in saved)
+    book.audio_url, book.duration_seconds, book.status = saved[0][0], total, AudiobookStatus.COMPLETED
     await db.commit()
-    return {"id": book.id, "duration_seconds": duration}
+    return {"id": book.id, "duration_seconds": total, "chapters": len(saved)}

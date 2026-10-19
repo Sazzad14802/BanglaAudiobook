@@ -38,7 +38,7 @@ function tokenFromRedirect(url: string): { accessToken?: string; error?: string 
   };
 }
 
-export async function signInWithGoogle(accountType: 'listener' | 'publisher'): Promise<TokenResponse> {
+export async function signInWithGoogle(): Promise<TokenResponse> {
   if (!isGoogleSignInConfigured()) {
     throw new Error('Google sign-in is not configured. Set EXPO_PUBLIC_SUPABASE_URL in app/.env.');
   }
@@ -54,5 +54,5 @@ export async function signInWithGoogle(accountType: 'listener' | 'publisher'): P
   const { accessToken, error } = tokenFromRedirect(result.url);
   if (!accessToken) throw new Error(error || 'Google did not return a session');
 
-  return apiClient.post<TokenResponse>('/auth/supabase', { access_token: accessToken, account_type: accountType }, false);
+  return apiClient.post<TokenResponse>('/auth/supabase', { access_token: accessToken }, false);
 }

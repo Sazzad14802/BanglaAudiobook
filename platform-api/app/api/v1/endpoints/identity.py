@@ -4,7 +4,6 @@ import secrets
 import smtplib
 from email.message import EmailMessage
 from datetime import datetime, timezone, timedelta
-from typing import Literal
 import jwt
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -37,7 +36,6 @@ async def logout(db: DatabaseDep, user: CurrentUserDep):
 
 class RecoveryRequest(BaseModel):
     email: str = Field(max_length=255)
-    account_type: Literal["listener", "publisher"] = "listener"
 
 class ResetRequest(BaseModel):
     token: str = Field(min_length=20, max_length=200)
@@ -57,8 +55,8 @@ def send_recovery(email, token):
 async def recover(data: RecoveryRequest, db: DatabaseDep):
     if not settings.SMTP_HOST:
         raise HTTPException(503, "Password recovery email is not configured")
-    user = await get_user_by_email(db, data.email.strip().lower(), data.account_type)
-    if user:
+    user = await get_user_by_email(db, data.email.strip().lower())
+    if user and user.account_type == "user":
         token = secrets.token_urlsafe(32)
         db.add(RecoveryToken(digest=hashlib.sha256(token.encode()).hexdigest(), user_id=user.id,
             expires_at=datetime.now(timezone.utc) + timedelta(minutes=20)))
@@ -83,7 +81,6 @@ async def reset(data: ResetRequest, db: DatabaseDep):
 
 class GoogleRequest(BaseModel):
     id_token: str = Field(max_length=10000)
-    account_type: Literal["listener", "publisher"] = "listener"
 
 def google_claims(token):
     if not settings.GOOGLE_CLIENT_IDS:
@@ -99,7 +96,6 @@ def google_claims(token):
 
 class SupabaseRequest(BaseModel):
     access_token: str = Field(min_length=20, max_length=10000)
-    account_type: Literal["listener", "publisher"] = "listener"
 
 
 async def supabase_identity(access_token: str) -> dict:
@@ -128,14 +124,16 @@ async def supabase_login(data: SupabaseRequest, db: DatabaseDep):
     # Only identities verified by Google may sign in, so the email is proven.
     if "google" not in providers or not email:
         raise HTTPException(401, "A verified Google account is required")
-    user = await get_user_by_email(db, email, data.account_type)
+    user = await get_user_by_email(db, email)
+    if user and user.account_type != "user":
+        raise HTTPException(403, "Use the admin portal for administrator accounts")
     if not user:
         from app.services.auth_service import register_user
         metadata = identity.get("user_metadata") or {}
         base = "".join(ch for ch in email.split("@")[0].lower() if ch.isalnum() or ch == "_")[:30] or "user"
         user = await register_user(db, RegisterRequest(
             email=email, username=f"{base}_{secrets.token_hex(3)}", password=secrets.token_urlsafe(32)[:60],
-            account_type=data.account_type, full_name=(metadata.get("full_name") or metadata.get("name") or "")[:150]))
+            full_name=(metadata.get("full_name") or metadata.get("name") or "")[:150]))
         audit(db, user, "account.google_signup", user.id)
         await db.commit()
     if user.suspended:
@@ -146,12 +144,14 @@ async def supabase_login(data: SupabaseRequest, db: DatabaseDep):
 @router.post("/google")
 async def google(data: GoogleRequest, db: DatabaseDep):
     claims = await asyncio.to_thread(google_claims, data.id_token)
-    user = await get_user_by_email(db, claims["email"], data.account_type)
+    user = await get_user_by_email(db, claims["email"])
+    if user and user.account_type != "user":
+        raise HTTPException(403, "Use the admin portal for administrator accounts")
     if not user:
         from app.services.auth_service import register_user
         user = await register_user(db, RegisterRequest(email=claims["email"],
             username="google_" + secrets.token_hex(8), password=secrets.token_urlsafe(32),
-            account_type=data.account_type, full_name=claims.get("name", "")))
+            full_name=claims.get("name", "")))
     if user.suspended:
         raise HTTPException(403, "Account suspended")
     return create_user_token(user)

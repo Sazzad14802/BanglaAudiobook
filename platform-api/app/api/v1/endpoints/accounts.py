@@ -2,13 +2,13 @@ from uuid import UUID
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from sqlalchemy import delete, select, func
-from app.api.deps import DatabaseDep, MemberDep, PublisherDep, ActivePublisherDep
+from app.api.deps import DatabaseDep, MemberDep, ActivePublisherDep
 from app.models import User, Audiobook, PlaybackProgress
 from app.models.platform import (PublisherApplication, Channel, Plan, Order, Withdrawal, Ledger,
     EligibleView, Report, Playlist, PlaylistBook, Quota)
 from app.schemas.platform import ChannelInput, OrderInput, CallbackInput, WithdrawalInput, ReportInput, ProfileInput
 from app.schemas.user import UserRead
-from app.services.policy import audit, configuration, month_now, premium
+from app.services.policy import audit, configuration, is_publisher, month_now, premium
 from app.services.storage_service import get_storage_service
 from app.services.audiobook_service import get_audiobook_for_user
 from app.services import billing
@@ -18,7 +18,7 @@ router = APIRouter()
 
 @router.get("/catalog/publishers")
 async def public_publishers(db: DatabaseDep):
-    users = (await db.scalars(select(User).where(User.account_type == "publisher",
+    users = (await db.scalars(select(User).where(User.account_type == "user",
         User.publisher_status == "active", User.suspended.is_(False)).order_by(User.username).limit(100))).all()
     return [{"id": str(u.id), "name": u.full_name or u.username} for u in users]
 
@@ -26,7 +26,7 @@ async def public_publishers(db: DatabaseDep):
 async def public_channels(db: DatabaseDep):
     rows = (await db.scalars(select(Channel).join(User, User.id == Channel.owner_id).where(
         Channel.moderated.is_(False), User.suspended.is_(False), User.publisher_status == "active",
-        User.account_type == "publisher").order_by(Channel.name).limit(100))).all()
+        User.account_type == "user").order_by(Channel.name).limit(100))).all()
     return [{"id": str(c.id), "name": c.name, "publisher_id": str(c.owner_id)} for c in rows]
 
 @router.post("/generation/{id}/cancel")
@@ -67,13 +67,13 @@ async def profile(data: ProfileInput, db: DatabaseDep, user: MemberDep):
     return UserRead.model_validate(user)
 
 @router.get("/publisher/applications")
-async def applications(db: DatabaseDep, user: PublisherDep):
+async def applications(db: DatabaseDep, user: MemberDep):
     return [record(r) for r in (await db.scalars(select(PublisherApplication).where(PublisherApplication.user_id == user.id).order_by(PublisherApplication.created_at.desc()))).all()]
 
 @router.post("/publisher/applications")
-async def apply(db: DatabaseDep, user: PublisherDep, legal_name: str = Form(..., min_length=2, max_length=150), file: UploadFile = File(...)):
+async def apply(db: DatabaseDep, user: MemberDep, legal_name: str = Form(..., min_length=2, max_length=150), file: UploadFile = File(...)):
     await db.execute(select(User).where(User.id == user.id).with_for_update())
-    if user.publisher_status not in {"pending_approval", "rejected"}:
+    if user.publisher_status not in {"none", "pending_approval", "rejected"}:
         raise HTTPException(409, "Application has already been approved")
     pending = await db.scalar(select(PublisherApplication.id).where(PublisherApplication.user_id == user.id, PublisherApplication.status == "pending"))
     if pending:
@@ -88,12 +88,12 @@ async def apply(db: DatabaseDep, user: PublisherDep, legal_name: str = Form(...,
     return record(row)
 
 @router.get("/publisher/registration-fee")
-async def registration_fee(db: DatabaseDep, user: PublisherDep):
+async def registration_fee(db: DatabaseDep, user: MemberDep):
     """The one-time publisher fee in BDT, as charged by POST /payments."""
     return {"amount": str((await configuration(db))["publisher_fee"]), "currency": "BDT"}
 
 @router.get("/publisher/channels")
-async def channels(db: DatabaseDep, user: PublisherDep):
+async def channels(db: DatabaseDep, user: MemberDep):
     return [record(r) for r in (await db.scalars(select(Channel).where(Channel.owner_id == user.id))).all()]
 
 @router.post("/publisher/channels")
@@ -118,8 +118,6 @@ async def plans(db: DatabaseDep):
 
 @router.post("/subscriptions/cancel")
 async def cancel_subscription(db: DatabaseDep, user: MemberDep):
-    if user.account_type != "listener":
-        raise HTTPException(403, "Listener account required")
     user.subscription_cancelled = True
     audit(db, user, "subscription.cancel", user.id)
     await db.commit()
@@ -161,7 +159,7 @@ async def withdrawal(data: WithdrawalInput, db: DatabaseDep, user: ActivePublish
 @router.get("/generation/quota")
 async def quota(db: DatabaseDep, user: MemberDep):
     policy = await configuration(db)
-    tier = "publisher" if user.account_type == "publisher" else "premium" if premium(user) else "free"
+    tier = "publisher" if is_publisher(user) else "premium" if premium(user) else "free"
     row = await db.get(Quota, (user.id, month_now()))
     return {"used": row.used if row else 0, "limit": policy[tier + "_quota"], "plan": tier, "month": month_now()}
 

@@ -58,11 +58,11 @@ def wav_seconds(data: bytes) -> float:
 
 
 async def ensure_publisher(db, spec: dict) -> User:
-    user = await db.scalar(select(User).where(User.email == spec["email"], User.account_type == "publisher"))
+    user = await db.scalar(select(User).where(User.email == spec["email"]))
     if not user:
         password = secrets.token_urlsafe(12)
         user = User(email=spec["email"], username=spec["username"], password_hash=hash_password(password),
-                    account_type="publisher", full_name=spec["full_name"], publisher_status="active")
+                    account_type="user", full_name=spec["full_name"], publisher_status="active")
         db.add(user)
         await db.flush()
         print(f"Created publisher {spec['email']} (password: {password})")

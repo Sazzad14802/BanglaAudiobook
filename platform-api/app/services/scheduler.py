@@ -37,7 +37,6 @@ async def claim(db):
     jobs = (await db.scalars(select(GenerationJob).join(User, User.id == GenerationJob.owner_id).where(
         GenerationJob.status == AudiobookStatus.PENDING, GenerationJob.cancelled.is_(False),
         User.suspended.is_(False),
-        or_(User.account_type == "listener", User.publisher_status == "active"),
         or_(GenerationJob.available_at.is_(None), GenerationJob.available_at <= now)))).all()
     candidates = [j for j in jobs if j.owner_id not in busy]
     # A busy account cannot take consecutive turns while another account is waiting.

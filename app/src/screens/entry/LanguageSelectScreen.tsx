@@ -19,7 +19,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { AppLanguage } from '../../storage/languageStorage';
 
 interface LanguageSelectScreenProps {
-  onBack: () => void;
+  onBack?: () => void;
   onContinue: (lang: AppLanguage) => void;
 }
 

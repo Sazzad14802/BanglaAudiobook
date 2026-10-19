@@ -61,7 +61,7 @@ export function SearchResultsScreen() {
   const playBook = async (book: Audiobook) => {
     try {
       await loadAudiobook(book);
-      navigation.navigate('Player');
+      navigation.navigate('Player', { audiobookId: book.id });
     } catch (e) {
       Alert.alert(tx('চালানো যায়নি', 'Could not play'), errorMessage(e));
     }
@@ -103,7 +103,7 @@ export function SearchResultsScreen() {
         renderItem={({ item }) => (
           <AudiobookCard
             audiobook={item}
-            onPress={() => navigation.navigate('AudiobookDetails', { audiobookId: item.id })}
+            onPress={() => navigation.navigate('Player', { audiobookId: item.id })}
             onPlayPress={() => playBook(item)}
           />
         )}

@@ -5,19 +5,22 @@
 
 import React from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontSizes, Radius, Spacing } from '../theme';
 
 interface AppHeaderProps {
   title: string;
   subtitle?: string;
   onBack?: () => void;
+  /** 'down' shows a minimize chevron (e.g. the full-screen player) instead of a back arrow. */
+  backIcon?: 'back' | 'down';
   onOptionsPress?: () => void;
   alignCenter?: boolean;
   showLogo?: boolean;
   rightActionText?: string;
   onRightAction?: () => void;
-  /** Icon button (e.g. 🔔) shown on the right; takes precedence over the options menu. */
-  rightIcon?: string;
+  /** Icon button (an Ionicons name) shown on the right; takes precedence over the options menu. */
+  rightIcon?: React.ComponentProps<typeof Ionicons>['name'];
   rightIconLabel?: string;
   onRightIconPress?: () => void;
   badgeCount?: number;
@@ -27,6 +30,7 @@ export function AppHeader({
   title,
   subtitle,
   onBack,
+  backIcon = 'back',
   onOptionsPress,
   alignCenter = false,
   showLogo = false,
@@ -39,16 +43,20 @@ export function AppHeader({
 }: AppHeaderProps) {
   return (
     <View style={styles.header}>
-      <View style={styles.leftContainer}>
+      <View style={[styles.leftContainer, alignCenter && styles.sideCentered]}>
         {onBack ? (
           <Pressable
             onPress={onBack}
             style={({ pressed }) => [styles.iconButton, pressed && styles.iconButtonPressed]}
             hitSlop={12}
-            accessibilityLabel="Go back"
+            accessibilityLabel={backIcon === 'down' ? 'Minimize' : 'Go back'}
             accessibilityRole="button"
           >
-            <Text style={styles.backChevron}>‹</Text>
+            {backIcon === 'down' ? (
+              <Ionicons name="chevron-down" size={26} color={Colors.textPrimary} />
+            ) : (
+              <Text style={styles.backChevron}>‹</Text>
+            )}
           </Pressable>
         ) : showLogo ? (
           <Image
@@ -85,7 +93,7 @@ export function AppHeader({
         </View>
       )}
 
-      <View style={styles.rightContainer}>
+      <View style={[styles.rightContainer, alignCenter && styles.sideCentered]}>
         {rightIcon && onRightIconPress ? (
           <Pressable
             onPress={onRightIconPress}
@@ -94,7 +102,7 @@ export function AppHeader({
             accessibilityLabel={rightIconLabel ?? rightIcon}
             accessibilityRole="button"
           >
-            <Text style={styles.rightIcon}>{rightIcon}</Text>
+            <Ionicons name={rightIcon} size={22} color={Colors.textPrimary} />
             {badgeCount > 0 ? (
               <View style={styles.badge}>
                 <Text style={styles.badgeText}>{badgeCount > 9 ? '9+' : badgeCount}</Text>
@@ -151,6 +159,10 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     minWidth: 32,
   },
+  // With a centred title both sides take equal width, so the title is truly centred.
+  sideCentered: {
+    flex: 1,
+  },
   titleColumn: {
     marginLeft: Spacing.xs,
     justifyContent: 'center',
@@ -188,10 +200,6 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     lineHeight: 24,
     fontWeight: 'bold',
-  },
-  rightIcon: {
-    fontSize: 19,
-    color: Colors.textPrimary,
   },
   badge: {
     position: 'absolute',

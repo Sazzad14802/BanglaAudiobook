@@ -3,7 +3,7 @@
  */
 
 import React from 'react';
-import { Alert, FlatList, RefreshControl, StyleSheet, View } from 'react-native';
+import { Alert, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { AppHeader } from '../../components/AppHeader';
@@ -12,29 +12,18 @@ import { StateView } from '../../components/StateView';
 import { AppButton } from '../../components/AppButton';
 import { playlistsApi } from '../../api/library';
 import { errorMessage } from '../../api/client';
-import { usePlayer } from '../../contexts/PlayerContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useResource } from '../../hooks/useResource';
 import { useAppNavigation } from '../../navigation/useAppNavigation';
 import { SharedStackParamList } from '../../navigation/types';
 import { Audiobook } from '../../types/audiobook';
-import { Colors, Spacing } from '../../theme';
+import { Colors, FontSizes, Radius, Spacing } from '../../theme';
 
 export function PlaylistDetailsScreen() {
   const { navigation } = useAppNavigation();
   const { playlistId, name } = useRoute<RouteProp<SharedStackParamList, 'PlaylistDetails'>>().params;
-  const { loadAudiobook } = usePlayer();
   const { tx } = useLanguage();
   const books = useResource(() => playlistsApi.books(playlistId), [playlistId]);
-
-  const play = async (book: Audiobook) => {
-    try {
-      await loadAudiobook(book);
-      navigation.navigate('Player');
-    } catch (error) {
-      Alert.alert(tx('চালানো যায়নি', 'Could not play'), errorMessage(error));
-    }
-  };
 
   const removeBook = (book: Audiobook) =>
     Alert.alert(book.title, tx('প্লেলিস্ট থেকে সরাবেন?', 'Remove from this playlist?'), [
@@ -83,16 +72,21 @@ export function PlaylistDetailsScreen() {
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={books.isRefreshing} onRefresh={books.refresh} tintColor={Colors.primary} />}
         renderItem={({ item }) => (
-          <View>
-            <AudiobookCard
-              audiobook={item}
-              onPress={() => navigation.navigate('AudiobookDetails', { audiobookId: item.id })}
-              onPlayPress={() => play(item)}
-            />
-            <View style={styles.removeRow}>
-              <AppButton label={tx('সরান', 'Remove')} variant="outline" fullWidth={false} onPress={() => removeBook(item)} />
-            </View>
-          </View>
+          <AudiobookCard
+            audiobook={item}
+            onPress={() => navigation.navigate('Player', { audiobookId: item.id })}
+            trailing={
+              <Pressable
+                onPress={() => removeBook(item)}
+                hitSlop={8}
+                style={({ pressed }) => [styles.removeButton, pressed && styles.removePressed]}
+                accessibilityRole="button"
+                accessibilityLabel={tx(`${item.title} সরান`, `Remove ${item.title}`)}
+              >
+                <Text style={styles.removeText}>{tx('সরান', 'Remove')}</Text>
+              </Pressable>
+            }
+          />
         )}
         ListEmptyComponent={
           books.isLoading ? (
@@ -127,9 +121,21 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xl,
     gap: Spacing.xs,
   },
-  removeRow: {
-    alignItems: 'flex-end',
+  removeButton: {
     paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: Colors.surfaceBorder,
+    backgroundColor: Colors.surface,
+  },
+  removePressed: {
+    opacity: 0.6,
+  },
+  removeText: {
+    fontSize: FontSizes.sm,
+    fontWeight: '700',
+    color: Colors.textPrimary,
   },
   footer: {
     marginTop: Spacing.lg,

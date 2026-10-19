@@ -28,8 +28,8 @@ beforeEach(() => {
         };
       if (path.includes("/admin/summary"))
         data = {
-          listeners: 12,
-          publishers: 3,
+          users: 12,
+          verified_publishers: 3,
           pending_applications: 1,
           audiobooks: 9,
           open_reports: 0,
@@ -41,8 +41,8 @@ beforeEach(() => {
             id: "user-1",
             username: "Reader",
             email: "reader@example.com",
-            account_type: "listener",
-            publisher_status: "pending_approval",
+            account_type: "user",
+            publisher_status: "none",
             suspended: false,
           },
         ];

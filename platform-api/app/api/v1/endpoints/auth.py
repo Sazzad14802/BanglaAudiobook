@@ -64,7 +64,6 @@ async def login(
         db,
         username_or_email=data.username_or_email,
         password=data.password,
-        account_type=data.account_type,
     )
     return auth_service.create_user_token(user)
 

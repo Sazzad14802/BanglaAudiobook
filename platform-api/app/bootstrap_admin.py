@@ -15,8 +15,8 @@ async def main():
     if len(password) < 12:
         raise ValueError("Administrator password must contain at least 12 characters")
     async with async_session_maker() as db:
-        if await db.scalar(select(User.id).where(User.email == email, User.account_type == "admin")):
-            raise ValueError("Administrator already exists")
+        if await db.scalar(select(User.id).where((User.email == email) | (User.username == username))):
+            raise ValueError("An account with this email or username already exists")
         db.add(User(email=email, username=username, password_hash=hash_password(password), account_type="admin"))
         await db.commit()
     print("Administrator created")
